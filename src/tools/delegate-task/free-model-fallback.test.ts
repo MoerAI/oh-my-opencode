@@ -3,16 +3,13 @@
 import { describe, expect, test } from "bun:test"
 import {
   FREE_ONLY_FALLBACK_CHAIN,
-  getFallbackChainForFreeOnlyProviders,
-  getFreeOnlyCategoryDefaultModel,
+  appendFreeModelFallbacks,
   isFreeOnlyProviderConfiguration,
   isKnownFreeModel,
 } from "./free-model-fallback"
 import { CATEGORY_MODEL_REQUIREMENTS } from "../../shared/model-requirements"
 
-const ultrabrainChain = CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain
-const paidModelFromChain = `opencode/${ultrabrainChain[0].model}`
-const firstFreeModel = `opencode/${FREE_ONLY_FALLBACK_CHAIN[0].model}`
+const ultrabrainFallbackChain = CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain
 
 describe("FREE_ONLY_FALLBACK_CHAIN", () => {
   // Deprecated by opencode (https://opencode.ai/zen/v1/models, models.dev catalog).
@@ -57,60 +54,42 @@ describe("isFreeOnlyProviderConfiguration", () => {
   })
 })
 
-describe("getFreeOnlyCategoryDefaultModel", () => {
-  test("passes through category default when not in free-only mode", () => {
-    const result = getFreeOnlyCategoryDefaultModel({
-      categoryDefaultModel: paidModelFromChain,
-      freeOnlyProviderConfiguration: false,
-    })
-    expect(result).toBe(paidModelFromChain)
-  })
-
-  test("passes through user-configured category model even in free-only mode", () => {
-    const result = getFreeOnlyCategoryDefaultModel({
-      categoryDefaultModel: paidModelFromChain,
-      isUserConfiguredCategoryModel: true,
-      freeOnlyProviderConfiguration: true,
-    })
-    expect(result).toBe(paidModelFromChain)
-  })
-
-  test("drops non-free category default in free-only mode", () => {
-    const result = getFreeOnlyCategoryDefaultModel({
-      categoryDefaultModel: paidModelFromChain,
-      freeOnlyProviderConfiguration: true,
-    })
-    expect(result).toBeUndefined()
-  })
-
-  test("keeps free category default in free-only mode", () => {
-    const result = getFreeOnlyCategoryDefaultModel({
-      categoryDefaultModel: firstFreeModel,
-      freeOnlyProviderConfiguration: true,
-    })
-    expect(result).toBe(firstFreeModel)
-  })
-})
-
-describe("getFallbackChainForFreeOnlyProviders", () => {
-  test("returns original chain when not in free-only mode", () => {
-    const result = getFallbackChainForFreeOnlyProviders(ultrabrainChain, false)
-    expect(result).toBe(ultrabrainChain)
-  })
-
-  test("returns FREE_ONLY_FALLBACK_CHAIN when original chain has zero free entries", () => {
-    const result = getFallbackChainForFreeOnlyProviders(ultrabrainChain, true)
+describe("appendFreeModelFallbacks", () => {
+  test("returns FREE_ONLY_FALLBACK_CHAIN when original chain is undefined", () => {
+    const result = appendFreeModelFallbacks(undefined)
     expect(result).toEqual(FREE_ONLY_FALLBACK_CHAIN)
   })
 
-  test("uses full FREE_ONLY_FALLBACK_CHAIN instead of a degraded single-entry filtered chain", () => {
-    const lastFreeModel = FREE_ONLY_FALLBACK_CHAIN[FREE_ONLY_FALLBACK_CHAIN.length - 1].model
-    const chainWithOneFreeEntry = [
-      ...ultrabrainChain,
-      { providers: ["opencode"], model: lastFreeModel },
+  test("returns FREE_ONLY_FALLBACK_CHAIN when original chain is empty", () => {
+    const result = appendFreeModelFallbacks([])
+    expect(result).toEqual(FREE_ONLY_FALLBACK_CHAIN)
+  })
+
+  test("preserves original chain order then appends free models in FREE_ONLY_FALLBACK_CHAIN order", () => {
+    const result = appendFreeModelFallbacks(ultrabrainFallbackChain)
+    expect(result.length).toBeGreaterThan(ultrabrainFallbackChain.length)
+    expect(result.slice(0, ultrabrainFallbackChain.length)).toEqual(ultrabrainFallbackChain)
+
+    const appended = result.slice(ultrabrainFallbackChain.length)
+    const expectedAppended = FREE_ONLY_FALLBACK_CHAIN.filter(
+      (entry) => !ultrabrainFallbackChain.some((e) => e.model === entry.model),
+    )
+    expect(appended).toEqual(expectedAppended)
+  })
+
+  test("does not duplicate free models already present in the chain", () => {
+    const chainWithFreeEntry = [
+      ...ultrabrainFallbackChain,
+      FREE_ONLY_FALLBACK_CHAIN[0],
     ]
-    const result = getFallbackChainForFreeOnlyProviders(chainWithOneFreeEntry, true)
+    const result = appendFreeModelFallbacks(chainWithFreeEntry)
 
-    expect(result).toEqual(FREE_ONLY_FALLBACK_CHAIN)
+    const modelCounts = new Map<string, number>()
+    for (const entry of result) {
+      modelCounts.set(entry.model, (modelCounts.get(entry.model) ?? 0) + 1)
+    }
+    for (const [model, count] of modelCounts) {
+      expect(count).toBe(1)
+    }
   })
 })

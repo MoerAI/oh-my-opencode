@@ -31,33 +31,15 @@ export function isFreeOnlyProviderConfiguration(connectedProviders: string[] | n
     && connectedProviders.every((provider) => FREE_ONLY_PROVIDER_IDS.has(provider))
 }
 
-export function getFreeOnlyCategoryDefaultModel(input: {
-  categoryDefaultModel?: string
-  isUserConfiguredCategoryModel?: boolean
-  freeOnlyProviderConfiguration: boolean
-}): string | undefined {
-  if (!input.freeOnlyProviderConfiguration || input.isUserConfiguredCategoryModel) {
-    return input.categoryDefaultModel
-  }
-
-  if (!input.categoryDefaultModel || !isKnownFreeModel(input.categoryDefaultModel)) {
-    return undefined
-  }
-
-  return input.categoryDefaultModel
-}
-
-export function getFallbackChainForFreeOnlyProviders(
+export function appendFreeModelFallbacks(
   fallbackChain: FallbackEntry[] | undefined,
-  freeOnlyProviderConfiguration: boolean,
-): FallbackEntry[] | undefined {
-  if (!freeOnlyProviderConfiguration || !fallbackChain || fallbackChain.length === 0) {
-    return fallbackChain
+): FallbackEntry[] {
+  if (!fallbackChain || fallbackChain.length === 0) {
+    return FREE_ONLY_FALLBACK_CHAIN
   }
 
-  const freeEntries = fallbackChain.filter((entry) =>
-    entry.providers.includes("opencode") && isKnownFreeModel(entry.model),
-  )
-
-  return freeEntries.length > 0 ? freeEntries : FREE_ONLY_FALLBACK_CHAIN
+  // Ordering matters: original chain first, then free models in FREE_ONLY_FALLBACK_CHAIN priority order.
+  const existingModels = new Set(fallbackChain.map((entry) => entry.model))
+  const newEntries = FREE_ONLY_FALLBACK_CHAIN.filter((entry) => !existingModels.has(entry.model))
+  return [...fallbackChain, ...newEntries]
 }

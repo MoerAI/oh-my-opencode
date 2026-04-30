@@ -5,9 +5,9 @@ import { transformModelForProvider } from "../../shared/provider-model-id-transf
 import { hasConnectedProvidersCache, hasProviderModelsCache, readConnectedProvidersCache } from "../../shared/connected-providers-cache"
 import { log } from "../../shared/logger"
 import {
-  getFallbackChainForFreeOnlyProviders,
-  getFreeOnlyCategoryDefaultModel,
+  appendFreeModelFallbacks,
   isFreeOnlyProviderConfiguration,
+  isKnownFreeModel,
 } from "./free-model-fallback"
 import {
   getExplicitHighBaseModel,
@@ -33,18 +33,13 @@ export function resolveModelForDelegateTask(input: {
     return { model: userModel }
   }
 
-  const connectedProviders = readConnectedProvidersCache()
-  const freeOnlyProviderConfiguration = isFreeOnlyProviderConfiguration(connectedProviders)
+  const connectedProviders = input.availableModels.size === 0 ? readConnectedProvidersCache() : null
 
   if (input.availableModels.size === 0 && !hasProviderModelsCache() && !hasConnectedProvidersCache()) {
     return { skipped: true }
   }
 
-  const categoryDefault = normalizeModel(getFreeOnlyCategoryDefaultModel({
-    categoryDefaultModel: input.categoryDefaultModel,
-    isUserConfiguredCategoryModel: input.isUserConfiguredCategoryModel,
-    freeOnlyProviderConfiguration,
-  }))
+  const categoryDefault = normalizeModel(input.categoryDefaultModel)
   const explicitHighBaseModel = categoryDefault ? getExplicitHighBaseModel(categoryDefault) : null
   const explicitHighModel = explicitHighBaseModel ? categoryDefault : undefined
   if (categoryDefault) {
@@ -113,15 +108,22 @@ export function resolveModelForDelegateTask(input: {
     }
   }
 
-  const fallbackChain = getFallbackChainForFreeOnlyProviders(
-    input.fallbackChain,
-    freeOnlyProviderConfiguration,
-  )
+  const hasModelList = input.availableModels.size > 0
+  const allAvailableModelsAreFree = hasModelList && [...input.availableModels].every((m) => isKnownFreeModel(m))
+  // TODO: connectedProviders can't distinguish free vs paid Zen. Removable once subagent-resolver falls back to a free model instead of matchedAgent.model on cold cache.
+  const onlyFreeProvidersConnected = !hasModelList && isFreeOnlyProviderConfiguration(connectedProviders)
+  const userHasOnlyFreeModels = allAvailableModelsAreFree || onlyFreeProvidersConnected
+
+  const fallbackChain = userHasOnlyFreeModels
+    ? appendFreeModelFallbacks(input.fallbackChain)
+    : input.fallbackChain
   if (fallbackChain && fallbackChain.length > 0) {
     if (input.availableModels.size === 0) {
       if (connectedProviders) {
         const connectedSet = new Set(connectedProviders)
         for (const entry of fallbackChain) {
+          // Cold cache matches by provider, not availability — skip paid models for free-only users.
+          if (userHasOnlyFreeModels && !isKnownFreeModel(entry.model)) continue
           for (const provider of entry.providers) {
             if (connectedSet.has(provider)) {
               const transformedModelId = transformModelForProvider(provider, entry.model)
