@@ -169,6 +169,31 @@ describe("omo launcher", () => {
         ])
       })
 
+      test("#then a filename and header ID mismatch explains the rejected session candidate", () => {
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const headerId = "01a0464c-0661-73a1-8d6c-cc1df9f27972"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        const sessionFile = join(sessionRoot, "project", `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`)
+        writeFile(sessionFile, `${JSON.stringify({
+          type: "session",
+          version: 3,
+          id: headerId,
+          timestamp: "2026-08-28T14:38:25.381Z",
+          cwd: "/tmp/project",
+        })}\n`)
+
+        const result = run(fixture, ["--session", requestedId], { HOME: home })
+
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain(`searched ${sessionRoot}`)
+        expect(result.stderr).toContain(sessionFile)
+        expect(result.stderr).toContain(`header id is '${headerId}'`)
+        expect(result.stderr).toContain(`omo --session ${headerId}`)
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
       test("#then launcher environment points to existing hoisted shims", () => {
         const fixture = createFixture({ hoisted: true })
         const home = join(fixture.root, "home")

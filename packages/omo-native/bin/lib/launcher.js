@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { closeSync, existsSync, openSync, readdirSync, readSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
 import { runDoctor } from "./doctor.js"
@@ -89,12 +89,74 @@ function senpiEnvironment(senpiRoot) {
   return env
 }
 
+function optionValue(args, name) {
+  const inline = args.find((arg) => arg.startsWith(`${name}=`))
+  if (inline) return inline.slice(name.length + 1)
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : undefined
+}
+
+function readSessionHeaderId(filePath) {
+  const buffer = Buffer.allocUnsafe(4096)
+  let fd
+  try {
+    fd = openSync(filePath, "r")
+    const bytesRead = readSync(fd, buffer, 0, buffer.length, 0)
+    const line = buffer.toString("utf8", 0, bytesRead).split(/\r?\n/, 1)[0]
+    const header = JSON.parse(line)
+    return header?.type === "session" && typeof header.id === "string" ? header.id : undefined
+  } catch {
+    return undefined
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+function printSessionResumeDiagnostic(args, env) {
+  const requestedId = optionValue(args, "--session")
+  if (!requestedId || /[\\/]/.test(requestedId) || requestedId.endsWith(".jsonl")) return
+  if (optionValue(args, "--session-dir")) return
+
+  const sessionRoot = join(canonicalAgentDir(env), "sessions")
+  let directories
+  try {
+    directories = readdirSync(sessionRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+      .map((entry) => join(sessionRoot, entry.name))
+  } catch {
+    return
+  }
+
+  const suffix = `_${requestedId}.jsonl`
+  for (const directory of directories) {
+    let candidate
+    try {
+      const filename = readdirSync(directory).find((entry) => entry.endsWith(suffix))
+      if (filename) candidate = join(directory, filename)
+    } catch {
+      continue
+    }
+    if (!candidate) continue
+
+    const headerId = readSessionHeaderId(candidate)
+    if (!headerId || headerId === requestedId) return
+    console.error(`omo: searched ${sessionRoot}`)
+    console.error(
+      `omo: candidate ${candidate} was rejected because its header id is '${headerId}', not filename id '${requestedId}'`,
+    )
+    console.error(`omo: retry with \`omo --session ${headerId}\` or \`omo --session ${candidate}\``)
+    return
+  }
+}
+
 async function spawnSenpi(args, withExtension) {
   const senpi = resolveSenpi()
+  const env = senpiEnvironment(senpi.packageRoot)
+  printSessionResumeDiagnostic(args, env)
   const finalArgs = withExtension
     ? ["--extension", join(packageRoot, "plugin"), ...args]
     : args
-  await spawnNode(senpi.cliPath, finalArgs, { env: senpiEnvironment(senpi.packageRoot) })
+  await spawnNode(senpi.cliPath, finalArgs, { env })
 }
 
 function isInteractiveDefault(args) {
