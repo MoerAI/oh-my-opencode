@@ -1,4 +1,5 @@
 import type { Hooks, Plugin, PluginModule } from "@opencode-ai/plugin"
+import { join } from "node:path"
 import type { HookName } from "../config"
 import { validatePluginConfig } from "../config/validate"
 import { initConfigContext } from "../cli/config-manager/config-context"
@@ -28,6 +29,7 @@ import {
 } from "../shared/external-plugin-detector"
 import { createFirstMessageVariantGate } from "../shared/first-message-variant"
 import { initI18n } from "../shared/i18n"
+import { detectConfigFile, getOpenCodeConfigDirs, readJsoncFile } from "../shared"
 import { log } from "../shared/logger"
 import { logLegacyPluginStartupWarning } from "../shared/log-legacy-plugin-startup-warning"
 import { migrateLegacyWorkspaceDirectory } from "../shared/legacy-workspace-migration"
@@ -156,6 +158,19 @@ function startupToastBody(input: {
   return undefined
 }
 
+function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | undefined {
+  const configDirs = new Set([projectDirectory, ...getOpenCodeConfigDirs({ binary: "opencode" })])
+  for (const configDir of configDirs) {
+    const configFile = detectConfigFile(join(configDir, "opencode"))
+    if (configFile.format === "none") continue
+    const config = readJsoncFile<unknown>(configFile.path)
+    if (typeof config === "object" && config !== null && !Array.isArray(config) && "categories" in config) {
+      return `OMO ignores "categories" in ${configFile.path}; move it to ~/.omo/omo.jsonc.`
+    }
+  }
+  return undefined
+}
+
 export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): PluginModule {
   const deps = { ...defaultPluginModuleDeps, ...overrides }
   let startupMigration: ReturnType<PluginModuleDeps["runOpenCodeStartupMigration"]> | undefined
@@ -169,7 +184,15 @@ export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): P
     deps.migrateLegacyWorkspaceDirectory(input.directory)
     startupMigration ??= deps.runOpenCodeStartupMigration({ cwd: input.directory })
     const startupValidation = deps.loadConfigChain(input.directory)
-    const startupDiagnostics = startupValidation.valid ? [] : startupValidation.messages
+    const misplacedCategoryConfig = misplacedCategoryConfigDiagnostic(input.directory)
+    if (misplacedCategoryConfig !== undefined) {
+      console.warn(`[oh-my-openagent] ${misplacedCategoryConfig}`)
+      deps.log("[config] ignored misplaced category overrides", { diagnostic: misplacedCategoryConfig })
+    }
+    const startupDiagnostics = [
+      ...(startupValidation.valid ? [] : startupValidation.messages),
+      ...(misplacedCategoryConfig === undefined ? [] : [misplacedCategoryConfig]),
+    ]
     deps.log("[config-migration] startup completed", {
       error: startupMigration.error,
       journalResumed: startupMigration.journalResumed,

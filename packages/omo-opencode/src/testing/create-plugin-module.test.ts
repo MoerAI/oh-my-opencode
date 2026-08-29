@@ -359,6 +359,54 @@ describe("createPluginModule()", () => {
     })
   })
 
+  describe("#given OMO categories are placed in OpenCode configuration", () => {
+    it("#then startup warns that the category overrides are ignored", async () => {
+      // given
+      const configDir = mkdtempSync(join(tmpdir(), "omo-misplaced-categories-"))
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      writeFileSync(join(configDir, "opencode.jsonc"), `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`)
+      process.env.OPENCODE_CONFIG_DIR = configDir
+      const showToast = mock(async () => ({}))
+      const consoleWarn = mock(() => {})
+      const originalWarn = console.warn
+      console.warn = consoleWarn
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: "/tmp/project",
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        expect(showToast).toHaveBeenCalledTimes(1)
+        expect(showToast.mock.calls[0]?.[0]).toMatchObject({
+          body: {
+            title: "Configuration diagnostics",
+            message: expect.stringContaining("~/.omo/omo.jsonc"),
+            variant: "warning",
+          },
+        })
+        expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining("opencode.jsonc"))
+        expect(mockLog).toHaveBeenCalledWith(
+          "[config] ignored misplaced category overrides",
+          { diagnostic: expect.stringContaining("~/.omo/omo.jsonc") },
+        )
+      } finally {
+        console.warn = originalWarn
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(configDir, { recursive: true, force: true })
+      }
+    })
+  })
+
   describe("#given startup migration consumes legacy configuration", () => {
     it("#then startup reloads the config and emits one migration summary toast", async () => {
       // given
