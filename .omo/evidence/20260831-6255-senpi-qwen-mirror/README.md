@@ -36,6 +36,7 @@
 - After running `node packages/omo-senpi/plugin/scripts/build-extension.mjs`:
   - the four committed executable bundles containing `senpi-task` were regenerated;
   - `bun test packages/omo-senpi/plugin/scripts/build-extension.test.mjs` passed 12 tests with 27 assertions.
+- The CI workflow uses Bun 1.4.0 for deterministic bundle bytes. Regenerating and testing through `bunx bun@1.4.0` also passed 12 tests with 27 assertions and produced the committed final bundle digests.
 
 ## Why this is enough
 
