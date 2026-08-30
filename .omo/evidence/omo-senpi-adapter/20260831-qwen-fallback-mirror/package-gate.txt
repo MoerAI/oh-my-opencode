@@ -1,0 +1,14 @@
+bunx bun@1.4.0 run test:senpi
+exit: 0
+
+Largest combined suite:
+2429 pass
+1 platform-specific skip
+0 fail
+7827 expect() calls
+324 files
+
+Evidence-resolver contract:
+10 pass
+0 fail
+31 expect() calls
