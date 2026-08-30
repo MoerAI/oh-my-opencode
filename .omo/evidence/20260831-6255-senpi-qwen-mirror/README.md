@@ -32,6 +32,10 @@
     explore: qwen3.7-plus
     librarian: qwen3.7-plus
     ```
+- Initial GitHub CI correctly rejected the source-only commit at `Verify committed Senpi plugin bundle is current`.
+- After running `node packages/omo-senpi/plugin/scripts/build-extension.mjs`:
+  - the four committed executable bundles containing `senpi-task` were regenerated;
+  - `bun test packages/omo-senpi/plugin/scripts/build-extension.test.mjs` passed 12 tests with 27 assertions.
 
 ## Why this is enough
 
