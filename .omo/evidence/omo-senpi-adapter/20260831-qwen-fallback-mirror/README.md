@@ -57,7 +57,7 @@ The six extra task-lifecycle failures are retained rather than hidden. They exer
 
 ## Cleanup receipt
 
-- Live adapter sandbox `omo-senpi-qa-JkGw4n`: absent after driver exit.
+- Live adapter sandbox `omo-senpi-qa-bKT9OZ`: absent after driver exit.
 - Nine task-driver sandbox roots: removed after verdict capture.
 - Task-driver spawned PIDs: 0 leaked.
 - No server, tmux session, browser context, container, port, or task-owned temporary directory remains.
@@ -98,3 +98,19 @@ Observed after the merge:
 The merge refresh exercises the same fallback export through current
 Senpi package wiring and confirms that current upstream task/runtime changes
 did not alter the Qwen 3.7 fallback contract.
+
+## Final OpenCode-only upstream refresh
+
+`upstream/dev` advanced once more to `6fca00f2d`. That delta touches only
+OpenCode prompt-gate/monitor files and reference documentation, with no Senpi
+source, package, lockfile, or generated input.
+
+After merging it cleanly:
+
+- focused fallback suite: 7 pass, 0 fail, 202 assertions;
+- senpi-task and adapter tsgo: pass;
+- all-six extension bundle freshness: pass;
+- real isolated adapter: `result=PASS`, caller agent directory ignored,
+  protected Senpi/OMO state unchanged, and one concurrent volatile session
+  write redacted in `live-driver.json`;
+- adapter sandbox `$TMPDIR/omo-senpi-qa-bKT9OZ` and matching process removed.
