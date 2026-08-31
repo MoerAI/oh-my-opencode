@@ -65,3 +65,31 @@ The six extra task-lifecycle failures are retained rather than hidden. They exer
 ## What was omitted
 
 Raw dependency-install logs and compiler progress were summarized because they add no behavioral evidence. No credentials, provider tokens, authentication headers, environment dumps, private local configuration, or unrelated real-session content are included.
+
+## Current-dev merge refresh
+
+After the branch conflicted with current `dev`, the source and focused test
+merged automatically. The generated `omo-task.js` conflict was resolved only
+by rebuilding all six Senpi bundles with the CI Bun 1.4.0 runtime.
+
+Observed after the merge:
+
+- focused fallback suite: 7 pass, 0 fail, 202 assertions;
+- adapter tsgo: pass;
+- full `test:senpi`: 2461 pass, 1 platform skip, 0 fail, 7906 assertions
+  across 327 files;
+- evidence resolver: 10 pass, 0 fail;
+- live driver self-test: pass;
+- real isolated Senpi adapter: `result=PASS`,
+  `realSenpiUntouched=true`, `realSenpiChangedPaths=[]`,
+  `realSenpiProtectedChangedPaths=[]`,
+  `realSenpiCredentialDigestUntouched=true`, and
+  `realOmoUntouched=true`;
+- the only observed host change was attributed to an already-active volatile
+  session and is redacted in `live-driver.json`;
+- sandbox `$TMPDIR/omo-senpi-qa-79SDyP` was removed and no matching process
+  remained.
+
+The merge refresh exercises the same fallback export through current
+Senpi package wiring and confirms that current upstream task/runtime changes
+did not alter the Qwen 3.7 fallback contract.

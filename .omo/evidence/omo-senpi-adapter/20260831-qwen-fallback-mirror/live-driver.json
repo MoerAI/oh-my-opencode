@@ -2,8 +2,22 @@
   "result": "PASS",
   "ultraworkInjected": true,
   "commentChecker": "PASS",
-  "realSenpiUntouched": false,
+  "realSenpiUntouched": true,
+  "realSenpiChangedPaths": [],
+  "realSenpiObservedChangedPaths": [
+    "<concurrent-volatile-session>.jsonl"
+  ],
+  "realSenpiVolatileChangedPaths": [
+    "<concurrent-volatile-session>.jsonl"
+  ],
+  "realSenpiProtectedChangedPaths": [],
+  "realSenpiCredentialDigestUntouched": true,
+  "realOmoUntouched": true,
+  "realOmoChangedPaths": [],
+  "realOmoObservedChangedPaths": [],
+  "realOmoVolatileChangedPaths": [],
+  "realOmoProtectedChangedPaths": [],
   "providedSenpiCodingAgentDir": "unset",
-  "sandboxAgentDir": "/private/var/folders/13/yyrkyfts6qsg303mcwpwzq200000gn/T/omo-senpi-qa-WUZkH1/agent",
-  "sandboxCwd": "/private/var/folders/13/yyrkyfts6qsg303mcwpwzq200000gn/T/omo-senpi-qa-WUZkH1/project"
+  "sandboxAgentDir": "$TMPDIR/omo-senpi-qa-79SDyP/agent",
+  "sandboxCwd": "$TMPDIR/omo-senpi-qa-79SDyP/project"
 }

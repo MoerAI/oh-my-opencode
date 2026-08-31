@@ -2,11 +2,11 @@ bunx bun@1.4.0 run test:senpi
 exit: 0
 
 Largest combined suite:
-2429 pass
+2461 pass
 1 platform-specific skip
 0 fail
-7827 expect() calls
-324 files
+7906 expect() calls
+327 files
 
 Evidence-resolver contract:
 10 pass

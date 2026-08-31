@@ -104,6 +104,7 @@ export function wireEventBridge(
     const shutdownEvent = payload as SessionShutdownEvent
     const parentSessionId = engine.runtime.sessionId()
     const reason = shutdownEvent.reason
+    engine.lifecycle.dispose?.()
     if (parentSessionId === undefined || typeof reason !== "string") {
       ctx.logger.warn(
         "omo-senpi task session_shutdown skipped: no captured session id or malformed reason",
