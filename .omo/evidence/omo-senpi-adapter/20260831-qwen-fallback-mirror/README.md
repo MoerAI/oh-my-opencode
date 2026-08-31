@@ -57,7 +57,7 @@ The six extra task-lifecycle failures are retained rather than hidden. They exer
 
 ## Cleanup receipt
 
-- Live adapter sandbox `omo-senpi-qa-WUZkH1`: absent after driver exit.
+- Live adapter sandbox `omo-senpi-qa-JkGw4n`: absent after driver exit.
 - Nine task-driver sandbox roots: removed after verdict capture.
 - Task-driver spawned PIDs: 0 leaked.
 - No server, tmux session, browser context, container, port, or task-owned temporary directory remains.
@@ -68,27 +68,32 @@ Raw dependency-install logs and compiler progress were summarized because they a
 
 ## Current-dev merge refresh
 
-After the branch conflicted with current `dev`, the source and focused test
-merged automatically. The generated `omo-task.js` conflict was resolved only
-by rebuilding all six Senpi bundles with the CI Bun 1.4.0 runtime.
+After the branch conflicted with `upstream/dev@ee7ae5d66`, the source and
+focused test merged automatically. The generated `omo-task.js` conflict was
+resolved only by rebuilding all six Senpi bundles with the canonical build
+script.
 
 Observed after the merge:
 
 - focused fallback suite: 7 pass, 0 fail, 202 assertions;
-- adapter tsgo: pass;
+- senpi-task and adapter tsgo: pass;
 - full `test:senpi`: 2461 pass, 1 platform skip, 0 fail, 7906 assertions
   across 327 files;
-- evidence resolver: 10 pass, 0 fail;
+- evidence resolver: 10 pass, 0 fail, 31 assertions;
 - live driver self-test: pass;
 - real isolated Senpi adapter: `result=PASS`,
   `realSenpiUntouched=true`, `realSenpiChangedPaths=[]`,
   `realSenpiProtectedChangedPaths=[]`,
   `realSenpiCredentialDigestUntouched=true`, and
   `realOmoUntouched=true`;
-- the only observed host change was attributed to an already-active volatile
-  session and is redacted in `live-driver.json`;
-- sandbox `$TMPDIR/omo-senpi-qa-79SDyP` was removed and no matching process
-  remained.
+- the caller-provided agent directory was ignored and no real Senpi or OMO
+  path change was observed;
+- real task-DAG issue observables passed with one child extension marker,
+  main exit `0`, and leaked PID count `0`; the same six unrelated lifecycle
+  failures remain disclosed in `live-task-dag/verdict.redacted.json`;
+- adapter sandbox `$TMPDIR/omo-senpi-qa-JkGw4n`, all nine task sandboxes,
+  and the raw final-driver directory were removed with no matching process
+  remaining.
 
 The merge refresh exercises the same fallback export through current
 Senpi package wiring and confirms that current upstream task/runtime changes

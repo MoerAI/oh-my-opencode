@@ -4,12 +4,8 @@
   "commentChecker": "PASS",
   "realSenpiUntouched": true,
   "realSenpiChangedPaths": [],
-  "realSenpiObservedChangedPaths": [
-    "<concurrent-volatile-session>.jsonl"
-  ],
-  "realSenpiVolatileChangedPaths": [
-    "<concurrent-volatile-session>.jsonl"
-  ],
+  "realSenpiObservedChangedPaths": [],
+  "realSenpiVolatileChangedPaths": [],
   "realSenpiProtectedChangedPaths": [],
   "realSenpiCredentialDigestUntouched": true,
   "realOmoUntouched": true,
@@ -17,7 +13,7 @@
   "realOmoObservedChangedPaths": [],
   "realOmoVolatileChangedPaths": [],
   "realOmoProtectedChangedPaths": [],
-  "providedSenpiCodingAgentDir": "unset",
-  "sandboxAgentDir": "$TMPDIR/omo-senpi-qa-79SDyP/agent",
-  "sandboxCwd": "$TMPDIR/omo-senpi-qa-79SDyP/project"
+  "providedSenpiCodingAgentDir": "IGNORED",
+  "sandboxAgentDir": "$TMPDIR/omo-senpi-qa-JkGw4n/agent",
+  "sandboxCwd": "$TMPDIR/omo-senpi-qa-JkGw4n/project"
 }
