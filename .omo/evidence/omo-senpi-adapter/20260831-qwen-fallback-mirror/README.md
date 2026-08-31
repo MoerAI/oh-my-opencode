@@ -57,7 +57,7 @@ The six extra task-lifecycle failures are retained rather than hidden. They exer
 
 ## Cleanup receipt
 
-- Live adapter sandbox `omo-senpi-qa-bKT9OZ`: absent after driver exit.
+- Live adapter sandbox `omo-senpi-qa-okSRDG`: absent after driver exit.
 - Nine task-driver sandbox roots: removed after verdict capture.
 - Task-driver spawned PIDs: 0 leaked.
 - No server, tmux session, browser context, container, port, or task-owned temporary directory remains.
@@ -114,3 +114,27 @@ After merging it cleanly:
   protected Senpi/OMO state unchanged, and one concurrent volatile session
   write redacted in `live-driver.json`;
 - adapter sandbox `$TMPDIR/omo-senpi-qa-bKT9OZ` and matching process removed.
+
+## Ubuntu CI bundle-parity repair
+
+The first final head failed only
+`senpi-compatibility (ubuntu-latest)` because `omo.js` was generated and
+checked locally with Bun 1.3.14 while the CI artifact contract uses Bun
+1.4.0. The failed job reported `stale-output`; no test or runtime assertion
+failed.
+
+The repair merged `upstream/dev@00fc6bdb8`, including its LSP source fix and
+Senpi bundle refresh, then rebuilt the LSP runtime and all six extensions with
+an isolated official Bun 1.4.0 binary.
+
+Observed after repair:
+
+- exact Bun 1.4.0 `test:senpi`: 2461 pass, one Windows skip, 0 fail,
+  7906 assertions across 327 files;
+- evidence resolver: 10 pass, 0 fail, 31 assertions;
+- Bun 1.4.0 all-six bundle freshness: pass;
+- focused fallback suite: 7 pass, 0 fail, 202 assertions;
+- real isolated adapter: `result=PASS`, caller agent directory ignored,
+  protected Senpi/OMO state unchanged, and no observed host path change;
+- adapter sandbox `$TMPDIR/omo-senpi-qa-okSRDG`, isolated Bun runtime, and
+  build-check scratch directory removed.
