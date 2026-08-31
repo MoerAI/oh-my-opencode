@@ -12,3 +12,17 @@ Evidence-resolver contract:
 10 pass
 0 fail
 31 expect() calls
+
+Owner-fix upstream refresh:
+official Bun 1.4.0
+merge head: 8b9ca08855968bd01dc65aeaf039a1349a2153b7
+2464 pass
+1 Windows-only skip
+0 fail
+7914 expect() calls
+327 files
+
+Evidence-resolver contract:
+10 pass
+0 fail
+31 expect() calls

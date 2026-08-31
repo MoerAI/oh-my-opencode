@@ -138,3 +138,30 @@ Observed after repair:
   protected Senpi/OMO state unchanged, and no observed host path change;
 - adapter sandbox `$TMPDIR/omo-senpi-qa-okSRDG`, isolated Bun runtime, and
   build-check scratch directory removed.
+
+## Owner-fix upstream refresh
+
+After maintainer PR #7560 landed, `upstream/dev` advanced to
+`b5cbae3fb8778a06f70aa7aada35c8be72f0dba0` and made this PR conflict only in
+the generated `omo-task.js` bundle. The branch merged that exact upstream and
+regenerated all six Senpi extensions with official Bun 1.4.0.
+
+Observed on merge head `8b9ca08855968bd01dc65aeaf039a1349a2153b7`:
+
+- focused fallback, model-requirements, and built-in-agent suites passed;
+- package typechecks and adapter tsgo passed;
+- all-six extension freshness passed;
+- exact Bun 1.4.0 `test:senpi`: 2464 pass, one Windows-only skip, zero
+  failures, and 7914 assertions across 327 files;
+- evidence resolver: 10 pass, zero failures, and 31 assertions;
+- live driver self-test: pass;
+- real isolated adapter: `result=PASS`, ultrawork injected, comment checker
+  passed, real Senpi/OMO protected state unchanged, and credential digest
+  unchanged;
+- one unrelated live session log changed as volatile background activity and
+  was not attributed to the adapter run;
+- adapter sandbox `$TMPDIR/omo-senpi-qa-nqhcGX` and its matching processes
+  were removed.
+
+The latest owner changes affect RPC-child startup recovery, while this PR's
+curated Qwen fallback source and generated runtime export remain intact.
