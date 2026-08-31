@@ -52,7 +52,7 @@ Conventions for human contributors and AI agents working on this repository.
 - `src/spawn-guard.ts`, `src/stop-resume-hook.ts`: spawn guards, Stop auto-resume.
 - `src/surface.ts`: toolkit surface + reviewer-identity resolution (`lazycodex` default; staged `surface.json` marker or `OMO_AGENT_TOOLKIT_SURFACE` selects `omo-senpi`).
 - `src/ultrawork-skill-pointer.ts`: byte-identical mirror of ultrawork's pointer (pinned by `plugin/test/ultrawork-skill-pointer.test.mjs`).
-- `directive.md`: runtime-read directive (never inlined into TypeScript).
+- `directive.md`: runtime-read directive (never inlined into TypeScript). GENERATED from the canonical `packages/prompts-core/prompts/ultrawork/codex.md` by `components/ultrawork/scripts/sync-directive.mjs` and checked in, because this package is published standalone with no prompts-core dependency. Do not hand-edit; byte identity is pinned by `test/ultrawork-directive.test.ts`.
 
 ## Build and Hooks
 
