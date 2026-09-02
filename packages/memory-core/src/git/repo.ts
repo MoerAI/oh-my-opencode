@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs"
-import { mkdir, writeFile } from "node:fs/promises"
+import { existsSync } from "../fs/resilient"
+import { mkdir, writeFile } from "../fs/resilient"
 import { dirname, join } from "node:path"
 import { withGitLockRetry, withSerializedGitConfigMutation } from "./config-lock"
 import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
@@ -48,7 +48,7 @@ export class GitMemoryRepo {
   async init(options: InitializeGitRepoOptions = {}): Promise<string> {
     await mkdir(this.dir, { recursive: true })
     if (!existsSync(join(this.dir, ".git"))) {
-      await withGitLockRetry(() => this.git(["init"]))
+      await withGitLockRetry(() => this.git(["init", "--template="]))
       await withGitLockRetry(() => this.git(["symbolic-ref", "HEAD", "refs/heads/main"]))
     }
 
