@@ -101,6 +101,18 @@
 - Adapter typecheck, full build, QA helper checks, and a final real OpenCode
   warning run passed. The sandbox database remained empty and the real
   database stayed at 8072 sessions. See `symlink-target-followup.txt`.
+- Scope-precedence review failed first at 9 pass and 2 fail: an overlapping
+  `OPENCODE_CONFIG_DIR` kept its user target, and the HOME boundary used
+  project symlink rules. The corrected scanner reconciles canonical duplicate
+  sources in favor of project scope and treats both configured HOME and the
+  account home as user boundaries.
+- A proactive dual-home parity case failed first at 11 pass and 1 fail, then
+  the complete focused suites passed 35 tests with 0 failures and 77
+  assertions. Adapter typecheck, full build, and QA helper checks passed.
+- A real OpenCode run with `OPENCODE_CONFIG_DIR=<project>/.opencode` emitted
+  exactly one warning targeting `<project>/.omo/omo.jsonc`, not the user
+  layer. The sandbox database remained empty and the real database stayed at
+  8072 sessions. See `scope-precedence-followup.txt`.
 
 ## Why this is enough
 

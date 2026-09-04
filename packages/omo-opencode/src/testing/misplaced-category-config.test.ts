@@ -235,4 +235,78 @@ describe("misplaced OpenCode category diagnostics", () => {
       message.includes(".omo directory")
     )).toBe(true)
   })
+
+  test("#given OPENCODE_CONFIG_DIR overlaps project config #when diagnosed #then project scope wins", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const projectDirectory = join(root, "workspace")
+    const openCodeConfigDir = join(projectDirectory, ".opencode")
+    mkdirSync(openCodeConfigDir, { recursive: true })
+    writeFileSync(join(openCodeConfigDir, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = openCodeConfigDir
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics).toHaveLength(1)
+    expect(diagnostics[0]).toContain(join(".omo", "omo.jsonc"))
+    expect(diagnostics[0]).not.toContain("~/.omo/")
+  })
+
+  test("#given a symlinked user .omo at the home boundary #when diagnosed #then user scope stays loadable", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const projectDirectory = join(homeDirectory, "project")
+    const actualConfigDir = join(root, "actual-user-omo")
+    const userConfigDir = join(homeDirectory, ".omo")
+    mkdirSync(projectDirectory, { recursive: true })
+    mkdirSync(actualConfigDir, { recursive: true })
+    writeFileSync(join(actualConfigDir, "omo.json"), "{}")
+    symlinkSync(
+      actualConfigDir,
+      userConfigDir,
+      process.platform === "win32" ? "junction" : "dir",
+    )
+    writeFileSync(join(homeDirectory, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes("~/.omo/omo.json."))).toBe(true)
+    expect(diagnostics.some((message) => message.includes("after replacing"))).toBe(false)
+  })
+
+  test("#given HOME differs from the account home #when diagnosed #then either boundary stops discovery", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "configured-home")
+    const accountHomeDirectory = join(root, "account-home")
+    const projectDirectory = join(accountHomeDirectory, "project")
+    const accountHomeConfig = join(accountHomeDirectory, "opencode.jsonc")
+    const aboveBoundaryConfig = join(root, "opencode.jsonc")
+    mkdirSync(projectDirectory, { recursive: true })
+    writeFileSync(accountHomeConfig, misplacedConfig())
+    writeFileSync(aboveBoundaryConfig, misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      accountHomeDirectory,
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes(accountHomeConfig))).toBe(true)
+    expect(diagnostics.some((message) => message.includes(aboveBoundaryConfig))).toBe(false)
+    expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(true)
+  })
 })

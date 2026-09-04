@@ -40,3 +40,9 @@ Symlink-target corrected focused suites: 32 pass, 0 fail, 69 assertions.
 Symlink-target adapter typecheck and full build: PASS.
 Symlink-target OpenCode QA common self-check and SSE self-test: PASS.
 Symlink-target final real OpenCode run and sandbox containment: PASS.
+Scope-precedence failing-first suite: 9 pass, 2 fail, 17 assertions.
+Dual-home parity failing-first suite: 11 pass, 1 fail, 21 assertions.
+Scope-precedence corrected focused suites: 35 pass, 0 fail, 77 assertions.
+Scope-precedence adapter typecheck and full build: PASS.
+Scope-precedence OpenCode QA common self-check and SSE self-test: PASS.
+Scope-precedence real OpenCode run and sandbox containment: PASS.

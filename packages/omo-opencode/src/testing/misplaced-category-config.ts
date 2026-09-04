@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs"
-import { homedir } from "node:os"
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { homedir, userInfo } from "node:os"
+import { basename, dirname, join, resolve } from "node:path"
 import {
   detectConfigFile,
   getOpenCodeConfigDiscoveryDirs,
@@ -10,12 +10,16 @@ import {
 
 type ConfigCandidate = {
   readonly filePath: string
+  readonly priority: number
   readonly targetConfigPath: string
 }
 
 type DiagnosticOptions = {
+  readonly accountHomeDirectory?: string
   readonly homeDirectory?: string
 }
+
+const ACCOUNT_HOME_DIRECTORY = userInfo().homedir
 
 function detectedFile(basePath: string): string | undefined {
   const result = detectConfigFile(basePath)
@@ -27,20 +31,16 @@ function pathKey(filePath: string): string {
   return process.platform === "win32" ? normalized.toLowerCase() : normalized
 }
 
-function isWithin(parent: string, child: string): boolean {
-  const relativePath = relative(parent, child)
-  return relativePath === "" ||
-    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
-}
-
-function ancestorDirectories(directory: string, homeDirectory: string): string[] {
+function ancestorDirectories(
+  directory: string,
+  homeDirectories: readonly string[],
+): string[] {
   const directories: string[] = []
-  const home = canonicalPath(homeDirectory)
+  const homeKeys = new Set(homeDirectories.map((path) => pathKey(canonicalPath(path))))
   let current = canonicalPath(directory)
-  const stopAtHome = isWithin(home, current)
   while (true) {
     directories.push(current)
-    if (stopAtHome && pathKey(current) === pathKey(home)) {
+    if (homeKeys.has(pathKey(current))) {
       return directories.reverse()
     }
     const parent = dirname(current)
@@ -130,37 +130,66 @@ function hasTopLevelCategories(config: unknown): boolean {
     "categories" in config
 }
 
-function configCandidates(projectDirectory: string, homeDirectory: string): ConfigCandidate[] {
-  const candidates: ConfigCandidate[] = []
-  const seen = new Set<string>()
-  const add = (filePath: string | undefined, targetConfigPath: string): void => {
-    if (filePath === undefined || seen.has(filePath)) return
-    seen.add(filePath)
-    candidates.push({ filePath, targetConfigPath })
+function configCandidates(
+  projectDirectory: string,
+  homeDirectory: string,
+  accountHomeDirectory: string,
+): ConfigCandidate[] {
+  const candidates = new Map<string, ConfigCandidate>()
+  const add = (
+    filePath: string | undefined,
+    targetConfigPath: string,
+    priority: number,
+  ): void => {
+    if (filePath === undefined) return
+    const key = pathKey(canonicalPath(filePath))
+    const existing = candidates.get(key)
+    if (existing !== undefined && existing.priority >= priority) return
+    candidates.set(key, { filePath, priority, targetConfigPath })
   }
 
   for (const configDir of getOpenCodeConfigDiscoveryDirs()) {
-    add(detectedFile(join(configDir, "opencode")), userTargetPath(configDir, homeDirectory))
+    add(
+      detectedFile(join(configDir, "opencode")),
+      userTargetPath(configDir, homeDirectory),
+      0,
+    )
   }
 
   const explicitConfig = process.env.OPENCODE_CONFIG?.trim()
-  if (explicitConfig) add(resolve(explicitConfig), userOmoTargetPath(homeDirectory))
+  if (explicitConfig) {
+    add(resolve(explicitConfig), userOmoTargetPath(homeDirectory), 0)
+  }
 
-  const ancestors = ancestorDirectories(projectDirectory, homeDirectory)
+  const homeKeys = new Set(
+    [homeDirectory, accountHomeDirectory].map((path) => pathKey(canonicalPath(path))),
+  )
+  const ancestors = ancestorDirectories(projectDirectory, [
+    homeDirectory,
+    accountHomeDirectory,
+  ])
   for (const directory of ancestors) {
+    const target = homeKeys.has(pathKey(canonicalPath(directory)))
+      ? userOmoTargetPath(homeDirectory)
+      : projectOmoTargetPath(directory)
     add(
       detectedFile(join(directory, "opencode")),
-      projectOmoTargetPath(directory),
+      target,
+      1,
     )
   }
   for (const directory of ancestors) {
+    const target = homeKeys.has(pathKey(canonicalPath(directory)))
+      ? userOmoTargetPath(homeDirectory)
+      : projectOmoTargetPath(directory)
     add(
       detectedFile(join(directory, ".opencode", "opencode")),
-      projectOmoTargetPath(directory),
+      target,
+      1,
     )
   }
 
-  return candidates
+  return [...candidates.values()]
 }
 
 export function getMisplacedCategoryConfigDiagnostics(
@@ -168,7 +197,14 @@ export function getMisplacedCategoryConfigDiagnostics(
   options: DiagnosticOptions = {},
 ): string[] {
   const diagnostics: string[] = []
-  for (const candidate of configCandidates(projectDirectory, options.homeDirectory ?? homedir())) {
+  const homeDirectory = options.homeDirectory ?? homedir()
+  for (
+    const candidate of configCandidates(
+      projectDirectory,
+      homeDirectory,
+      options.accountHomeDirectory ?? ACCOUNT_HOME_DIRECTORY,
+    )
+  ) {
     const config = readJsoncFile<unknown>(candidate.filePath)
     if (!hasTopLevelCategories(config)) continue
     diagnostics.push(
@@ -185,7 +221,7 @@ export function getMisplacedCategoryConfigDiagnostics(
         ? profileNameFromConfigDir(configuredDir)
         : undefined
       diagnostics.push(
-        `OMO ignores "categories" in OPENCODE_CONFIG_CONTENT; move it to ${targetPath(userOmoTargetPath(options.homeDirectory ?? homedir()), profileName)}.`,
+        `OMO ignores "categories" in OPENCODE_CONFIG_CONTENT; move it to ${targetPath(userOmoTargetPath(homeDirectory), profileName)}.`,
       )
     }
   }
