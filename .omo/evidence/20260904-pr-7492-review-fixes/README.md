@@ -51,6 +51,16 @@
   full build, and real isolated warning run passed again. The sandbox database
   remained under its XDG data root with 0 sessions, and the real database
   remained 8072 before and after.
+- Late review follow-up covered inline `OPENCODE_CONFIG_CONTENT`, lexical
+  profile recovery through a symlink, and OpenCode-only profile targeting.
+  All three regressions failed first, then passed with 4 assertions.
+- Final related diagnostics suites passed 60 tests with 0 failures and 97
+  assertions. Adapter typecheck, full build, the OpenCode QA common helper,
+  and SSE self-test passed.
+- Real isolated OpenCode runs diagnosed both the inline source and the active
+  profile source. The profile hint now targets
+  `profiles.focused.opencode.categories`; both runs exited zero and left the
+  real database unchanged at 8072 sessions.
 
 ## Why this is enough
 

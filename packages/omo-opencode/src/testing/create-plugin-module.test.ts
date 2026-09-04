@@ -621,7 +621,7 @@ describe("createPluginModule()", () => {
         expect(showToast).toHaveBeenCalledTimes(1)
         expect(showToast.mock.calls[0]?.[0]).toMatchObject({
           body: {
-            message: expect.stringContaining("profiles.focused.categories"),
+            message: expect.stringContaining("profiles.focused.opencode.categories"),
           },
         })
       } finally {

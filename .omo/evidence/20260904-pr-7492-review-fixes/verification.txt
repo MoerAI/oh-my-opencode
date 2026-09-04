@@ -13,3 +13,10 @@ Final real OpenCode explicit-config warning: PASS.
 Post-merge dev@07e30350b related tests: 212 pass, 0 fail, 462 assertions.
 Post-merge adapter typecheck and full build: PASS.
 Post-merge real OpenCode warning and database isolation: PASS.
+Late review failing-first tests: 0 pass, 3 fail.
+Late review focused tests: 3 pass, 0 fail, 4 assertions.
+Final related diagnostics tests: 60 pass, 0 fail, 97 assertions across 4 files.
+Final adapter typecheck and full build: PASS.
+Final OpenCode QA common self-check and SSE self-test: PASS.
+Final real inline-content and profile-scoped warning runs: PASS.
+Final real database sessions: 8072 before, 8072 after both runs.

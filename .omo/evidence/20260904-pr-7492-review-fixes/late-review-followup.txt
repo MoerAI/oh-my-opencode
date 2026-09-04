@@ -1,0 +1,29 @@
+FAILING FIRST
+inline_content=false
+symlink_profile=false
+harness_scoped_profile=false
+0 pass, 3 fail
+
+PASSING
+focused=3 pass, 0 fail, 4 assertions
+related=60 pass, 0 fail, 97 assertions across 4 files
+adapter_typecheck=PASS
+full_build=PASS
+opencode_qa_common=PASS
+opencode_qa_sse=PASS
+
+REAL OPENCODE INLINE SOURCE
+[oh-my-openagent] OMO ignores "categories" in OPENCODE_CONFIG_CONTENT; move it to ~/.omo/omo.jsonc.
+status=0
+real_db_sessions_before=8072
+real_db_sessions_after=8072
+
+REAL OPENCODE PROFILE SOURCE
+[oh-my-openagent] OMO ignores "categories" in <profile-config>/opencode.jsonc; move it to ~/.omo/omo.jsonc under profiles.focused.opencode.categories.
+status=0
+real_db_sessions_before=8072
+real_db_sessions_after=8072
+
+OMITTED
+Resolved configuration JSON, credentials, auth headers, private user config,
+full environment dumps, and host-specific sandbox paths were not retained.
