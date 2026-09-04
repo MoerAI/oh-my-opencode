@@ -35,3 +35,8 @@ JSON-target corrected focused suites: 30 pass, 0 fail, 66 assertions.
 JSON-target adapter typecheck and full build: PASS.
 JSON-target OpenCode QA common self-check and SSE self-test: PASS.
 JSON-target real OpenCode run and sandbox containment: PASS.
+Symlink-target failing-first suite: 7 pass, 2 fail, 14 assertions.
+Symlink-target corrected focused suites: 32 pass, 0 fail, 69 assertions.
+Symlink-target adapter typecheck and full build: PASS.
+Symlink-target OpenCode QA common self-check and SSE self-test: PASS.
+Symlink-target final real OpenCode run and sandbox containment: PASS.

@@ -93,6 +93,14 @@
   diagnostic targeting that active JSON file, not a new JSONC file. The
   isolated database remained empty and the real database stayed at 8072
   sessions. See `json-target-followup.txt`.
+- Project-symlink review failed first at 7 pass and 2 fail because diagnostics
+  targeted files the unified loader rejects. The corrected focused suites
+  passed 32 tests with 0 failures and 69 assertions. A symlinked project
+  config now selects a loadable sibling; a symlinked `.omo` directory names
+  the replacement prerequisite explicitly.
+- Adapter typecheck, full build, QA helper checks, and a final real OpenCode
+  warning run passed. The sandbox database remained empty and the real
+  database stayed at 8072 sessions. See `symlink-target-followup.txt`.
 
 ## Why this is enough
 

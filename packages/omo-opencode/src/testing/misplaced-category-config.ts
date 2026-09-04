@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from "node:fs"
+import { existsSync, lstatSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
 import {
@@ -70,6 +70,36 @@ function activeOmoConfigPath(configDirectory: string): string {
   return existsSync(jsonPath) ? jsonPath : jsoncPath
 }
 
+function isSymlinkedPath(filePath: string): boolean {
+  try {
+    return lstatSync(filePath).isSymbolicLink()
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (Reflect.get(error, "code") === "ENOENT" || Reflect.get(error, "code") === "ENOTDIR")
+    ) {
+      return false
+    }
+    if (error instanceof Error) return true
+    throw error
+  }
+}
+
+function projectOmoTargetPath(projectDirectory: string): string {
+  const configDirectory = join(projectDirectory, ".omo")
+  const jsoncPath = join(configDirectory, "omo.jsonc")
+  const jsonPath = join(configDirectory, "omo.json")
+  if (isSymlinkedPath(configDirectory)) {
+    return `${jsoncPath} after replacing the symlinked ${configDirectory} directory`
+  }
+  if (existsSync(jsoncPath) && !isSymlinkedPath(jsoncPath)) return jsoncPath
+  if (existsSync(jsonPath) && !isSymlinkedPath(jsonPath)) return jsonPath
+  if (isSymlinkedPath(jsoncPath) && isSymlinkedPath(jsonPath)) {
+    return `${jsoncPath} after replacing the symlinked config files in ${configDirectory}`
+  }
+  return isSymlinkedPath(jsoncPath) ? jsonPath : jsoncPath
+}
+
 function targetPath(basePath: string, profileName: string | undefined): string {
   return profileName === undefined
     ? basePath
@@ -120,13 +150,13 @@ function configCandidates(projectDirectory: string, homeDirectory: string): Conf
   for (const directory of ancestors) {
     add(
       detectedFile(join(directory, "opencode")),
-      activeOmoConfigPath(join(directory, ".omo")),
+      projectOmoTargetPath(directory),
     )
   }
   for (const directory of ancestors) {
     add(
       detectedFile(join(directory, ".opencode", "opencode")),
-      activeOmoConfigPath(join(directory, ".omo")),
+      projectOmoTargetPath(directory),
     )
   }
 

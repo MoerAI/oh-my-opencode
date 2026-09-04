@@ -177,4 +177,62 @@ describe("misplaced OpenCode category diagnostics", () => {
     expect(diagnostics.some((message) => message.includes(targetConfig))).toBe(true)
     expect(diagnostics.some((message) => message.includes(`${targetConfig}c`))).toBe(false)
   })
+
+  test.skipIf(process.platform === "win32")(
+    "#given a symlinked project omo.jsonc #when categories are diagnosed #then a loadable sibling is targeted",
+    () => {
+      // given
+      const root = fixtureRoot()
+      const homeDirectory = join(root, "home")
+      const projectDirectory = join(root, "workspace")
+      const projectConfigDir = join(projectDirectory, ".omo")
+      const linkedConfig = join(projectConfigDir, "omo.jsonc")
+      const targetConfig = join(projectConfigDir, "omo.json")
+      const externalConfig = join(root, "external-omo.jsonc")
+      mkdirSync(projectConfigDir, { recursive: true })
+      writeFileSync(externalConfig, "{}")
+      symlinkSync(externalConfig, linkedConfig, "file")
+      writeFileSync(join(projectDirectory, "opencode.jsonc"), misplacedConfig())
+      process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+      // when
+      const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+        homeDirectory,
+      })
+
+      // then
+      expect(diagnostics.some((message) => message.includes(targetConfig))).toBe(true)
+      expect(diagnostics.some((message) => message.includes(linkedConfig))).toBe(false)
+    },
+  )
+
+  test("#given a symlinked project .omo directory #when categories are diagnosed #then replacement is explicit", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const projectDirectory = join(root, "workspace")
+    const actualConfigDir = join(root, "actual-omo")
+    const projectConfigDir = join(projectDirectory, ".omo")
+    mkdirSync(projectDirectory, { recursive: true })
+    mkdirSync(actualConfigDir, { recursive: true })
+    writeFileSync(join(actualConfigDir, "omo.json"), "{}")
+    symlinkSync(
+      actualConfigDir,
+      projectConfigDir,
+      process.platform === "win32" ? "junction" : "dir",
+    )
+    writeFileSync(join(projectDirectory, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) =>
+      message.includes("after replacing the symlinked") &&
+      message.includes(".omo directory")
+    )).toBe(true)
+  })
 })
