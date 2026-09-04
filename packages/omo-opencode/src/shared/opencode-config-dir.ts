@@ -127,6 +127,22 @@ export function getOpenCodeConfigDirs(options: OpenCodeConfigDirOptions): string
   )
 }
 
+export function getOpenCodeConfigDiscoveryDirs(): string[] {
+  return Array.from(new Set([
+    ...getOpenCodeConfigDirs({ binary: "opencode" }),
+    getOpenCodeConfigDir({
+      binary: "opencode-desktop",
+      version: null,
+      checkExisting: false,
+    }),
+    getOpenCodeConfigDir({
+      binary: "opencode-desktop",
+      version: "desktop-dev",
+      checkExisting: false,
+    }),
+  ]))
+}
+
 export function getOpenCodeConfigDir(options: OpenCodeConfigDirOptions): string {
   const { binary, version, checkExisting = true } = options
 

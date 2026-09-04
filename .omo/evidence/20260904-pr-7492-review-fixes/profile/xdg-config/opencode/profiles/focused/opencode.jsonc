@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "file:///tmp/oh-my-openagent-7492-repair/dist/index.js"
+  ],
+  "categories": {
+    "deep": {
+      "model": "opencode/big-pickle"
+    }
+  }
+}

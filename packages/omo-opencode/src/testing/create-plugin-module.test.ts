@@ -475,6 +475,89 @@ describe("createPluginModule()", () => {
         rmSync(configDir, { recursive: true, force: true })
       }
     })
+
+    it("#then an active OpenCode profile preserves its scope in the move hint", async () => {
+      // given
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-profile-categories-"))
+      const profileConfigDir = join(fixtureRoot, "opencode", "profiles", "focused")
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      mkdirSync(profileConfigDir, { recursive: true })
+      writeFileSync(join(profileConfigDir, "opencode.jsonc"), `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`)
+      process.env.OPENCODE_CONFIG_DIR = profileConfigDir
+      const showToast = mock(async () => ({}))
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: join(fixtureRoot, "project"),
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        expect(showToast).toHaveBeenCalledTimes(1)
+        expect(showToast.mock.calls[0]?.[0]).toMatchObject({
+          body: {
+            message: expect.stringContaining("profiles.focused.opencode.categories"),
+          },
+        })
+      } finally {
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(fixtureRoot, { recursive: true, force: true })
+      }
+    })
+
+    it("#then Desktop-only OpenCode categories produce a diagnostic", async () => {
+      // given
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-desktop-categories-"))
+      const projectDirectory = join(fixtureRoot, "project")
+      const xdgConfig = join(fixtureRoot, "xdg-config")
+      const desktopConfigDir = join(xdgConfig, "ai.opencode.desktop")
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      const previousXdgConfig = process.env.XDG_CONFIG_HOME
+      const previousPlatform = process.platform
+      Object.defineProperty(process, "platform", { value: "linux" })
+      process.env.OPENCODE_CONFIG_DIR = join(fixtureRoot, "cli-config")
+      process.env.XDG_CONFIG_HOME = xdgConfig
+      mkdirSync(desktopConfigDir, { recursive: true })
+      writeFileSync(join(desktopConfigDir, "opencode.jsonc"), `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`)
+      const showToast = mock(async () => ({}))
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: projectDirectory,
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        expect(showToast).toHaveBeenCalledTimes(1)
+        expect(showToast.mock.calls[0]?.[0]).toMatchObject({
+          body: {
+            message: expect.stringContaining(join(desktopConfigDir, "opencode.jsonc")),
+          },
+        })
+      } finally {
+        Object.defineProperty(process, "platform", { value: previousPlatform })
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        if (previousXdgConfig === undefined) delete process.env.XDG_CONFIG_HOME
+        else process.env.XDG_CONFIG_HOME = previousXdgConfig
+        rmSync(fixtureRoot, { recursive: true, force: true })
+      }
+    })
   })
 
   describe("#given startup migration consumes legacy configuration", () => {

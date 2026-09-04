@@ -1,0 +1,5 @@
+Focused tests: 49 pass, 0 fail, 82 assertions.
+OpenCode adapter typecheck: exit 0.
+Full plugin build: exit 0.
+opencode-qa common self-check: PASS.
+opencode-qa SSE self-test: PASS, server.connected observed.

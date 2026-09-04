@@ -1,5 +1,5 @@
 import type { Hooks, Plugin, PluginModule } from "@opencode-ai/plugin"
-import { join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import type { HookName } from "../config"
 import { validatePluginConfig } from "../config/validate"
 import { initConfigContext } from "../cli/config-manager/config-context"
@@ -29,7 +29,7 @@ import {
 } from "../shared/external-plugin-detector"
 import { createFirstMessageVariantGate } from "../shared/first-message-variant"
 import { initI18n } from "../shared/i18n"
-import { detectConfigFile, getOpenCodeConfigDirs, readJsoncFile } from "../shared"
+import { detectConfigFile, getOpenCodeConfigDiscoveryDirs, readJsoncFile } from "../shared"
 import { log } from "../shared/logger"
 import { logLegacyPluginStartupWarning } from "../shared/log-legacy-plugin-startup-warning"
 import { migrateLegacyWorkspaceDirectory } from "../shared/legacy-workspace-migration"
@@ -171,16 +171,21 @@ function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | u
   ])
   const configDirs = new Set([
     ...projectConfigDirs,
-    ...getOpenCodeConfigDirs({ binary: "opencode" }),
+    ...getOpenCodeConfigDiscoveryDirs(),
   ])
   for (const configDir of configDirs) {
     const configFile = detectConfigFile(join(configDir, "opencode"))
     if (configFile.format === "none") continue
     const config = readJsoncFile<unknown>(configFile.path)
     if (typeof config === "object" && config !== null && !Array.isArray(config) && "categories" in config) {
+      const profileName = basename(dirname(configDir)) === "profiles"
+        ? basename(configDir)
+        : undefined
       const targetConfigPath = projectConfigDirs.has(configDir)
         ? join(projectDirectory, ".omo", "omo.jsonc")
-        : "~/.omo/omo.jsonc"
+        : profileName === undefined
+          ? "~/.omo/omo.jsonc"
+          : `~/.omo/omo.jsonc under profiles.${profileName}.opencode.categories`
       return `OMO ignores "categories" in ${configFile.path}; move it to ${targetConfigPath}.`
     }
   }

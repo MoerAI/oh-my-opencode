@@ -4,6 +4,7 @@ import { homedir } from "node:os"
 import { join, resolve, win32 } from "node:path"
 import {
   getOpenCodeConfigDir,
+  getOpenCodeConfigDiscoveryDirs,
   getOpenCodeConfigDirs,
   getOpenCodeConfigPaths,
   isDevBuild,
@@ -163,6 +164,24 @@ describe("opencode-config-dir", () => {
 
       // then the array contains a single deduplicated entry
       expect(result).toEqual([resolve(defaultDir)])
+    })
+
+    test("returns CLI plus Desktop release and dev directories for diagnostics", () => {
+      // given
+      process.env.OPENCODE_CONFIG_DIR = "/custom/opencode/path"
+      process.env.XDG_CONFIG_HOME = "/xdg/config"
+      Object.defineProperty(process, "platform", { value: "linux" })
+
+      // when
+      const result = getOpenCodeConfigDiscoveryDirs()
+
+      // then
+      expect(result).toEqual([
+        resolve("/custom/opencode/path"),
+        resolve("/xdg/config/opencode"),
+        resolve("/xdg/config/ai.opencode.desktop"),
+        resolve("/xdg/config/ai.opencode.desktop.dev"),
+      ])
     })
 
     test("returns single-element array for non-opencode binary", () => {
