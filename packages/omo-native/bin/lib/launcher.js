@@ -4,7 +4,15 @@ import { spawnNode } from "./child-process.js"
 import { runDoctor } from "./doctor.js"
 import { migrateLegacyBunGlobalManifest } from "./legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./agent-dir.js"
-import { nearestNodeBin, packageManifest, packageRoot, readJson, resolveSenpi, updateTarget } from "./package-paths.js"
+import {
+  nearestNodeBin,
+  packageManifest,
+  packageRoot,
+  quoteShellArgument,
+  readJson,
+  resolveSenpi,
+  updateTarget,
+} from "./package-paths.js"
 import { detectHarnesses } from "./setup-detect.js"
 import { readSetupSuggestionCache, spawnSetupSuggestionRefresh } from "./setup-detect-cache.js"
 import { printSetupReport } from "./setup-report.js"
@@ -112,10 +120,17 @@ function readSessionHeaderId(filePath) {
   }
 }
 
+function sessionFilenameId(filename) {
+  if (!filename.endsWith(".jsonl")) return undefined
+  const separator = filename.lastIndexOf("_")
+  if (separator < 0) return undefined
+  return filename.slice(separator + 1, -".jsonl".length) || undefined
+}
+
 function printSessionResumeDiagnostic(args, env) {
   const requestedId = optionValue(args, "--session")
   if (!requestedId || /[\\/]/.test(requestedId) || requestedId.endsWith(".jsonl")) return
-  if (optionValue(args, "--session-dir")) return
+  if (optionValue(args, "--session-dir") || env.OMO_CODING_AGENT_SESSION_DIR?.trim()) return
 
   const sessionRoot = join(canonicalAgentDir(env), "sessions")
   let directories
@@ -127,26 +142,31 @@ function printSessionResumeDiagnostic(args, env) {
     return
   }
 
-  const suffix = `_${requestedId}.jsonl`
+  const candidates = []
   for (const directory of directories) {
-    let candidate
     try {
-      const filename = readdirSync(directory).find((entry) => entry.endsWith(suffix))
-      if (filename) candidate = join(directory, filename)
+      for (const filename of readdirSync(directory)) {
+        const filenameId = sessionFilenameId(filename)
+        if (filenameId?.startsWith(requestedId)) {
+          candidates.push({ path: join(directory, filename), filenameId })
+        }
+      }
     } catch {
       continue
     }
-    if (!candidate) continue
-
-    const headerId = readSessionHeaderId(candidate)
-    if (!headerId || headerId === requestedId) return
-    console.error(`omo: searched ${sessionRoot}`)
-    console.error(
-      `omo: candidate ${candidate} was rejected because its header id is '${headerId}', not filename id '${requestedId}'`,
-    )
-    console.error(`omo: retry with \`omo --session ${headerId}\` or \`omo --session ${candidate}\``)
-    return
   }
+  if (candidates.length !== 1) return
+
+  const candidate = candidates[0]
+  const headerId = readSessionHeaderId(candidate.path)
+  if (!headerId || headerId.startsWith(requestedId)) return
+  console.error(`omo: searched ${sessionRoot}`)
+  console.error(
+    `omo: candidate ${candidate.path} was rejected because its header id is '${headerId}', not filename id '${candidate.filenameId}'`,
+  )
+  console.error(
+    `omo: retry with \`omo --session ${headerId}\` or \`omo --session ${quoteShellArgument(candidate.path)}\``,
+  )
 }
 
 async function spawnSenpi(args, withExtension) {

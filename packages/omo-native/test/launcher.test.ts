@@ -153,6 +153,22 @@ function expectedBunUpdateCommand(packageRoot: string): string {
   return `omo is updated via bun: bun add --cwd ${quotedRoot} -g omo-ai@beta`
 }
 
+function expectedShellArgument(value: string): string {
+  return process.platform === "win32"
+    ? `"${value.replaceAll("\\", "/")}"`
+    : `'${value.replaceAll("'", "'\\''")}'`
+}
+
+function writeSession(path: string, id: string): void {
+  writeFile(path, `${JSON.stringify({
+    type: "session",
+    version: 3,
+    id,
+    timestamp: "2026-08-28T14:38:25.381Z",
+    cwd: "/tmp/project",
+  })}\n`)
+}
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -192,6 +208,119 @@ describe("omo launcher", () => {
         expect(result.stderr).toContain(`header id is '${headerId}'`)
         expect(result.stderr).toContain(`omo --session ${headerId}`)
         expect(capture(fixture).argv).toContain(requestedId)
+      })
+
+      test("#then a spaced agent directory is quoted in the resume suggestion", () => {
+        // given
+        const fixture = createFixture()
+        const agentDir = join(fixture.root, "agent state")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const headerId = "01a0464c-0661-73a1-8d6c-cc1df9f27972"
+        const sessionFile = join(
+          agentDir,
+          "sessions",
+          "project",
+          `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`,
+        )
+        writeSession(sessionFile, headerId)
+
+        // when
+        const result = run(fixture, ["--session", requestedId], {
+          OMO_CODING_AGENT_DIR: agentDir,
+        })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain(`omo --session ${expectedShellArgument(sessionFile)}`)
+        expect(capture(fixture).argv).toEqual([
+          "--extension",
+          join(fixture.packageRoot, "plugin"),
+          "--session",
+          requestedId,
+        ])
+      })
+
+      test("#then an environment session directory suppresses the default-store diagnostic", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        const sessionFile = join(
+          sessionRoot,
+          "project",
+          `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`,
+        )
+        const customSessionDir = join(fixture.root, "custom sessions")
+        writeSession(sessionFile, "01a0464c-0661-73a1-8d6c-cc1df9f27972")
+
+        // when
+        const result = run(fixture, ["--session", requestedId], {
+          HOME: home,
+          OMO_CODING_AGENT_SESSION_DIR: customSessionDir,
+        })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).not.toContain(`searched ${sessionRoot}`)
+        expect(capture(fixture).env.OMO_CODING_AGENT_SESSION_DIR).toBe(customSessionDir)
+      })
+
+      test("#then a unique partial filename ID explains a header mismatch", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce"
+        const filenameId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const headerId = "01a0464c-0661-73a1-8d6c-cc1df9f27972"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        const sessionFile = join(
+          sessionRoot,
+          "project",
+          `2026-08-28T14-38-25-381Z_${filenameId}.jsonl`,
+        )
+        writeSession(sessionFile, headerId)
+
+        // when
+        const result = run(fixture, ["--session", requestedId], { HOME: home })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain(`searched ${sessionRoot}`)
+        expect(result.stderr).toContain(`omo --session ${headerId}`)
+        expect(result.stderr).toContain(`omo --session ${expectedShellArgument(sessionFile)}`)
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
+      test("#then an ambiguous partial filename ID stays silent", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        writeSession(
+          join(
+            sessionRoot,
+            "first",
+            "2026-08-28T14-38-25-381Z_01a048ce-c465-776b-959c-dcb362446db7.jsonl",
+          ),
+          "01a0464c-0661-73a1-8d6c-cc1df9f27972",
+        )
+        writeSession(
+          join(
+            sessionRoot,
+            "second",
+            "2026-08-28T14-38-25-381Z_01a048ce-d731-776b-959c-dcb362446db7.jsonl",
+          ),
+          "01a0464c-0661-73a1-8d6c-cc1df9f27973",
+        )
+
+        // when
+        const result = run(fixture, ["--session", requestedId], { HOME: home })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).not.toContain(`searched ${sessionRoot}`)
       })
 
       test("#then launcher environment points to existing hoisted shims", () => {

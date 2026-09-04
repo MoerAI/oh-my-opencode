@@ -1,0 +1,46 @@
+# PR 7491 launcher diagnostic review-fix QA
+
+## What was tested
+
+- Added failing-first launcher boundary tests for:
+  - shell quoting a session path under a spaced agent directory;
+  - suppressing default-store diagnostics when
+    `OMO_CODING_AGENT_SESSION_DIR` is active;
+  - matching a unique partial session UUID;
+  - remaining silent for an ambiguous partial UUID.
+- Ran the focused launcher suite and complete omo-native package suite.
+- Ran omo-native typecheck and rebuilt the staged native payload.
+- Drove the real `packages/omo-native/bin/omo.js` launcher against the pinned
+  Senpi engine for the same four behaviors, plus `--help` and `--version`.
+
+## What was observed
+
+- Failing-first focused run: 39 pass, 3 fail. The spaced path was unquoted,
+  the environment override still scanned the default store, and the partial
+  ID did not find the candidate.
+- Corrected focused run: 42 pass, 0 fail, 151 assertions.
+- Complete omo-native suite: 250 pass, 0 fail, 734 assertions across 24
+  files.
+- omo-native typecheck: exit 0.
+- `bun run build:omo-native`: exit 0 with all 36 required payload artifacts.
+- Real launcher unique partial-ID run printed the mismatched filename/header
+  explanation and quoted the path argument containing `spaced agent`.
+- Real launcher custom-session-dir run printed no default-store diagnostic.
+- Real launcher ambiguous-partial run printed no diagnostic.
+- Real launcher help rendered successfully through the pinned engine.
+- Real version output:
+  `omo 5.0.0-0.beta.39 (engine: senpi 2026.9.3-3)`.
+
+## Why this is enough
+
+The tests execute the launcher boundary with a captured child environment and
+arguments. The manual runs use the actual built launcher and pinned Senpi
+engine, so they prove the user-visible stderr guidance, suppression rule,
+ambiguity handling, help surface, and version surface rather than only helper
+logic.
+
+## What was omitted
+
+The full help text, environment dump, optional x-search credential warning,
+credentials, and unrelated build progress are omitted. Exact relevant
+diagnostic and version output is retained.
