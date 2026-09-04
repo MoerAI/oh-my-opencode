@@ -46,6 +46,11 @@
   `red-existing-driver/{explore-qwen-fallback,librarian-qwen-fallback}/`.
 - Raw passing artifacts:
   `live-agent-selection/{explore-qwen-fallback,librarian-qwen-fallback}/`.
+- After merging `upstream/dev@89957ad93`, the two live scenarios passed again
+  under `live-agent-selection-post-merge/`, the general real Senpi driver
+  returned `result=PASS` with no changed-path attribution, the 27 focused
+  tests passed, and the full Senpi gate repeated at 2677 pass, 32 skips, and
+  0 fail.
 
 ## Why this is enough
 
