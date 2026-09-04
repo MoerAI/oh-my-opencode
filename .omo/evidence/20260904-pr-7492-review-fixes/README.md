@@ -145,8 +145,21 @@
   assertions. Real OpenCode emitted exactly two warnings for loaded
   `opencode.json` and default legacy `config.json`, with no custom legacy
   warning.
-- The production scanner was split into 58-line diagnostic and 187-line path
+- The production scanner was split into 58-line diagnostic and 199-line path
   modules so both remain under the repository's 200-line soft limit.
+- Global/profile scope review failed first at 19 pass and 1 fail because every
+  user source inherited the active profile target. The corrected focused
+  suites passed 44 tests with 0 failures and 97 assertions.
+- All non-profile OpenCode sources now target the base
+  `"[opencode]".categories` layer. Only a recognized profile config directory
+  and inline content use the active profile; project targets remain
+  OpenCode-harness-scoped in their project file.
+- Real OpenCode loaded simultaneous profile and global sources and emitted two
+  distinct warnings: the profile source targeted
+  `profiles.other."[opencode]".categories`, while the global source targeted
+  base `"[opencode]".categories`. The isolated database stayed empty and the
+  real database remained 8072 before and after. See
+  `profile-global-scope-followup.txt`.
 
 ## Why this is enough
 

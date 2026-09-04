@@ -144,6 +144,32 @@ describe("misplaced OpenCode category diagnostics", () => {
     expect(diagnostics.some((message) => message.includes("profiles.focused"))).toBe(false)
   })
 
+  test("#given a profile and global OpenCode sources #when diagnosed #then only the profile source is qualified", () => {
+    // given
+    const root = fixtureRoot()
+    const projectDirectory = join(root, "project")
+    const profileConfigDir = join(root, "profiles", "focused")
+    const profileSource = join(profileConfigDir, "opencode.jsonc")
+    const globalConfigDir = join(process.env.XDG_CONFIG_HOME ?? "", "opencode")
+    const globalSource = join(globalConfigDir, "opencode.jsonc")
+    mkdirSync(profileConfigDir, { recursive: true })
+    mkdirSync(globalConfigDir, { recursive: true })
+    writeFileSync(profileSource, misplacedConfig())
+    writeFileSync(globalSource, misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = profileConfigDir
+    process.env.OMO_PROFILE = "other"
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory)
+    const profileDiagnostic = diagnostics.find((message) => message.includes(profileSource))
+    const globalDiagnostic = diagnostics.find((message) => message.includes(globalSource))
+
+    // then
+    expect(profileDiagnostic).toContain('profiles.other."[opencode]".categories')
+    expect(globalDiagnostic).toContain('~/.omo/omo.jsonc under "[opencode]".categories')
+    expect(globalDiagnostic).not.toContain("profiles.other")
+  })
+
   test("#given both OpenCode formats and legacy config #when inspected #then every loaded source is scanned", () => {
     // given
     const root = fixtureRoot()
@@ -191,7 +217,9 @@ describe("misplaced OpenCode category diagnostics", () => {
 
     // then
     expect(diagnostics.some((message) => message.includes(source))).toBe(true)
-    expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(true)
+    expect(diagnostics.some((message) =>
+      message.includes('~/.omo/omo.jsonc under "[opencode]".categories.')
+    )).toBe(true)
   })
 
   test("#given a project below home #when ancestors are inspected #then discovery stops at home", () => {
@@ -252,7 +280,9 @@ describe("misplaced OpenCode category diagnostics", () => {
     })
 
     // then
-    expect(diagnostics.some((message) => message.includes("~/.omo/omo.json."))).toBe(true)
+    expect(diagnostics.some((message) =>
+      message.includes('~/.omo/omo.json under "[opencode]".categories.')
+    )).toBe(true)
     expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(false)
   })
 
@@ -381,7 +411,9 @@ describe("misplaced OpenCode category diagnostics", () => {
     })
 
     // then
-    expect(diagnostics.some((message) => message.includes("~/.omo/omo.json."))).toBe(true)
+    expect(diagnostics.some((message) =>
+      message.includes('~/.omo/omo.json under "[opencode]".categories.')
+    )).toBe(true)
     expect(diagnostics.some((message) => message.includes("after replacing"))).toBe(false)
   })
 
@@ -407,7 +439,9 @@ describe("misplaced OpenCode category diagnostics", () => {
     // then
     expect(diagnostics.some((message) => message.includes(accountHomeConfig))).toBe(true)
     expect(diagnostics.some((message) => message.includes(aboveBoundaryConfig))).toBe(false)
-    expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(true)
+    expect(diagnostics.some((message) =>
+      message.includes('~/.omo/omo.jsonc under "[opencode]".categories.')
+    )).toBe(true)
   })
 
   test("#given a symlink in project ancestry #when diagnosed #then lexical parents remain visible", () => {
@@ -436,7 +470,9 @@ describe("misplaced OpenCode category diagnostics", () => {
 
     // then
     expect(diagnostics.some((message) => message.includes(homeConfig))).toBe(true)
-    expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(true)
+    expect(diagnostics.some((message) =>
+      message.includes('~/.omo/omo.jsonc under "[opencode]".categories.')
+    )).toBe(true)
   })
 
   test("#given project config discovery is disabled #when inspected #then project sources are skipped", () => {

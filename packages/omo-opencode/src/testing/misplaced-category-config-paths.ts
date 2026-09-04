@@ -1,9 +1,6 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
-import {
-  getOpenCodeConfigDirs,
-  getOpenCodeConfigDiscoveryDirs,
-} from "../shared"
+import { getOpenCodeConfigDirs, getOpenCodeConfigDiscoveryDirs } from "../shared"
 
 export type MisplacedCategoryDiagnosticOptions = {
   readonly accountHomeDirectory?: string
@@ -19,12 +16,11 @@ export type ConfigCandidate = {
   readonly targetConfigPath: string
 }
 
-type ConfigDiscoveryOptions = Required<
-  Pick<
-    MisplacedCategoryDiagnosticOptions,
-    "accountHomeDirectory" | "disableProjectConfig" | "homeDirectory" | "maxProjectDepth"
-  >
-> & Pick<MisplacedCategoryDiagnosticOptions, "worktreeDirectory">
+type RequiredDiscoveryOptions = "accountHomeDirectory" | "disableProjectConfig"
+  | "homeDirectory" | "maxProjectDepth"
+type ConfigDiscoveryOptions =
+  & Required<Pick<MisplacedCategoryDiagnosticOptions, RequiredDiscoveryOptions>>
+  & Pick<MisplacedCategoryDiagnosticOptions, "worktreeDirectory">
 
 function pathKey(filePath: string): string {
   const normalized = filePath.replaceAll("\\", "/")
@@ -41,9 +37,7 @@ function canonicalPath(filePath: string): string {
 }
 
 function ancestorDirectories(
-  directory: string,
-  boundaryDirectories: readonly string[],
-  maxDepth: number,
+  directory: string, boundaryDirectories: readonly string[], maxDepth: number,
 ): string[] {
   const directories: string[] = []
   const lexicalBoundaryKeys = new Set(
@@ -95,14 +89,18 @@ function projectOmoTargetPath(projectDirectory: string): string {
   const jsoncPath = join(configDirectory, "omo.jsonc")
   const jsonPath = join(configDirectory, "omo.json")
   if (isSymlinkedPath(configDirectory)) {
-    return `${jsoncPath} after replacing the symlinked ${configDirectory} directory`
+    return `${targetPath(jsoncPath, undefined)} after replacing the symlinked ${configDirectory} directory`
   }
-  if (existsSync(jsoncPath) && !isSymlinkedPath(jsoncPath)) return jsoncPath
-  if (existsSync(jsonPath) && !isSymlinkedPath(jsonPath)) return jsonPath
+  if (existsSync(jsoncPath) && !isSymlinkedPath(jsoncPath)) {
+    return targetPath(jsoncPath, undefined)
+  }
+  if (existsSync(jsonPath) && !isSymlinkedPath(jsonPath)) {
+    return targetPath(jsonPath, undefined)
+  }
   if (isSymlinkedPath(jsoncPath) && isSymlinkedPath(jsonPath)) {
-    return `${jsoncPath} after replacing the symlinked config files in ${configDirectory}`
+    return `${targetPath(jsoncPath, undefined)} after replacing the symlinked config files in ${configDirectory}`
   }
-  return isSymlinkedPath(jsoncPath) ? jsonPath : jsoncPath
+  return targetPath(isSymlinkedPath(jsoncPath) ? jsonPath : jsoncPath, undefined)
 }
 
 export function userOmoTargetPath(homeDirectory: string): string {
@@ -112,8 +110,20 @@ export function userOmoTargetPath(homeDirectory: string): string {
 
 export function targetPath(basePath: string, profileName: string | undefined): string {
   return profileName === undefined
-    ? basePath
+    ? `${basePath} under "[opencode]".categories`
     : `${basePath} under profiles.${profileName}."[opencode]".categories`
+}
+
+function isProfileConfigDirectory(configDirectory: string): boolean {
+  const configuredDirectory = process.env.OPENCODE_CONFIG_DIR?.trim()
+  if (
+    configuredDirectory === undefined ||
+    !/(?:^|[\\/])profiles[\\/][^\\/]+[\\/]*$/.test(configuredDirectory)
+  ) {
+    return false
+  }
+  return pathKey(canonicalPath(configuredDirectory)) ===
+    pathKey(canonicalPath(configDirectory))
 }
 
 function existingOpenCodeConfigFiles(configDirectory: string): string[] {
@@ -123,9 +133,7 @@ function existingOpenCodeConfigFiles(configDirectory: string): string[] {
 }
 
 export function getMisplacedCategoryConfigCandidates(
-  projectDirectory: string,
-  options: ConfigDiscoveryOptions,
-  profileName: string | undefined,
+  projectDirectory: string, options: ConfigDiscoveryOptions, profileName: string | undefined,
 ): ConfigCandidate[] {
   const candidates = new Map<string, ConfigCandidate>()
   const add = (filePath: string, targetConfigPath: string, priority: number): void => {
@@ -134,11 +142,15 @@ export function getMisplacedCategoryConfigCandidates(
     if (existing !== undefined && existing.priority >= priority) return
     candidates.set(key, { filePath, priority, targetConfigPath })
   }
-  const userTarget = targetPath(userOmoTargetPath(options.homeDirectory), profileName)
+  const baseUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), undefined)
+  const profileUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), profileName)
 
   for (const configDirectory of getOpenCodeConfigDiscoveryDirs()) {
+    const target = profileName !== undefined && isProfileConfigDirectory(configDirectory)
+      ? profileUserTarget
+      : baseUserTarget
     for (const filePath of existingOpenCodeConfigFiles(configDirectory)) {
-      add(filePath, userTarget, 0)
+      add(filePath, target, 0)
     }
   }
   const defaultCliConfigDirectory = getOpenCodeConfigDirs({ binary: "opencode" }).at(-1)
@@ -146,15 +158,15 @@ export function getMisplacedCategoryConfigCandidates(
     ? undefined
     : join(defaultCliConfigDirectory, "config.json")
   if (legacyConfig !== undefined && existsSync(legacyConfig)) {
-    add(legacyConfig, userTarget, 0)
+    add(legacyConfig, baseUserTarget, 0)
   }
   const homeOpenCodeDirectory = join(options.homeDirectory, ".opencode")
   for (const filePath of existingOpenCodeConfigFiles(homeOpenCodeDirectory)) {
-    add(filePath, userTarget, 0)
+    add(filePath, baseUserTarget, 0)
   }
   const explicitConfig = process.env.OPENCODE_CONFIG?.trim()
   if (explicitConfig && existsSync(resolve(explicitConfig))) {
-    add(resolve(explicitConfig), userTarget, 0)
+    add(resolve(explicitConfig), baseUserTarget, 0)
   }
   if (options.disableProjectConfig) return [...candidates.values()]
 
@@ -174,7 +186,7 @@ export function getMisplacedCategoryConfigCandidates(
   )
   for (const directory of ancestors) {
     const target = homeKeys.has(pathKey(canonicalPath(directory)))
-      ? userTarget
+      ? baseUserTarget
       : projectOmoTargetPath(directory)
     for (const filePath of existingOpenCodeConfigFiles(directory)) {
       add(filePath, target, 1)

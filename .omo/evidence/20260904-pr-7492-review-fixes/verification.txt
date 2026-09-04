@@ -61,3 +61,8 @@ Real profile precedence and harness-key OpenCode run: PASS.
 Real disabled-project-config OpenCode run: PASS.
 Real dual-format and legacy-source OpenCode run: PASS.
 Complete loader-parity real database sessions: 8072 before, 8072 after all runs.
+Profile/global scope failing-first suite: 19 pass, 1 fail, 40 assertions.
+Profile/global scope corrected focused suites: 44 pass, 0 fail, 97 assertions.
+Profile/global scope adapter typecheck and full build: PASS.
+Profile/global scope OpenCode QA helper gate: PASS.
+Profile/global scope real OpenCode run and sandbox containment: PASS.
