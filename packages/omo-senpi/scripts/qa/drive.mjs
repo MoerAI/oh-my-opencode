@@ -25,6 +25,7 @@ import {
 	scopedIsolationVerdict,
 	snapshotDirectory,
 	snapshotProtectedState,
+	directoryIdentityAvailable,
 } from "./isolation-state.mjs";
 
 export {
@@ -207,8 +208,29 @@ function snapshotCertificationRoots(sandbox) {
 	].map(({ name, path }) => ({
 		name,
 		path,
-		snapshot: snapshotDirectory(path),
+		snapshot: directoryIdentityAvailable()
+			? snapshotDirectory(path)
+			: {
+					snapshot: new Map(),
+					complete: false,
+					truncated: false,
+					errors: [{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" }],
+					bytesRead: 0,
+					domain: "nonvolatile-home",
+			},
 	}));
+}
+
+function snapshotRealObserved(path) {
+	if (directoryIdentityAvailable()) return snapshotDirectory(path);
+	return {
+		snapshot: new Map(),
+		complete: false,
+		truncated: false,
+		errors: [{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" }],
+		bytesRead: 0,
+		domain: "nonvolatile-home",
+	};
 }
 
 function certificationEnvironmentObserved(sandbox) {
@@ -243,8 +265,8 @@ function main() {
 	const isolationBefore = {
 		senpiProtected: snapshotProtectedState(realSenpiAgentDir),
 		omoProtected: snapshotProtectedState(realOmoAgentDir),
-		senpiObserved: snapshotDirectory(realSenpiAgentDir),
-		omoObserved: snapshotDirectory(realOmoAgentDir),
+		senpiObserved: snapshotRealObserved(realSenpiAgentDir),
+		omoObserved: snapshotRealObserved(realOmoAgentDir),
 	};
 	const sandbox = createSandbox();
 	let certificationBefore;
@@ -362,8 +384,8 @@ function printResult({
 }) {
 	const senpiProtectedAfter = snapshotProtectedState(realSenpiAgentDir);
 	const omoProtectedAfter = snapshotProtectedState(realOmoAgentDir);
-	const senpiObservedAfter = snapshotDirectory(realSenpiAgentDir);
-	const omoObservedAfter = snapshotDirectory(realOmoAgentDir);
+	const senpiObservedAfter = snapshotRealObserved(realSenpiAgentDir);
+	const omoObservedAfter = snapshotRealObserved(realOmoAgentDir);
 	const realSenpiObservedChangedPaths = changedSnapshotPaths(
 		isolationBefore.senpiObserved.snapshot,
 		senpiObservedAfter.snapshot,
@@ -398,7 +420,7 @@ function printResult({
 	);
 	const environmentObserved = certificationEnvironmentObserved(sandbox);
 	const realHomeIsolationCertified =
-		senpiVerdict.untouched && omoVerdict.untouched;
+		directoryIdentityAvailable() && senpiVerdict.untouched && omoVerdict.untouched;
 	const payload = {
 		result,
 		...(reason ? { reason } : {}),
@@ -418,7 +440,8 @@ function printResult({
 		certificationErrors: certificationVerdict.errors,
 		certificationBytesRead: certificationVerdict.bytesRead,
 		certificationLimits: OBSERVATION_LIMITS,
-		realSenpiUntouched: senpiVerdict.untouched,
+		realSenpiUntouched:
+			directoryIdentityAvailable() && senpiVerdict.untouched,
 		realSenpiChangedPaths: senpiVerdict.changedPaths,
 		realSenpiProtectedStateComplete:
 			isolationBefore.senpiProtected.complete && senpiProtectedAfter.complete,
@@ -426,7 +449,8 @@ function printResult({
 			isolationBefore.senpiProtected,
 			senpiProtectedAfter,
 		),
-		realOmoUntouched: omoVerdict.untouched,
+		realOmoUntouched:
+			directoryIdentityAvailable() && omoVerdict.untouched,
 		realOmoChangedPaths: omoVerdict.changedPaths,
 		realOmoProtectedStateComplete:
 			isolationBefore.omoProtected.complete && omoProtectedAfter.complete,
@@ -444,7 +468,9 @@ function printResult({
 		realOmoOtherObservedChangedPaths: omoObserved.other,
 		realSenpiObservationDomain: senpiObservedAfter.domain,
 		realSenpiNonvolatileObservationComplete:
-			isolationBefore.senpiObserved.complete && senpiObservedAfter.complete,
+			directoryIdentityAvailable() &&
+			isolationBefore.senpiObserved.complete &&
+			senpiObservedAfter.complete,
 		realSenpiNonvolatileObservationTruncated:
 			isolationBefore.senpiObserved.truncated || senpiObservedAfter.truncated,
 		realSenpiNonvolatileObservationErrors: [
@@ -455,7 +481,9 @@ function printResult({
 			isolationBefore.senpiObserved.bytesRead + senpiObservedAfter.bytesRead,
 		realOmoObservationDomain: omoObservedAfter.domain,
 		realOmoNonvolatileObservationComplete:
-			isolationBefore.omoObserved.complete && omoObservedAfter.complete,
+			directoryIdentityAvailable() &&
+			isolationBefore.omoObserved.complete &&
+			omoObservedAfter.complete,
 		realOmoNonvolatileObservationTruncated:
 			isolationBefore.omoObserved.truncated || omoObservedAfter.truncated,
 		realOmoNonvolatileObservationErrors: [

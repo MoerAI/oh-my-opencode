@@ -15,6 +15,7 @@ import {
   type EmbeddedManifest,
 } from "./compile-runtime"
 import { propagateResult, runChild } from "./bin/lib/child-process.js"
+import { buildLabel, parseBuildInfo, versionLines } from "./build-info"
 import { migrateLegacyBunGlobalManifest } from "./bin/lib/legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./bin/lib/agent-dir.js"
 import { nearestNodeBin, readJson } from "./bin/lib/package-paths.js"
@@ -56,7 +57,9 @@ export function buildSenpiArgs(args: string[], execDir: string): string[] {
   return ["--extension", join(execDir, "plugin"), ...args]
 }
 
-export function versionLine(packageJson: { version: string }, enginePin: string): string {
+export function versionLine(packageJson: { version: string; omoBuild?: unknown }, enginePin: string): string {
+  const info = parseBuildInfo(packageJson.omoBuild)
+  if (info !== undefined) return versionLines(info).join("\n")
   return `omo ${packageJson.version} (engine: senpi ${enginePin})`
 }
 
@@ -64,6 +67,12 @@ export function updateAssetSlug(platform: NodeJS.Platform, arch: string): string
   const os = platform === "win32" ? "windows" : platform
   const slug = `omo-${os}-${arch}`
   return platform === "win32" ? `${slug}.exe` : slug
+}
+
+/** A dev build is refreshed by rebuilding it; only release binaries come from the curl line. */
+export function updateHint(rawBuildInfo: unknown, platform: NodeJS.Platform = process.platform, arch: string = process.arch): string {
+  const info = parseBuildInfo(rawBuildInfo)
+  return info === undefined ? updateLine(platform, arch) : `rebuild with: bun run ${info.command}`
 }
 
 export function updateLine(platform: NodeJS.Platform, arch: string): string {
@@ -90,11 +99,22 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   env.OMO_NATIVE = "1"
   env.SENPI_RUNTIME = process.versions.bun ? "bun" : "node"
   let displayVersion = "unknown"
-  try { displayVersion = readJson(join(execDir, "package.json")).version } catch { /* test fixtures may omit the sibling manifest */ }
+  let devCommand: string | undefined
+  let devUpdateCommand: string | undefined
+  try {
+    const stamped = readJson(join(execDir, "package.json")) as { version?: string; omoBuild?: unknown }
+    displayVersion = typeof stamped.version === "string" ? stamped.version : "unknown"
+    const info = parseBuildInfo(stamped.omoBuild)
+    if (info !== undefined) {
+      devCommand = info.command
+      devUpdateCommand = `rebuild with: bun run ${info.command}`
+      displayVersion = buildLabel(info)
+    }
+  } catch { /* test fixtures may omit the sibling manifest */ }
   env.SENPI_BRAND = JSON.stringify({
-    name: "OmO", command: "omo", displayVersion,
+    name: "OmO", command: devCommand ?? "omo", displayVersion,
     configDir: ".omo", flatLayout: false, envPrefix: "OMO", userAgent: "omo", originator: "omo",
-    update: { packageName: "omo-ai", distTag: "beta", command: updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
+    update: { packageName: "omo-ai", distTag: "beta", command: devUpdateCommand ?? updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
   })
   const binDir = nearestNodeBin(execDir)
   if (binDir) {
@@ -118,7 +138,7 @@ function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>
     }
   }
   const packageJson = readJson(join(execDir, "package.json"))
-  lines.push(`INFO omo ${packageJson.version} (engine: senpi ${enginePin})`)
+  for (const line of versionLine(packageJson, enginePin).split("\n")) lines.push(`INFO ${line}`)
   if (needsSetupSuggestion(inventory)) lines.push("INFO no credentials found; run omo setup to review sibling stores")
   console.log(lines.join("\n"))
   process.exitCode = failed ? 1 : 0
@@ -132,16 +152,26 @@ function isSelfUpdate(args: string[]): boolean {
   return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
 }
 
-export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedManifest, "omoAiVersion" | "enginePin">): boolean {
+export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedManifest, "omoAiVersion" | "enginePin" | "buildInfo">): boolean {
   if ((args[0] === "--version" || args[0] === "-v") && args.length === 1) {
-    console.log(versionLine({ version: manifest.omoAiVersion }, manifest.enginePin))
+    console.log(versionLine({ version: manifest.omoAiVersion, omoBuild: manifest.buildInfo }, manifest.enginePin))
     return true
   }
   if (isSelfUpdate(args)) {
-    console.log(updateLine(process.platform, process.arch))
+    console.log(updateHint(manifest.buildInfo))
     return true
   }
   return false
+}
+
+/**
+ * The startup banner's provenance lines. A stamped dev build renders the same full SHAs,
+ * ISO commit dates and branches as `--version` and `doctor`; anything else keeps the
+ * release one-liner.
+ */
+export function compiledBannerLines(manifest: Pick<EmbeddedManifest, "omoAiVersion" | "buildInfo">): string[] {
+  const info = parseBuildInfo(manifest.buildInfo)
+  return info === undefined ? [`omo (omo-ai beta ${manifest.omoAiVersion})`] : versionLines(info)
 }
 
 export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean): boolean {
@@ -156,7 +186,7 @@ export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean):
 }
 
 export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown", compiledPackageRoot?: string): Promise<boolean> {
-  const packageJson = readJson(join(execDir, "package.json"))
+  const packageJson = readJson(join(execDir, "package.json")) as { version: string; omoBuild?: unknown }
   migrateLegacyBunGlobalManifest(execDir)
   adoptLegacyFlatState()
   const command = args[0]
@@ -169,7 +199,7 @@ export async function runCompiledLauncher(args: string[], execDir: string, engin
   }
   if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
   if ((command === "--version" || command === "-v") && args.length === 1) { console.log(versionLine(packageJson, enginePin ?? "unknown")); return true }
-  if (isSelfUpdate(args)) { console.log(updateLine(process.platform, process.arch)); return true }
+  if (isSelfUpdate(args)) { console.log(updateHint(packageJson.omoBuild)); return true }
   return false
 }
 
@@ -212,7 +242,7 @@ async function main(): Promise<void> {
   // executable delegates to the engine in-process as required by the native startup contract.
   if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
   if (shouldPrintCompiledBanner(process.argv.slice(2), process.stderr.isTTY === true)) {
-    console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
+    for (const line of compiledBannerLines(manifest)) console.error(line)
   }
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
   Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))

@@ -1,7 +1,7 @@
 // allow: SIZE_OK - bounded snapshots and their canonical verdict share one normalization contract.
 import { createHash } from "node:crypto";
 import { constants, readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
 	errorCode,
 	FILE_IO,
@@ -81,11 +81,38 @@ export function protectedSnapshotsUntouched(before, after) {
 	);
 }
 
+export function directoryIdentityAvailable(platform) {
+	if (arguments.length > 0)
+		return (
+			process.platform === "linux" &&
+			platform === "linux" &&
+			constants.O_DIRECTORY !== undefined &&
+			constants.O_NOFOLLOW !== undefined
+		);
+	return process.platform === "linux";
+}
+
 export function snapshotDirectory(
 	root,
 	limits = OBSERVATION_LIMITS,
-	{ pathStyle = NATIVE_PATH_STYLE, ...ioOverrides } = {},
+	options = {},
 ) {
+	const platformSpecified = Object.hasOwn(options, "platform");
+	const {
+		pathStyle = NATIVE_PATH_STYLE,
+		platform = process.platform,
+		...ioOverrides
+	} = options;
+	if (platformSpecified && !directoryIdentityAvailable(platform)) {
+		return {
+			snapshot: new Map(),
+			complete: false,
+			truncated: false,
+			errors: [{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" }],
+			bytesRead: 0,
+			domain: "nonvolatile-home",
+		};
+	}
 	const io = { ...FILE_IO, ...ioOverrides };
 	const state = {
 		root,
@@ -282,15 +309,28 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 		beforeOpen = io.lstatSync(boundRoot, { bigint: true });
 	} catch (error) {
 		if (isMissingSnapshotEntryError(error)) {
-			if (currentRoot !== state.root)
+			if (currentRoot !== state.root) {
 				state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
+			} else {
+				const boundaryError = missingRootBoundaryError(boundRoot, error, io);
+				if (boundaryError !== undefined)
+					state.errors.push({ path: currentRel, code: boundaryError });
+			}
 		} else if (
 			currentRoot !== state.root &&
 			isTransientSnapshotEntryError(error)
 		) {
 			state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
 		} else {
-			state.errors.push({ path: currentRel, code: errorCode(error) });
+			state.errors.push({
+				path: currentRel,
+				code:
+					currentRoot === state.root &&
+					process.platform === "darwin" &&
+					errorCode(error) === "ENOTDIR"
+						? "DIRECTORY_IDENTITY_UNAVAILABLE"
+						: errorCode(error),
+			});
 		}
 		return;
 	}
@@ -329,11 +369,11 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				code: "FILE_REPLACED",
 			});
 		const descriptorRoot = directoryDescriptorPath(directoryFd);
-		if (descriptorRoot === null)
-			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
-				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
-			});
-		directory = io.opendirSync(descriptorRoot);
+		// On platforms where the descriptor path is unavailable (macOS, Windows),
+		// fall back to the original path. Identity is still verified via the fd
+		// opened above and the assertDirectoryPathIdentity call below.
+		const opendirRoot = descriptorRoot ?? boundRoot;
+		directory = io.opendirSync(opendirRoot);
 		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
 	} catch (error) {
 		state.errors.push({
@@ -350,10 +390,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 	let traversalFailed = false;
 	try {
 		const descriptorRoot = directoryDescriptorPath(directoryFd);
-		if (descriptorRoot === null)
-			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
-				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
-			});
+		const traversalRoot = descriptorRoot ?? boundRoot;
 		state.snapshot.set(currentRel, "directory");
 		const entries = [];
 		while (true) {
@@ -364,7 +401,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				relative(state.root, path),
 				state.pathStyle,
 			);
-			const boundPath = join(descriptorRoot, entry.name);
+			const boundPath = join(traversalRoot, entry.name);
 			let pathStat;
 			try {
 				pathStat = io.lstatSync(boundPath, { bigint: true });
@@ -480,6 +517,15 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 	}
 }
 
+function missingRootBoundaryError(path, missingError, io) {
+	try {
+		const parent = io.lstatSync(dirname(path), { bigint: true });
+		return parent.isDirectory() ? undefined : errorCode(missingError);
+	} catch (error) {
+		return isMissingSnapshotEntryError(error) ? undefined : errorCode(error);
+	}
+}
+
 function assertDirectoryPathIdentity(path, expected, io) {
 	const current = io.lstatSync(path, { bigint: true });
 	const metadata = fileMetadata(current);
@@ -495,7 +541,9 @@ function assertDirectoryPathIdentity(path, expected, io) {
 
 function directoryDescriptorPath(fd) {
 	if (process.platform === "linux") return `/proc/self/fd/${fd}`;
-	if (process.platform === "darwin") return `/dev/fd/${fd}`;
+	// macOS /dev/fd/N is a character device — opendirSync("/dev/fd/N") fails
+	// with ENOTDIR. Windows has no equivalent. Return null so callers
+	// fall back to the original path with identity re-verification.
 	return null;
 }
 

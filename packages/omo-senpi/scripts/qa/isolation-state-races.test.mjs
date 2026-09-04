@@ -23,16 +23,55 @@ import * as isolationState from "./isolation-state.mjs";
 const { changedSnapshotPaths, snapshotDirectory, snapshotProtectedState } =
 	isolationState;
 
+// These scenarios exercise RACE semantics (same-size overwrites, ENOENT-then-open, close-failure
+// precedence), not no-follow capability. The production reader fails closed with
+// NO_FOLLOW_UNAVAILABLE wherever O_NOFOLLOW is absent (Windows) - that contract is pinned in
+// isolation-platform-capabilities.test.mjs - and doing so here would stop every race before it
+// starts, so the fixture supplies a read flag the host can honour. None of these fixtures use
+// symlinks, so O_RDONLY is byte-equivalent to the production flags for the files they read.
+const RACE_READ_FLAGS = constants.O_RDONLY;
+function raceIo(overrides = {}) {
+	return { noFollowReadFlags: RACE_READ_FLAGS, ...overrides };
+}
+function raceReader(readFile) {
+	readFile.noFollowReadFlags = RACE_READ_FLAGS;
+	return readFile;
+}
+
+// Directory traversal binds identity with O_DIRECTORY | O_NOFOLLOW (isolation-state.mjs). Where
+// either constant is absent (Windows), snapshotDirectory fails closed BEFORE traversal with
+// DIRECTORY_IDENTITY_UNAVAILABLE at ".", so no directory race can be observed there. Each race
+// below keeps its setup and injection on every host and asserts the verdict the host can
+// produce: the specific race code where identity binding exists, the fail-closed capability
+// error where it does not. Both uphold the invariant that a mutation never looks unchanged.
+const DIRECTORY_IDENTITY =
+	constants.O_DIRECTORY !== undefined && constants.O_NOFOLLOW !== undefined;
+function expectDirectoryIdentityUnavailable(scan) {
+	expect(scan.complete).toBe(false);
+	expect(scan.errors).toEqual([{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" }]);
+	expect([...scan.snapshot.keys()]).toEqual([]);
+	expect(scan.bytesRead).toBe(0);
+}
+
 test("#given a same-size in-place overwrite after an observation read #when metadata is verified #then the snapshot fails closed", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-same-size-observation-"));
 	try {
 		const path = join(root, "state.json");
 		writeFileSync(path, "AAAA");
 		let mutated = false;
+		let fileFd;
 		const io = {
-			openSync,
+			openSync(file, flags) {
+				fileFd = openSync(file, flags);
+				return fileFd;
+			},
 			closeSync,
-			fstatSync,
+			fstatSync(fd, options) {
+				const metadata = fstatSync(fd, options);
+				return fd === fileFd && mutated
+					? { ...metadata, mtimeNs: metadata.mtimeNs + 1n }
+					: metadata;
+			},
 			statSync,
 			readSync(fd, buffer, offset, length, position) {
 				const count = readSync(fd, buffer, offset, length, position);
@@ -46,8 +85,12 @@ test("#given a same-size in-place overwrite after an observation read #when meta
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 4, maxEntries: 10 },
-			io,
+			raceIo(io),
 		);
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.bytesRead).toBe(4);
 		expect(scan.complete).toBe(false);
 		expect(scan.errors).toEqual([{ path: "state.json", code: "FILE_CHANGED" }]);
@@ -63,6 +106,7 @@ test("#given a same-size in-place overwrite after a protected read #when metadat
 		const path = join(root, "auth.json");
 		writeFileSync(path, "AAAA");
 		let mutated = false;
+		let fileFd;
 		const readFile = (file) => {
 			const content = readFileSync(file);
 			if (!mutated) {
@@ -71,7 +115,17 @@ test("#given a same-size in-place overwrite after a protected read #when metadat
 			}
 			return content;
 		};
-		const snapshot = snapshotProtectedState(root, readFile);
+		readFile.openSync = (file, flags) => {
+			fileFd = openSync(file, flags);
+			return fileFd;
+		};
+		readFile.fstatSync = (fd, options) => {
+			const metadata = fstatSync(fd, options);
+			return fd === fileFd && mutated
+				? { ...metadata, mtimeNs: metadata.mtimeNs + 1n }
+				: metadata;
+		};
+		const snapshot = snapshotProtectedState(root, raceReader(readFile));
 		expect(snapshot.complete).toBe(false);
 		expect(snapshot.errors).toEqual([
 			{ path: "auth.json", code: "FILE_CHANGED" },
@@ -97,7 +151,7 @@ test("#given an existence probe would hide inaccessible protected state #when op
 			if (file === join(root, "auth.json")) return deniedRead();
 			return openSync(file, flags);
 		};
-		const snapshot = snapshotProtectedState(root, deniedRead);
+		const snapshot = snapshotProtectedState(root, raceReader(deniedRead));
 		expect(snapshot.complete).toBe(false);
 		expect(snapshot.errors).toEqual([{ path: "auth.json", code: "EACCES" }]);
 		expect(snapshot.snapshot.has("auth.json")).toBe(false);
@@ -122,7 +176,7 @@ test("#given only volatile settings stamps change #when bounded complete-tree sn
 				modelLastOnThinkingLevels: { model: "low" },
 			}),
 		);
-		const before = snapshotDirectory(root);
+		const before = snapshotDirectory(root, undefined, raceIo());
 		writeFileSync(
 			path,
 			JSON.stringify({
@@ -132,7 +186,13 @@ test("#given only volatile settings stamps change #when bounded complete-tree sn
 				modelLastOnThinkingLevels: { model: "high" },
 			}),
 		);
-		const after = snapshotDirectory(root);
+		const after = snapshotDirectory(root, undefined, raceIo());
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(before);
+			expectDirectoryIdentityUnavailable(after);
+			expect(changedSnapshotPaths(before.snapshot, after.snapshot)).toEqual([]);
+			return;
+		}
 		expect(before.complete).toBe(true);
 		expect(after.complete).toBe(true);
 		expect(changedSnapshotPaths(before.snapshot, after.snapshot)).toEqual([]);
@@ -147,10 +207,32 @@ test("#given an enumerated entry vanishes before stat #when final directory meta
 		const path = join(root, "vanished.tmp");
 		writeFileSync(path, "temporary");
 		let removed = false;
+		let rootFd;
 		const io = {
-			openSync,
+			openSync(file, flags) {
+				const fd = openSync(file, flags);
+				if (file === root) rootFd = fd;
+				return fd;
+			},
+			openDirectorySync(file, flags) {
+				const fd = openSync(file, flags);
+				if (file === root) rootFd = fd;
+				return fd;
+			},
 			closeSync,
 			fstatSync,
+			fstatDirectorySync(fd, options) {
+				const metadata = fstatSync(fd, options);
+				return fd === rootFd && removed
+					? new Proxy(metadata, {
+							get(target, property) {
+								return property === "size"
+									? BigInt(target.size) + 1n
+									: target[property];
+							},
+						})
+					: metadata;
+			},
 			opendirSync,
 			readFileSync,
 			readSync,
@@ -168,8 +250,12 @@ test("#given an enumerated entry vanishes before stat #when final directory meta
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-			io,
+			raceIo(io),
 		);
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.complete).toBe(false);
 		expect(scan.truncated).toBe(false);
 		expect(scan.errors).toEqual([{ path: ".", code: "FILE_CHANGED" }]);
@@ -202,10 +288,14 @@ test("#given replacement between initial stat and open #when snapshotted #then p
 					? snapshotDirectory(
 							root,
 							{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-							io,
+							raceIo(io),
 						)
-					: snapshotProtectedState(root, io);
+					: snapshotProtectedState(root, raceIo(io));
 			expect(result.complete).toBe(false);
+			if (kind === "observed" && !DIRECTORY_IDENTITY) {
+				expectDirectoryIdentityUnavailable(result);
+				continue;
+			}
 			expect(result.errors).toEqual([{ path: name, code: "FILE_REPLACED" }]);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
@@ -224,9 +314,17 @@ test("#given success or primary failure plus close failure #when reading #then p
 					? snapshotDirectory(
 							root,
 							{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-							io,
+							raceIo(io),
 						)
-					: snapshotProtectedState(root, io);
+					: snapshotProtectedState(root, raceIo(io));
+			if (kind === "observed" && !DIRECTORY_IDENTITY) {
+				expectDirectoryIdentityUnavailable(run({
+					closeSync() {
+						throw codedError("ECLOSE");
+					},
+				}));
+				continue;
+			}
 			expect(
 				run({
 					closeSync() {
@@ -264,7 +362,7 @@ test("#given ENOENT stat then open success and close failure #when absence races
 	try {
 		const path = join(root, "auth.json");
 		let firstStat = true;
-		const snapshot = snapshotProtectedState(root, {
+		const snapshot = snapshotProtectedState(root, raceIo({
 			lstatSync(file, options) {
 				if (file === path && firstStat) {
 					firstStat = false;
@@ -276,7 +374,7 @@ test("#given ENOENT stat then open success and close failure #when absence races
 			closeSync() {
 				throw codedError("ECLOSE");
 			},
-		});
+		}));
 		expect(snapshot.errors).toEqual([
 			{ path: "auth.json", code: "FILE_REPLACED" },
 		]);
@@ -291,14 +389,18 @@ test("#given the root vanishes after its initial identity check #when directory 
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-			{
+			raceIo({
 				opendirSync() {
 					throw codedError("ENOENT");
 				},
-			},
+			}),
 		);
 
 		expect(scan.complete).toBe(false);
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.errors).toEqual([{ path: ".", code: "FILE_REPLACED" }]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
@@ -322,7 +424,7 @@ test("#given directory open returns a stale external descriptor #when traversal 
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-			{
+			raceIo({
 				openDirectorySync(path, flags) {
 					if (
 						(path === state || path.endsWith("/state")) &&
@@ -333,11 +435,15 @@ test("#given directory open returns a stale external descriptor #when traversal 
 					}
 					return openSync(path, flags);
 				},
-			},
+			}),
 		);
 		if (!suppliedExternalFd) closeSync(externalFd);
 
 		expect(scan.complete).toBe(false);
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.errors).toContainEqual({
 			path: "state",
 			code: "FILE_REPLACED",
@@ -360,7 +466,7 @@ test("#given an opened directory is replaced after its identity check #when trav
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-			{
+			raceIo({
 				opendirSync(path) {
 					directoryOpens += 1;
 					const directory = opendirSync(path);
@@ -380,10 +486,14 @@ test("#given an opened directory is replaced after its identity check #when trav
 						},
 					};
 				},
-			},
+			}),
 		);
 
 		expect(scan.complete).toBe(false);
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.errors).toContainEqual({
 			path: "state",
 			code: "FILE_REPLACED",
@@ -401,13 +511,17 @@ test("#given non-ASCII canonical paths #when snapshots and errors are ordered #t
 		const scan = snapshotDirectory(
 			root,
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
-			{
+			raceIo({
 				openSync() {
 					throw codedError("EIO");
 				},
-			},
+			}),
 		);
 
+		if (!DIRECTORY_IDENTITY) {
+			expectDirectoryIdentityUnavailable(scan);
+			return;
+		}
 		expect(scan.errors).toEqual([
 			{ path: "z", code: "EIO" },
 			{ path: "ä", code: "EIO" },

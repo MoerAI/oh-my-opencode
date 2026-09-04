@@ -222,6 +222,15 @@ describe("OMO Senpi scoped skill sync", () => {
     expect(leaks).toEqual([])
   })
 
+  test("#given the synced review-work skill #when its body task targets are scanned #then it dispatches exactly one gate reviewer", () => {
+    const content = readFileSync(join(skillsRoot, "review-work", "SKILL.md"), "utf8")
+    // Skip the frontmatter and the Senpi compatibility banner: only the skill body dispatches reviewers.
+    const body = content.slice(content.indexOf("\n# "))
+    const targets = [...body.matchAll(taskTargetPattern)].map(([, kind, name]) => `${kind}=${name}`)
+
+    expect(targets).toEqual(["subagent_type=omo-senpi-gate-reviewer"])
+  })
+
   test("#given shipped task examples #when targets are scanned #then every agent and category exists in Senpi", () => {
     const allowedTargets = {
       subagent_type: new Set(Object.keys(BUILTIN_AGENTS)),
