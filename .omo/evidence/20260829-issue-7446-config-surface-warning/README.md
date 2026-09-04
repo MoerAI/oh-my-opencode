@@ -35,6 +35,11 @@ Received number of calls: 0
 - The isolated plugin log recorded the same diagnostic before agent
   registration, proving the production startup path fired.
 - Host database isolation: session count remained `7946`.
+- Reviewer-repeatable sanitized captures for the expanded source discovery,
+  exact warning text, and before/after database checks are committed under
+  [`../20260904-pr-7492-review-fixes/`](../20260904-pr-7492-review-fixes/).
+  The directory's `README.md` maps each real OpenCode scenario to its captured
+  artifact.
 
 ## Why this evidence is enough
 

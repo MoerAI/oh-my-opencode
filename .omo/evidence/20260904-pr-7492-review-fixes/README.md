@@ -12,6 +12,7 @@
   - with `OPENCODE_CONFIG_DIR` pointing to `profiles/focused`.
 - Set isolated HOME and all XDG roots for both real OpenCode runs and compared
   the real OpenCode database session count before and after.
+- Linked the original issue evidence to this reviewer-repeatable capture set.
 
 ## What was observed
 
