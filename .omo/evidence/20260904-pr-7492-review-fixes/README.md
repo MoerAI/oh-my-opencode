@@ -47,6 +47,10 @@
   462 assertions across 24 files.
 - Adapter typecheck, full build, OpenCode QA common self-check, SSE self-test,
   and the real isolated warning run all passed.
+- After merging `dev@07e30350b`, the 212 related tests, adapter typecheck,
+  full build, and real isolated warning run passed again. The sandbox database
+  remained under its XDG data root with 0 sessions, and the real database
+  remained 8072 before and after.
 
 ## Why this is enough
 

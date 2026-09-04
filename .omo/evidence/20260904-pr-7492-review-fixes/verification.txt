@@ -10,3 +10,6 @@ Final OpenCode adapter typecheck: exit 0.
 Final full plugin build: exit 0.
 Final OpenCode QA common self-check and SSE self-test: PASS.
 Final real OpenCode explicit-config warning: PASS.
+Post-merge dev@07e30350b related tests: 212 pass, 0 fail, 462 assertions.
+Post-merge adapter typecheck and full build: PASS.
+Post-merge real OpenCode warning and database isolation: PASS.
