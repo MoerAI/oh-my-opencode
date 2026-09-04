@@ -85,6 +85,14 @@
   unresolvable warning remained absent, the isolated database stayed empty,
   and the real database remained 8072 before and after. See
   `home-boundary-followup.txt`.
+- Existing-destination review failed first at 5 pass and 2 fail because both
+  user and project hints always named `omo.jsonc`. The corrected focused
+  suites passed 30 tests with 0 failures and 66 assertions. Adapter typecheck,
+  full build, and QA helper checks passed.
+- A real OpenCode run with only `~/.omo/omo.json` present emitted an inline
+  diagnostic targeting that active JSON file, not a new JSONC file. The
+  isolated database remained empty and the real database stayed at 8072
+  sessions. See `json-target-followup.txt`.
 
 ## Why this is enough
 

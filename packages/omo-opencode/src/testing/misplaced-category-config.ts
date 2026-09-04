@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
 import {
@@ -63,19 +63,34 @@ function canonicalPath(filePath: string): string {
   }
 }
 
-function targetPath(profileName: string | undefined): string {
-  return profileName === undefined
-    ? "~/.omo/omo.jsonc"
-    : `~/.omo/omo.jsonc under profiles.${profileName}.opencode.categories`
+function activeOmoConfigPath(configDirectory: string): string {
+  const jsoncPath = join(configDirectory, "omo.jsonc")
+  if (existsSync(jsoncPath)) return jsoncPath
+  const jsonPath = join(configDirectory, "omo.json")
+  return existsSync(jsonPath) ? jsonPath : jsoncPath
 }
 
-function userTargetPath(configDir: string): string {
+function targetPath(basePath: string, profileName: string | undefined): string {
+  return profileName === undefined
+    ? basePath
+    : `${basePath} under profiles.${profileName}.opencode.categories`
+}
+
+function userOmoTargetPath(homeDirectory: string): string {
+  const filename = basename(activeOmoConfigPath(join(homeDirectory, ".omo")))
+  return `~/.omo/${filename}`
+}
+
+function userTargetPath(configDir: string, homeDirectory: string): string {
   const configuredDir = process.env.OPENCODE_CONFIG_DIR?.trim()
   const lexicalProfileName = configuredDir &&
       canonicalPath(configuredDir) === canonicalPath(configDir)
     ? profileNameFromConfigDir(configuredDir)
     : undefined
-  return targetPath(lexicalProfileName ?? profileNameFromConfigDir(configDir))
+  return targetPath(
+    userOmoTargetPath(homeDirectory),
+    lexicalProfileName ?? profileNameFromConfigDir(configDir),
+  )
 }
 
 function hasTopLevelCategories(config: unknown): boolean {
@@ -95,18 +110,24 @@ function configCandidates(projectDirectory: string, homeDirectory: string): Conf
   }
 
   for (const configDir of getOpenCodeConfigDiscoveryDirs()) {
-    add(detectedFile(join(configDir, "opencode")), userTargetPath(configDir))
+    add(detectedFile(join(configDir, "opencode")), userTargetPath(configDir, homeDirectory))
   }
 
   const explicitConfig = process.env.OPENCODE_CONFIG?.trim()
-  if (explicitConfig) add(resolve(explicitConfig), "~/.omo/omo.jsonc")
+  if (explicitConfig) add(resolve(explicitConfig), userOmoTargetPath(homeDirectory))
 
   const ancestors = ancestorDirectories(projectDirectory, homeDirectory)
   for (const directory of ancestors) {
-    add(detectedFile(join(directory, "opencode")), join(directory, ".omo", "omo.jsonc"))
+    add(
+      detectedFile(join(directory, "opencode")),
+      activeOmoConfigPath(join(directory, ".omo")),
+    )
   }
   for (const directory of ancestors) {
-    add(detectedFile(join(directory, ".opencode", "opencode")), join(directory, ".omo", "omo.jsonc"))
+    add(
+      detectedFile(join(directory, ".opencode", "opencode")),
+      activeOmoConfigPath(join(directory, ".omo")),
+    )
   }
 
   return candidates
@@ -134,7 +155,7 @@ export function getMisplacedCategoryConfigDiagnostics(
         ? profileNameFromConfigDir(configuredDir)
         : undefined
       diagnostics.push(
-        `OMO ignores "categories" in OPENCODE_CONFIG_CONTENT; move it to ${targetPath(profileName)}.`,
+        `OMO ignores "categories" in OPENCODE_CONFIG_CONTENT; move it to ${targetPath(userOmoTargetPath(options.homeDirectory ?? homedir()), profileName)}.`,
       )
     }
   }

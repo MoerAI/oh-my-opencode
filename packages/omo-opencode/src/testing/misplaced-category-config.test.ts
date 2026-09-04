@@ -134,4 +134,47 @@ describe("misplaced OpenCode category diagnostics", () => {
     // then
     expect(diagnostics.some((message) => message.includes(ancestorConfig))).toBe(true)
   })
+
+  test("#given an existing user omo.json #when categories are diagnosed #then its extension is preserved", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const configDir = join(root, "opencode")
+    mkdirSync(join(homeDirectory, ".omo"), { recursive: true })
+    mkdirSync(configDir, { recursive: true })
+    writeFileSync(join(homeDirectory, ".omo", "omo.json"), "{}")
+    writeFileSync(join(configDir, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = configDir
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(join(root, "project"), {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes("~/.omo/omo.json."))).toBe(true)
+    expect(diagnostics.some((message) => message.includes("~/.omo/omo.jsonc."))).toBe(false)
+  })
+
+  test("#given an existing project omo.json #when categories are diagnosed #then its extension is preserved", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const projectDirectory = join(root, "workspace")
+    const projectConfigDir = join(projectDirectory, ".omo")
+    const targetConfig = join(projectConfigDir, "omo.json")
+    mkdirSync(projectConfigDir, { recursive: true })
+    writeFileSync(targetConfig, "{}")
+    writeFileSync(join(projectDirectory, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes(targetConfig))).toBe(true)
+    expect(diagnostics.some((message) => message.includes(`${targetConfig}c`))).toBe(false)
+  })
 })

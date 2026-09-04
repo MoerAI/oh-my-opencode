@@ -30,3 +30,8 @@ Home-boundary corrected focused suites: 28 pass, 0 fail, 62 assertions.
 Home-boundary adapter typecheck and full build: PASS.
 Home-boundary OpenCode QA common self-check and SSE self-test: PASS.
 Home-boundary real OpenCode run and sandbox containment: PASS.
+JSON-target failing-first suite: 5 pass, 2 fail, 10 assertions.
+JSON-target corrected focused suites: 30 pass, 0 fail, 66 assertions.
+JSON-target adapter typecheck and full build: PASS.
+JSON-target OpenCode QA common self-check and SSE self-test: PASS.
+JSON-target real OpenCode run and sandbox containment: PASS.
