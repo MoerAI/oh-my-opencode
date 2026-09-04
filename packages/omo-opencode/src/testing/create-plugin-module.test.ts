@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { getLocale, initI18n, t } from "../shared/i18n"
 import { PLUGIN_NAME } from "../shared"
 import { createPluginModule } from "./create-plugin-module"
+import { getMisplacedCategoryConfigDiagnostics } from "./misplaced-category-config"
 
 const sourcePlugin = new URL("../index.ts", import.meta.url).href
 
@@ -35,6 +36,7 @@ const mockLoadConfigChain = mock((directory: string) => ({
   path: null,
   valid: true,
 }))
+const mockGetMisplacedCategoryConfigDiagnostics = mock((_directory: string) => [] as string[])
 const mockIsTmuxIntegrationEnabled = mock(
   (pluginConfig: { tmux?: { enabled?: boolean } | undefined }) => pluginConfig.tmux?.enabled ?? false,
 )
@@ -98,6 +100,7 @@ function createTestPluginModule(overrides: Parameters<typeof createPluginModule>
     runOpenCodeStartupMigration: mockRunOpenCodeStartupMigration,
     loadConfigChain: mockLoadConfigChain as never,
     loadPluginConfig: mockLoadPluginConfig as never,
+    getMisplacedCategoryConfigDiagnostics: mockGetMisplacedCategoryConfigDiagnostics,
     isTmuxIntegrationEnabled: mockIsTmuxIntegrationEnabled as never,
     createRuntimeTmuxConfig: mockCreateRuntimeTmuxConfig as never,
     createManagers: mockCreateManagers as never,
@@ -123,6 +126,8 @@ describe("createPluginModule()", () => {
     mockInjectServerAuthIntoClient.mockClear()
     mockLoadPluginConfig.mockClear()
     mockLoadConfigChain.mockClear()
+    mockGetMisplacedCategoryConfigDiagnostics.mockClear()
+    mockGetMisplacedCategoryConfigDiagnostics.mockImplementation(() => [])
     mockRunOpenCodeStartupMigration.mockClear()
     mockCreateManagers.mockClear()
     mockTuiStateMirrorStop.mockClear()
@@ -380,6 +385,12 @@ describe("createPluginModule()", () => {
   })
 
   describe("#given OMO categories are placed in OpenCode configuration", () => {
+    beforeEach(() => {
+      mockGetMisplacedCategoryConfigDiagnostics.mockImplementation(
+        getMisplacedCategoryConfigDiagnostics,
+      )
+    })
+
     it("#then startup warns that the category overrides are ignored", async () => {
       // given
       const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-misplaced-categories-"))
@@ -709,6 +720,44 @@ describe("createPluginModule()", () => {
         },
       })
       expect(mockLoadPluginConfig).toHaveBeenCalledTimes(1)
+    })
+
+    it("#then unrelated factory tests stay isolated from host OpenCode categories", async () => {
+      // given
+      const configDir = mkdtempSync(join(tmpdir(), "omo-host-config-isolation-"))
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      process.env.OPENCODE_CONFIG_DIR = configDir
+      writeFileSync(join(configDir, "opencode.jsonc"), `{
+        "categories": {
+          "deep": { "model": "opencode/big-pickle" }
+        }
+      }`)
+      const runOpenCodeStartupMigration = mock(() => ({
+        journalResumed: false,
+        migratedFrom: ["/home/alice/.config/opencode/omo.json"],
+        reloadRequired: true,
+        results: [],
+        skippedConflictCount: 0,
+      }))
+      const showToast = mock(async () => ({}))
+      const pluginModule = createTestPluginModule({ runOpenCodeStartupMigration })
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: "/tmp/project",
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        expect(showToast.mock.calls[0]?.[0]).toMatchObject({
+          body: { title: "Configuration migrated", variant: "success" },
+        })
+      } finally {
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(configDir, { recursive: true, force: true })
+      }
     })
   })
 

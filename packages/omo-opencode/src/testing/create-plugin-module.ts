@@ -74,6 +74,7 @@ export type PluginModuleDeps = {
   warmLiveServerProbe: typeof warmLiveServerProbe
   loadConfigChain: typeof validatePluginConfig
   loadPluginConfig: typeof loadPluginConfig
+  getMisplacedCategoryConfigDiagnostics: typeof getMisplacedCategoryConfigDiagnostics
   recordPluginTelemetry: typeof recordPluginTelemetry
   initI18n: typeof initI18n
   initializeOpenClaw: typeof initializeOpenClaw
@@ -108,6 +109,7 @@ const defaultPluginModuleDeps: PluginModuleDeps = {
   warmLiveServerProbe,
   loadConfigChain: validatePluginConfig,
   loadPluginConfig,
+  getMisplacedCategoryConfigDiagnostics,
   recordPluginTelemetry,
   initI18n,
   initializeOpenClaw,
@@ -177,7 +179,7 @@ export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): P
     deps.migrateLegacyWorkspaceDirectory(input.directory)
     startupMigration ??= deps.runOpenCodeStartupMigration({ cwd: input.directory })
     const startupValidation = deps.loadConfigChain(input.directory)
-    const misplacedCategoryConfigs = getMisplacedCategoryConfigDiagnostics(input.directory)
+    const misplacedCategoryConfigs = deps.getMisplacedCategoryConfigDiagnostics(input.directory)
     for (const misplacedCategoryConfig of misplacedCategoryConfigs) {
       console.warn(`[oh-my-openagent] ${misplacedCategoryConfig}`)
       deps.log("[config] ignored misplaced category overrides", { diagnostic: misplacedCategoryConfig })

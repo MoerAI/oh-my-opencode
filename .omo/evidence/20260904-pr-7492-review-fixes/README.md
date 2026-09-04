@@ -64,6 +64,17 @@
   resolved HOME and database path, explicit sandbox-containment assertions,
   zero isolated sessions, and the real database unchanged at 8072 sessions.
   See `late-review-followup.txt`.
+- Final review exposed one test-boundary leak: unrelated plugin-factory tests
+  could invoke the production scanner against inherited host OpenCode paths.
+  A deterministic host-config fixture failed first at 22 pass and 1 fail.
+- The scanner is now a `PluginModuleDeps` dependency. The shared test factory
+  supplies an empty stub, while the diagnostic suite explicitly forwards the
+  production scanner. Focused suites passed 26 tests with 0 failures and 59
+  assertions; adapter typecheck, full build, and QA helper self-tests passed.
+- A final real OpenCode run exercised the production default dependency,
+  emitted the inline warning, resolved HOME and its database below the
+  sandbox, recorded zero isolated sessions, and left the real database
+  unchanged at 8072. See `hermetic-scanner-followup.txt`.
 
 ## Why this is enough
 

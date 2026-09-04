@@ -20,3 +20,8 @@ Final adapter typecheck and full build: PASS.
 Final OpenCode QA common self-check and SSE self-test: PASS.
 Final real inline-content and profile-scoped warning runs: PASS.
 Final real database sessions: 8072 before, 8072 after both runs.
+Hermetic-scanner failing-first suite: 22 pass, 1 fail, 55 assertions.
+Hermetic-scanner corrected focused suites: 26 pass, 0 fail, 59 assertions.
+Hermetic-scanner adapter typecheck and full build: PASS.
+Hermetic-scanner OpenCode QA common self-check and SSE self-test: PASS.
+Hermetic-scanner real OpenCode run and sandbox containment: PASS.
