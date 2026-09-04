@@ -166,20 +166,25 @@ describe("opencode-config-dir", () => {
       expect(result).toEqual([resolve(defaultDir)])
     })
 
-    test("returns CLI plus Desktop release and dev directories for diagnostics", () => {
+    test("returns CLI plus only the active Desktop directory for diagnostics", () => {
       // given
       process.env.OPENCODE_CONFIG_DIR = "/custom/opencode/path"
       process.env.XDG_CONFIG_HOME = "/xdg/config"
       Object.defineProperty(process, "platform", { value: "linux" })
 
       // when
-      const result = getOpenCodeConfigDiscoveryDirs()
+      const releaseResult = getOpenCodeConfigDiscoveryDirs("1.0.200")
+      const devResult = getOpenCodeConfigDiscoveryDirs("1.0.200-dev")
 
       // then
-      expect(result).toEqual([
+      expect(releaseResult).toEqual([
         resolve("/custom/opencode/path"),
         resolve("/xdg/config/opencode"),
         resolve("/xdg/config/ai.opencode.desktop"),
+      ])
+      expect(devResult).toEqual([
+        resolve("/custom/opencode/path"),
+        resolve("/xdg/config/opencode"),
         resolve("/xdg/config/ai.opencode.desktop.dev"),
       ])
     })

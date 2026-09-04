@@ -177,6 +177,10 @@
 - The disputed related-suite file count was re-run with the exact committed
   command. Bun 1.4.0 reported 23 files again, so the evidence now records that
   direct revalidation instead of replacing it with a manual filename count.
+- Ubuntu shard 1 then exposed one stale legacy assertion that still expected
+  both Desktop editions. The corrected shared-helper suite passed 31 tests
+  with 0 failures and 36 assertions, and the 47 diagnostic/factory tests
+  remained green. See `ci-regression-followup.txt`.
 
 ## Why this is enough
 

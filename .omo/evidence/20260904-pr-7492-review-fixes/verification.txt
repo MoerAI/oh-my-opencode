@@ -77,3 +77,6 @@ Desktop edition and unified-home adapter typecheck and full build: PASS.
 Desktop edition and unified-home OpenCode QA helper gate: PASS.
 Desktop edition and unified-home real OpenCode run: PASS.
 Related suite count revalidation: 183 pass, 0 fail, 429 assertions, 23 files.
+Ubuntu shard 1 stale Desktop assertion: reproduced from CI.
+Corrected config-directory suite: 31 pass, 0 fail, 36 assertions.
+Post-repair diagnostic suites: 47 pass, 0 fail, 103 assertions.
