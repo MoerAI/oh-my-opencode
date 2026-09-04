@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { afterEach, describe, test } from "node:test"
 
-import { checkXSearchSkillStaged, stageXSearchSkill } from "./stage-x-search-skill.mjs"
+import { checkXSearchSkillStaged, resolveTargetSkill, stageXSearchSkill } from "./stage-x-search-skill.mjs"
 
 const tempDirs = []
 const STAGING_TEST_TIMEOUT_MS = process.platform === "win32" ? 30_000 : 5_000
@@ -63,5 +63,19 @@ describe("x-search conditional skill staging", () => {
     await rm(fixture.sourceSkill)
 
     await assert.rejects(stageXSearchSkill(fixture), /source SKILL\.md is missing/)
+  })
+
+  // Regression: the native staging build redirects every other artifact with OMO_SENPI_PLUGIN_OUTPUT,
+  // so a target pinned to the source plugin dir left the staged payload without the skill.
+  test("#given OMO_SENPI_PLUGIN_OUTPUT #when resolving the target #then the staged plugin root owns the copy", () => {
+    const target = resolveTargetSkill({ OMO_SENPI_PLUGIN_OUTPUT: join("/staged", "plugin") })
+
+    assert.equal(target, join("/staged", "plugin", "skills-conditional", "x-search", "SKILL.md"))
+  })
+
+  test("#given no OMO_SENPI_PLUGIN_OUTPUT #when resolving the target #then the source plugin dir owns the copy", () => {
+    const target = resolveTargetSkill({})
+
+    assert.equal(target.endsWith(join("plugin", "skills-conditional", "x-search", "SKILL.md")), true)
   })
 })

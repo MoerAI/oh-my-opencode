@@ -141,7 +141,8 @@ describe("LazyCodex publish workflow", () => {
         "if: needs.release-metadata.outputs.dist_tag == '' && steps.lazycodex-release-state.outputs.lazycodex_changed == 'true'",
       ) &&
       lazycodexReleaseStep.includes("GH_TOKEN: ${{ secrets.LAZYCODEX_SYNC_TOKEN }}") &&
-      lazycodexReleaseStep.includes('gh release create "v${VERSION}" --repo code-yeongyu/lazycodex') &&
+      lazycodexReleaseStep.includes('gh release create "v${VERSION}"') &&
+      lazycodexReleaseStep.includes("--repo code-yeongyu/lazycodex") &&
       lazycodexReleaseStep.includes("--notes-file /tmp/lazycodex-release-notes.md")
 
     // #then

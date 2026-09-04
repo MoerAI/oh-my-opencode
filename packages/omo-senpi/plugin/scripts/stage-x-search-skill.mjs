@@ -7,13 +7,21 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = dirname(scriptDir)
 const packageRoot = dirname(pluginRoot)
 const defaultSourceSkill = join(packageRoot, "src", "components", "x-search", "skill", "SKILL.md")
-// Deliberately NOT plugin/skills: pi.skills = ["./skills"] loads that dir eagerly, and the
-// x-search skill must stay credential-gated (contributed at runtime via resources_discover).
-const defaultTargetSkill = join(pluginRoot, "skills-conditional", "x-search", "SKILL.md")
+
+/**
+ * Deliberately NOT plugin/skills: pi.skills = ["./skills"] loads that dir eagerly, and the
+ * x-search skill must stay credential-gated (contributed at runtime via resources_discover).
+ * Like sync-skills.mjs, a staging build (OMO_SENPI_PLUGIN_OUTPUT) receives the copy in its own
+ * plugin root so the payload allowlist can ship it; otherwise the source plugin dir is the target.
+ */
+export function resolveTargetSkill(env = process.env) {
+  const targetPluginRoot = env.OMO_SENPI_PLUGIN_OUTPUT === undefined ? pluginRoot : env.OMO_SENPI_PLUGIN_OUTPUT
+  return join(targetPluginRoot, "skills-conditional", "x-search", "SKILL.md")
+}
 
 export async function stageXSearchSkill(options = {}) {
   const sourceSkill = resolve(options.sourceSkill ?? defaultSourceSkill)
-  const targetSkill = resolve(options.targetSkill ?? defaultTargetSkill)
+  const targetSkill = resolve(options.targetSkill ?? resolveTargetSkill())
   await validateSource(sourceSkill)
 
   const targetDir = dirname(targetSkill)
@@ -30,7 +38,7 @@ export async function stageXSearchSkill(options = {}) {
 
 export async function checkXSearchSkillStaged(options = {}) {
   const sourceSkill = resolve(options.sourceSkill ?? defaultSourceSkill)
-  const targetSkill = resolve(options.targetSkill ?? defaultTargetSkill)
+  const targetSkill = resolve(options.targetSkill ?? resolveTargetSkill())
   await validateSource(sourceSkill)
 
   let targetStat

@@ -1,3 +1,22 @@
+## 2026-09-04 — Ship the conditional x-search skill and stop the startup log line
+
+The published omo-ai payload never contained `plugin/skills-conditional/x-search/SKILL.md`. The
+plugin's own `files` allowlist shipped that directory, but the payload copy lists in
+`script/build-omo-native.ts` and `script/build-omo-binary.ts` did not, and
+`stage-x-search-skill.mjs` wrote its copy into the source plugin dir even when the staging build
+redirected every other artifact through `OMO_SENPI_PLUGIN_OUTPUT`. With no packaged copy, the
+bundled component advertised `plugin/extensions/skill/SKILL.md`, and senpi reported a startup skill
+conflict: "skill path does not exist". The staged skill is now copied into the staging plugin root,
+is part of both payload allowlists, and is required by the native, installer, and npm payload
+checks; `resolveXSearchSkillPath` returns nothing when neither copy exists, so a broken payload
+keeps `x_search` working, contributes no skill path, and warns once instead of tripping the
+conflict banner.
+
+The `x-search registered` and `x-search skipped: no xAI credential` lines also no longer greet
+every startup. Components register before the TUI takes over stdout and the default component
+logger writes `info` to `console.info`, so both expected outcomes moved to the optional `debug`
+channel.
+
 ## 2026-09-03 — Add the credential-gated x_search tool and skill
 
 Senpi can now search X (Twitter) posts through xAI when an xAI account is connected, and stays silent when it is not.

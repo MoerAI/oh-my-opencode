@@ -3,6 +3,7 @@ declare const process: {
 	cwd(): string;
 	env: Record<string, string | undefined>;
 	execPath: string;
+	platform: string;
 };
 
 import registerMockProvider, {
@@ -83,16 +84,18 @@ const isolationScript = join(
 	"qa",
 	"isolation-state.mjs",
 );
-const { snapshotDirectory, changedSnapshotPaths } = await loadModule<{
-	snapshotDirectory(root: string): {
-		snapshot: Map<string, string>;
-		complete: boolean;
-	};
-	changedSnapshotPaths(
-		before: Map<string, string>,
-		after: Map<string, string>,
-	): string[];
-}>(isolationScript);
+const { snapshotDirectory, changedSnapshotPaths, directoryIdentityAvailable } =
+	await loadModule<{
+		directoryIdentityAvailable(): boolean;
+		snapshotDirectory(root: string): {
+			snapshot: Map<string, string>;
+			complete: boolean;
+		};
+		changedSnapshotPaths(
+			before: Map<string, string>,
+			after: Map<string, string>,
+		): string[];
+	}>(isolationScript);
 const probeScript = join(
 	repoRoot,
 	"packages",
@@ -151,6 +154,8 @@ function parseLastJsonLine(stdout: string): Record<string, unknown> {
 	return JSON.parse(line);
 }
 
+const fdIt = test.skipIf(process.platform !== "linux");
+
 describe("task 13 senpi QA scripts", () => {
 	test("#given QA scripts resolve PATH binaries #when source is inspected #then they do not shell out through command lookup", () => {
 		for (const script of [driveScript, probeScript]) {
@@ -169,36 +174,41 @@ describe("task 13 senpi QA scripts", () => {
 		expect(result.stdout).toContain("SELF-TEST OK");
 	});
 
-	test("#given settings.json changes only its interactive stamps #when the complete-tree snapshot is compared #then the home is untouched", () => {
-		const root = mkdtempSync(join(tmpdir(), "omo-senpi-settings-snapshot-"));
-		const settings = join(root, "settings.json");
-		try {
-			writeFileSync(
-				settings,
-				JSON.stringify({
-					theme: "dark",
-					tipsHistory: { first: 1 },
-					lastChangelogVersion: "1.0.0",
-					modelLastOnThinkingLevels: { model: "low" },
-				}),
-			);
-			const before = snapshotDirectory(root);
-			writeFileSync(
-				settings,
-				JSON.stringify({
-					theme: "dark",
-					tipsHistory: { second: 2 },
-					lastChangelogVersion: "2.0.0",
-					modelLastOnThinkingLevels: { model: "high" },
-				}),
-			);
-			const after = snapshotDirectory(root);
+	fdIt(
+		"#given settings.json changes only its interactive stamps #when the complete-tree snapshot is compared #then the home is untouched",
+		() => {
+			const root = mkdtempSync(join(tmpdir(), "omo-senpi-settings-snapshot-"));
+			const settings = join(root, "settings.json");
+			try {
+				writeFileSync(
+					settings,
+					JSON.stringify({
+						theme: "dark",
+						tipsHistory: { first: 1 },
+						lastChangelogVersion: "1.0.0",
+						modelLastOnThinkingLevels: { model: "low" },
+					}),
+				);
+				const before = snapshotDirectory(root);
+				writeFileSync(
+					settings,
+					JSON.stringify({
+						theme: "dark",
+						tipsHistory: { second: 2 },
+						lastChangelogVersion: "2.0.0",
+						modelLastOnThinkingLevels: { model: "high" },
+					}),
+				);
+				const after = snapshotDirectory(root);
 
-			expect(changedSnapshotPaths(before.snapshot, after.snapshot)).toEqual([]);
-		} finally {
-			rmSync(root, { recursive: true, force: true });
-		}
-	});
+				expect(changedSnapshotPaths(before.snapshot, after.snapshot)).toEqual(
+					[],
+				);
+			} finally {
+				rmSync(root, { recursive: true, force: true });
+			}
+		},
+	);
 
 	test("#given probe-continuation self-test #when executed #then continuation helpers validate successfully", () => {
 		const result = runNode([probeScript, "--self-test"]);
@@ -335,46 +345,87 @@ describe("task 13 senpi QA scripts", () => {
 			expect(payload.sandboxAgentDir).not.toBe(callerAgentDir);
 			expect(String(payload.sandboxAgentDir)).toContain("omo-senpi-qa-");
 			expect(payload.isolationCertified).toBe(false);
-			expect(payload.realHomeIsolationCertified).toBe(true);
+			const directoryIdentity = directoryIdentityAvailable();
+			expect(payload.realHomeIsolationCertified).toBe(directoryIdentity);
 			expect(payload.certificationEnvironmentObserved).toBe(false);
-			expect(payload.certificationRootsComplete).toBe(true);
+			expect(payload.certificationRootsComplete).toBe(directoryIdentity);
 			expect(payload.certificationRootsTruncated).toBe(false);
 			expect(payload.certificationChangedPaths).toEqual([]);
-			expect(payload.certificationErrors).toEqual([]);
+			expect(
+				payload.certificationErrors.map(
+					(error: { code: string }) => error.code,
+				),
+			).toEqual(
+				directoryIdentity
+					? []
+					: Array(8).fill("DIRECTORY_IDENTITY_UNAVAILABLE"),
+			);
 			expect(payload.certificationLimits).toEqual({
 				maxFiles: 10_000,
 				maxBytes: 67_108_864,
 				maxEntries: 20_000,
 			});
-			expect(payload.realSenpiUntouched).toBe(true);
+			expect(payload.realSenpiUntouched).toBe(directoryIdentity);
 			expect(payload.realSenpiChangedPaths).toEqual([]);
-			expect(payload.realSenpiProtectedStateComplete).toBe(true);
-			expect(payload.realSenpiProtectedErrors).toEqual([]);
-			expect(payload.realOmoUntouched).toBe(true);
+			expect(payload.realSenpiProtectedStateComplete).toBe(
+				process.platform !== "win32",
+			);
+			expect(
+				payload.realSenpiProtectedErrors.map(
+					(error: { code: string }) => error.code,
+				),
+			).toEqual(
+				process.platform === "win32"
+					? Array(12).fill("NO_FOLLOW_UNAVAILABLE")
+					: [],
+			);
+			expect(payload.realOmoUntouched).toBe(directoryIdentity);
 			expect(payload.realOmoChangedPaths).toEqual([]);
-			expect(payload.realOmoProtectedStateComplete).toBe(true);
-			expect(payload.realOmoProtectedErrors).toEqual([]);
+			expect(payload.realOmoProtectedStateComplete).toBe(
+				process.platform !== "win32",
+			);
+			expect(
+				payload.realOmoProtectedErrors.map(
+					(error: { code: string }) => error.code,
+				),
+			).toEqual(
+				process.platform === "win32"
+					? Array(12).fill("NO_FOLLOW_UNAVAILABLE")
+					: [],
+			);
 			expect(payload.realSenpiObservedChangedPaths).toEqual([]);
 			expect(payload.realOmoObservedChangedPaths).toEqual([]);
 			expect(payload.realSenpiObservationDomain).toBe("nonvolatile-home");
-			expect(typeof payload.realSenpiNonvolatileObservationComplete).toBe(
-				"boolean",
+			expect(payload.realSenpiNonvolatileObservationComplete).toBe(
+				directoryIdentity,
 			);
-			expect(typeof payload.realSenpiNonvolatileObservationTruncated).toBe(
-				"boolean",
+			expect(payload.realSenpiNonvolatileObservationTruncated).toBe(false);
+			expect(
+				payload.realSenpiNonvolatileObservationErrors.map(
+					(error: { code: string }) => error.code,
+				),
+			).toEqual(
+				directoryIdentity
+					? []
+					: Array(2).fill("DIRECTORY_IDENTITY_UNAVAILABLE"),
 			);
-			expect(payload.realSenpiNonvolatileObservationErrors).toEqual([]);
 			expect(typeof payload.realSenpiNonvolatileObservationBytesRead).toBe(
 				"number",
 			);
 			expect(payload.realOmoObservationDomain).toBe("nonvolatile-home");
-			expect(typeof payload.realOmoNonvolatileObservationComplete).toBe(
-				"boolean",
+			expect(payload.realOmoNonvolatileObservationComplete).toBe(
+				directoryIdentity,
 			);
-			expect(typeof payload.realOmoNonvolatileObservationTruncated).toBe(
-				"boolean",
+			expect(payload.realOmoNonvolatileObservationTruncated).toBe(false);
+			expect(
+				payload.realOmoNonvolatileObservationErrors.map(
+					(error: { code: string }) => error.code,
+				),
+			).toEqual(
+				directoryIdentity
+					? []
+					: Array(2).fill("DIRECTORY_IDENTITY_UNAVAILABLE"),
 			);
-			expect(payload.realOmoNonvolatileObservationErrors).toEqual([]);
 			expect(typeof payload.realOmoNonvolatileObservationBytesRead).toBe(
 				"number",
 			);

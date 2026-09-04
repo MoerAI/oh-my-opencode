@@ -18,7 +18,7 @@ export interface XSearchComponentOptions {
   readonly env?: Record<string, string | undefined>
   readonly homeDir?: string
   readonly fetchImpl?: XSearchFetch
-  readonly resolveSkillPath?: () => string
+  readonly resolveSkillPath?: () => string | undefined
 }
 
 /**
@@ -39,19 +39,29 @@ export function createXSearchComponent(options: XSearchComponentOptions = {}): O
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       const agentDir = options.agentDir ?? resolveAgentHome({ env, homeDir: options.homeDir ?? homedir() })
       const connected = hasXaiCredential({ agentDir, env })
+      // Both outcomes are expected states: the default logger prints info to the terminal before the
+      // TUI takes over, so they stay on the optional debug channel instead of greeting every startup.
       if (!connected) {
-        ctx.logger.info("x-search skipped: no xAI credential", { component: X_SEARCH_COMPONENT_NAME })
+        ctx.logger.debug?.("x-search skipped: no xAI credential", { component: X_SEARCH_COMPONENT_NAME })
         return
       }
 
       pi.registerTool({
         ...createXSearchTool({ env, ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }) }),
       })
-      ctx.logger.info("x-search registered", { component: X_SEARCH_COMPONENT_NAME })
+      ctx.logger.debug?.("x-search registered", { component: X_SEARCH_COMPONENT_NAME })
 
       // The skill is contributed only when the credential exists, so a machine without xAI never
-      // pays for the conditional skill's description in the skills index.
-      pi.on("resources_discover", () => ({ skillPaths: [resolveSkill()] }))
+      // pays for the conditional skill's description in the skills index. A payload that lost the
+      // staged copy keeps the tool but never advertises a path senpi would flag as missing.
+      const skillPath = resolveSkill()
+      if (skillPath === undefined) {
+        ctx.logger.warn("x-search skill missing: x_search registered without its conditional skill", {
+          component: X_SEARCH_COMPONENT_NAME,
+        })
+        return
+      }
+      pi.on("resources_discover", () => ({ skillPaths: [skillPath] }))
     },
   }
 }
@@ -59,11 +69,14 @@ export function createXSearchComponent(options: XSearchComponentOptions = {}): O
 /**
  * Packaged plugin skill wins; the source-tree copy keeps dev runs working (ast-grep pattern).
  * From the bundled extension at plugin/extensions/omo.js the packaged URL resolves to
- * plugin/skills-conditional/x-search/SKILL.md, the path the skills sync writes.
+ * plugin/skills-conditional/x-search/SKILL.md, the path stage-x-search-skill.mjs writes.
+ * Returns undefined when neither copy exists: from the bundle the source-tree candidate would be
+ * plugin/extensions/skill/SKILL.md, which senpi rejects as "skill path does not exist".
  */
-export function resolveXSearchSkillPath(importerUrl: string = import.meta.url): string {
-  const packaged = fileURLToPath(new URL("../skills-conditional/x-search/SKILL.md", importerUrl))
-  if (existsSync(packaged)) return packaged
-
-  return fileURLToPath(new URL("./skill/SKILL.md", importerUrl))
+export function resolveXSearchSkillPath(importerUrl: string = import.meta.url): string | undefined {
+  const candidates = [
+    fileURLToPath(new URL("../skills-conditional/x-search/SKILL.md", importerUrl)),
+    fileURLToPath(new URL("./skill/SKILL.md", importerUrl)),
+  ]
+  return candidates.find((candidate) => existsSync(candidate))
 }
