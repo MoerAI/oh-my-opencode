@@ -476,6 +476,124 @@ describe("createPluginModule()", () => {
       }
     })
 
+    it("#then an explicit OPENCODE_CONFIG file produces a diagnostic", async () => {
+      // given
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-explicit-categories-"))
+      const projectDirectory = join(fixtureRoot, "project")
+      const explicitConfig = join(fixtureRoot, "custom-opencode.jsonc")
+      const previousConfig = process.env.OPENCODE_CONFIG
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      process.env.OPENCODE_CONFIG = explicitConfig
+      process.env.OPENCODE_CONFIG_DIR = join(fixtureRoot, "user-config")
+      writeFileSync(explicitConfig, `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`)
+      const showToast = mock(async () => ({}))
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: projectDirectory,
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        expect(showToast.mock.calls[0]?.[0]).toMatchObject({
+          body: { message: expect.stringContaining(explicitConfig) },
+        })
+      } finally {
+        if (previousConfig === undefined) delete process.env.OPENCODE_CONFIG
+        else process.env.OPENCODE_CONFIG = previousConfig
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(fixtureRoot, { recursive: true, force: true })
+      }
+    })
+
+    it("#then categories in an ancestor project config produce a diagnostic", async () => {
+      // given
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-ancestor-categories-"))
+      const projectRoot = join(fixtureRoot, "workspace")
+      const projectDirectory = join(projectRoot, "packages", "app", "src")
+      const ancestorConfig = join(projectRoot, "opencode.jsonc")
+      const targetConfig = join(projectRoot, ".omo", "omo.jsonc")
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      process.env.OPENCODE_CONFIG_DIR = join(fixtureRoot, "user-config")
+      mkdirSync(projectDirectory, { recursive: true })
+      writeFileSync(ancestorConfig, `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`)
+      const showToast = mock(async () => ({}))
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: projectDirectory,
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        const message = String(showToast.mock.calls[0]?.[0]?.body?.message)
+        expect(message).toContain(ancestorConfig)
+        expect(message).toContain(targetConfig)
+      } finally {
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(fixtureRoot, { recursive: true, force: true })
+      }
+    })
+
+    it("#then every misplaced category source is reported together", async () => {
+      // given
+      const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-multiple-categories-"))
+      const projectDirectory = join(fixtureRoot, "project")
+      const directConfig = join(projectDirectory, "opencode.jsonc")
+      const nestedConfig = join(projectDirectory, ".opencode", "opencode.jsonc")
+      const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
+      process.env.OPENCODE_CONFIG_DIR = join(fixtureRoot, "user-config")
+      mkdirSync(join(projectDirectory, ".opencode"), { recursive: true })
+      const misplacedConfig = `{
+        "categories": {
+          "deep": { "model": "amazon-bedrock/anthropic.claude-opus-4-6-v1:0" }
+        }
+      }`
+      writeFileSync(directConfig, misplacedConfig)
+      writeFileSync(nestedConfig, misplacedConfig)
+      const showToast = mock(async () => ({}))
+      const consoleWarn = mock(() => {})
+      const originalWarn = console.warn
+      console.warn = consoleWarn
+      const pluginModule = createTestPluginModule()
+      mockLoadPluginConfig.mockReturnValue({})
+
+      try {
+        // when
+        await pluginModule.server({
+          directory: projectDirectory,
+          client: { tui: { showToast } },
+        } as Parameters<typeof pluginModule.server>[0])
+
+        // then
+        const message = String(showToast.mock.calls[0]?.[0]?.body?.message)
+        expect(message).toContain(directConfig)
+        expect(message).toContain(nestedConfig)
+        expect(consoleWarn).toHaveBeenCalledTimes(2)
+      } finally {
+        console.warn = originalWarn
+        if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
+        else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
+        rmSync(fixtureRoot, { recursive: true, force: true })
+      }
+    })
+
     it("#then an active OpenCode profile preserves its scope in the move hint", async () => {
       // given
       const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-profile-categories-"))
@@ -503,7 +621,7 @@ describe("createPluginModule()", () => {
         expect(showToast).toHaveBeenCalledTimes(1)
         expect(showToast.mock.calls[0]?.[0]).toMatchObject({
           body: {
-            message: expect.stringContaining("profiles.focused.opencode.categories"),
+            message: expect.stringContaining("profiles.focused.categories"),
           },
         })
       } finally {

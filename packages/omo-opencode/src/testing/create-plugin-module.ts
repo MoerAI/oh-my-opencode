@@ -1,5 +1,5 @@
 import type { Hooks, Plugin, PluginModule } from "@opencode-ai/plugin"
-import { basename, dirname, join } from "node:path"
+import { join } from "node:path"
 import type { HookName } from "../config"
 import { validatePluginConfig } from "../config/validate"
 import { initConfigContext } from "../cli/config-manager/config-context"
@@ -29,7 +29,6 @@ import {
 } from "../shared/external-plugin-detector"
 import { createFirstMessageVariantGate } from "../shared/first-message-variant"
 import { initI18n } from "../shared/i18n"
-import { detectConfigFile, getOpenCodeConfigDiscoveryDirs, readJsoncFile } from "../shared"
 import { log } from "../shared/logger"
 import { logLegacyPluginStartupWarning } from "../shared/log-legacy-plugin-startup-warning"
 import { migrateLegacyWorkspaceDirectory } from "../shared/legacy-workspace-migration"
@@ -43,6 +42,7 @@ import {
 } from "../shared/live-server-route"
 import { startBackgroundCheck as startTmuxCheck } from "../tools/interactive-bash"
 import { runOpenCodeStartupMigration } from "../startup-migration"
+import { getMisplacedCategoryConfigDiagnostics } from "./misplaced-category-config"
 
 type StartupToastClient = {
   readonly tui?: {
@@ -164,34 +164,6 @@ function startupToastBody(input: {
   return undefined
 }
 
-function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | undefined {
-  const projectConfigDirs = new Set([
-    join(projectDirectory, ".opencode"),
-    projectDirectory,
-  ])
-  const configDirs = new Set([
-    ...projectConfigDirs,
-    ...getOpenCodeConfigDiscoveryDirs(),
-  ])
-  for (const configDir of configDirs) {
-    const configFile = detectConfigFile(join(configDir, "opencode"))
-    if (configFile.format === "none") continue
-    const config = readJsoncFile<unknown>(configFile.path)
-    if (typeof config === "object" && config !== null && !Array.isArray(config) && "categories" in config) {
-      const profileName = basename(dirname(configDir)) === "profiles"
-        ? basename(configDir)
-        : undefined
-      const targetConfigPath = projectConfigDirs.has(configDir)
-        ? join(projectDirectory, ".omo", "omo.jsonc")
-        : profileName === undefined
-          ? "~/.omo/omo.jsonc"
-          : `~/.omo/omo.jsonc under profiles.${profileName}.opencode.categories`
-      return `OMO ignores "categories" in ${configFile.path}; move it to ${targetConfigPath}.`
-    }
-  }
-  return undefined
-}
-
 export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): PluginModule {
   const deps = { ...defaultPluginModuleDeps, ...overrides }
   let startupMigration: ReturnType<PluginModuleDeps["runOpenCodeStartupMigration"]> | undefined
@@ -205,14 +177,14 @@ export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): P
     deps.migrateLegacyWorkspaceDirectory(input.directory)
     startupMigration ??= deps.runOpenCodeStartupMigration({ cwd: input.directory })
     const startupValidation = deps.loadConfigChain(input.directory)
-    const misplacedCategoryConfig = misplacedCategoryConfigDiagnostic(input.directory)
-    if (misplacedCategoryConfig !== undefined) {
+    const misplacedCategoryConfigs = getMisplacedCategoryConfigDiagnostics(input.directory)
+    for (const misplacedCategoryConfig of misplacedCategoryConfigs) {
       console.warn(`[oh-my-openagent] ${misplacedCategoryConfig}`)
       deps.log("[config] ignored misplaced category overrides", { diagnostic: misplacedCategoryConfig })
     }
     const startupDiagnostics = [
       ...(startupValidation.valid ? [] : startupValidation.messages),
-      ...(misplacedCategoryConfig === undefined ? [] : [misplacedCategoryConfig]),
+      ...misplacedCategoryConfigs,
     ]
     deps.log("[config-migration] startup completed", {
       error: startupMigration.error,

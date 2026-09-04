@@ -23,15 +23,30 @@
 - Full plugin build: exit 0.
 - `opencode-qa` common self-check and SSE self-test: pass.
 - Real Desktop run printed the exact ignored-category source under
-  `~/Library/Application Support/ai.opencode.desktop/opencode.jsonc`.
+  `<desktop-config>/opencode.jsonc`.
 - Real profile run pointed to
-  `~/.omo/omo.jsonc under profiles.focused.opencode.categories`.
+  `~/.omo/omo.jsonc under profiles.focused.categories`.
 - Both real runs exited zero.
 - The real OpenCode database contained 8072 sessions before and after each
   run.
 - After merging `upstream/dev@0a5dab201`, the 49 focused tests, adapter
   typecheck, full build, both real warning scenarios, and both database
   isolation checks passed again.
+- A follow-up real OpenCode run recorded the sandbox path relationship:
+  `XDG_DATA_HOME=<sandbox>/data` and
+  `opencode db path=<sandbox>/data/opencode/opencode.db`. The sandbox database
+  contained 0 sessions and the real database remained 8072 before and after.
+  See `isolation-provenance.txt`.
+- The final review follow-up added exact discovery for `OPENCODE_CONFIG`,
+  every ancestor's `opencode.json(c)` and `.opencode/opencode.json(c)`,
+  Windows `%APPDATA%/opencode`, and every simultaneous misplaced source.
+  Failing-first results and final counts are recorded in
+  `discovery-followup.txt`.
+- Final focused discovery suites: 53 pass, 0 fail, 89 assertions.
+- Final related startup and configuration suites: 212 pass, 0 fail,
+  462 assertions across 24 files.
+- Adapter typecheck, full build, OpenCode QA common self-check, SSE self-test,
+  and the real isolated warning run all passed.
 
 ## Why this is enough
 
@@ -44,4 +59,4 @@ and prove the isolated runs did not add sessions to the real database.
 
 Resolved configuration JSON, credentials, auth headers, private user config,
 and unrelated OpenCode logs are omitted. The exact relevant warning lines,
-exit statuses, config fixtures, and database counts are retained.
+exit statuses, portable config fixtures, and database counts are retained.

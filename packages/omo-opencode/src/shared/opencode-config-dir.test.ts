@@ -184,6 +184,20 @@ describe("opencode-config-dir", () => {
       ])
     })
 
+    test("includes the Windows APPDATA CLI directory for diagnostic discovery", () => {
+      // given
+      Object.defineProperty(process, "platform", { value: "win32" })
+      process.env.APPDATA = String.raw`C:\Users\Test\AppData\Roaming`
+      delete process.env.OPENCODE_CONFIG_DIR
+      delete process.env.XDG_CONFIG_HOME
+
+      // when
+      const result = getOpenCodeConfigDiscoveryDirs()
+
+      // then
+      expect(result).toContain(String.raw`C:\Users\Test\AppData\Roaming\opencode`)
+    })
+
     test("returns single-element array for non-opencode binary", () => {
       // given a Tauri desktop binary and OPENCODE_CONFIG_DIR is set
       process.env.OPENCODE_CONFIG_DIR = "/custom/opencode/path"

@@ -15,7 +15,7 @@
 Expected number of calls: 1
 Received number of calls: 0
 1 tests failed
-14 pass
+15 pass
 ```
 
 ## What was observed after the fix

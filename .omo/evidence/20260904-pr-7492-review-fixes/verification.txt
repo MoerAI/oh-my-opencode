@@ -4,3 +4,9 @@ Full plugin build: exit 0.
 opencode-qa common self-check: PASS.
 opencode-qa SSE self-test: PASS, server.connected observed.
 Post-merge focused tests, typecheck, build, and real OpenCode QA: PASS.
+Final focused discovery tests: 53 pass, 0 fail, 89 assertions.
+Final related tests: 212 pass, 0 fail, 462 assertions across 24 files.
+Final OpenCode adapter typecheck: exit 0.
+Final full plugin build: exit 0.
+Final OpenCode QA common self-check and SSE self-test: PASS.
+Final real OpenCode explicit-config warning: PASS.
