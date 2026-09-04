@@ -25,6 +25,11 @@
 - The Windows regression proves the same formatter emits only the header-ID
   command there, avoiding an unsafe command across cmd.exe, PowerShell, and
   Git Bash.
+- After merging `dev@07e30350b`, the complete suite repeated at 271 pass,
+  0 fail, and 776 assertions; typecheck and the 37-artifact payload build
+  passed again. The real `--version` and `--help` surfaces exited zero, and a
+  direct production formatter invocation returned only the header-ID command
+  for the Windows path.
 
 ## Why this is enough
 
