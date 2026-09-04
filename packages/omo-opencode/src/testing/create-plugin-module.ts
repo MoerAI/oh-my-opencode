@@ -165,9 +165,12 @@ function startupToastBody(input: {
 }
 
 function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | undefined {
-  const configDirs = new Set([
+  const projectConfigDirs = new Set([
     join(projectDirectory, ".opencode"),
     projectDirectory,
+  ])
+  const configDirs = new Set([
+    ...projectConfigDirs,
     ...getOpenCodeConfigDirs({ binary: "opencode" }),
   ])
   for (const configDir of configDirs) {
@@ -175,7 +178,10 @@ function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | u
     if (configFile.format === "none") continue
     const config = readJsoncFile<unknown>(configFile.path)
     if (typeof config === "object" && config !== null && !Array.isArray(config) && "categories" in config) {
-      return `OMO ignores "categories" in ${configFile.path}; move it to ~/.omo/omo.jsonc.`
+      const targetConfigPath = projectConfigDirs.has(configDir)
+        ? join(projectDirectory, ".omo", "omo.jsonc")
+        : "~/.omo/omo.jsonc"
+      return `OMO ignores "categories" in ${configFile.path}; move it to ${targetConfigPath}.`
     }
   }
   return undefined

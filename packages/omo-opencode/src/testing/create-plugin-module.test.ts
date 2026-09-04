@@ -385,6 +385,7 @@ describe("createPluginModule()", () => {
       const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-misplaced-categories-"))
       const projectDirectory = join(fixtureRoot, "project")
       const projectConfigDir = join(projectDirectory, ".opencode")
+      const targetConfigPath = join(projectDirectory, ".omo", "omo.jsonc")
       const userConfigDir = join(fixtureRoot, "user-config")
       mkdirSync(projectConfigDir, { recursive: true })
       mkdirSync(userConfigDir, { recursive: true })
@@ -414,14 +415,14 @@ describe("createPluginModule()", () => {
         expect(showToast.mock.calls[0]?.[0]).toMatchObject({
           body: {
             title: "Configuration diagnostics",
-            message: expect.stringContaining("~/.omo/omo.jsonc"),
+            message: expect.stringContaining(targetConfigPath),
             variant: "warning",
           },
         })
         expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining("opencode.jsonc"))
         expect(mockLog).toHaveBeenCalledWith(
           "[config] ignored misplaced category overrides",
-          { diagnostic: expect.stringContaining("~/.omo/omo.jsonc") },
+          { diagnostic: expect.stringContaining(targetConfigPath) },
         )
       } finally {
         console.warn = originalWarn

@@ -27,12 +27,16 @@
 - The real server loaded the built local plugin and emitted:
 
 ```text
-[oh-my-openagent] OMO ignores "categories" in <project>/.opencode/opencode.jsonc; move it to ~/.omo/omo.jsonc.
+[oh-my-openagent] OMO ignores "categories" in <project>/.opencode/opencode.jsonc; move it to <project>/.omo/omo.jsonc.
 ```
 
 - `/global/health` returned `{"healthy":true,"version":"1.18.27"}`.
 - The host session count was 8067 before and after. The server was terminated,
   its sandbox was removed, and the port refused subsequent connections.
+- A follow-up failing-first test proved that project diagnostics previously
+  pointed at the user-wide config. The corrected focused suite passed 17/17,
+  the related suite passed 176/176, and real OpenCode displayed the
+  project-scoped destination.
 
 ## Why It Is Enough
 
@@ -57,3 +61,4 @@ personal-skill details were recorded.
 - `build.txt`
 - `opencode-qa.txt`
 - `live-server.txt`
+- `project-scope-follow-up.txt`

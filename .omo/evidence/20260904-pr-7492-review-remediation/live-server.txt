@@ -5,7 +5,7 @@ HEALTH:
 {"healthy":true,"version":"1.18.27"}
 
 OBSERVED STARTUP WARNING:
-[oh-my-openagent] OMO ignores "categories" in <project>/.opencode/opencode.jsonc; move it to ~/.omo/omo.jsonc.
+[oh-my-openagent] OMO ignores "categories" in <project>/.opencode/opencode.jsonc; move it to <project>/.omo/omo.jsonc.
 
 HOST SESSION COUNT BEFORE: 8067
 HOST SESSION COUNT AFTER: 8067
