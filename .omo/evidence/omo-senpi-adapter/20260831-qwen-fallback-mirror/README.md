@@ -165,3 +165,35 @@ Observed on merge head `8b9ca08855968bd01dc65aeaf039a1349a2153b7`:
 
 The latest owner changes affect RPC-child startup recovery, while this PR's
 curated Qwen fallback source and generated runtime export remain intact.
+
+## 2026-09-04 current-dev conflict refresh
+
+The branch conflicted with `upstream/dev@928aa8571` only in the generated
+`omo-task.js` bundle. The source and focused test merged automatically while
+preserving the two `qwen3.7-plus` rungs. The generated conflict was resolved by
+running the canonical all-extension builder with official Bun 1.4.0, never by
+hand-editing the bundle.
+
+Observed after resolution:
+
+- focused fallback suite: 6 pass, 0 fail, 130 assertions;
+- omo-senpi tsgo: clean;
+- all-six extension freshness: current;
+- exact Bun 1.4.0 `test:senpi`: 2677 pass, 32 platform/fixture skips, 0 fail,
+  8503 assertions across 352 files;
+- evidence resolver: 10 pass, 0 fail, 31 assertions;
+- live driver self-test: `SELF-TEST OK`;
+- real isolated Senpi adapter: `result=PASS`, ultrawork injection passed,
+  comment-checker passed, the sandbox environment receipt matched, protected
+  state snapshots were complete, and both real Senpi/OMO changed-path lists
+  were empty.
+
+The current upstream driver deliberately reports whole-tree
+`DIRECTORY_IDENTITY_UNAVAILABLE` on non-Linux hosts, so this macOS refresh does
+not claim `isolationCertified` or `realHomeIsolationCertified`. That platform
+limitation is explicit in the captured output. The driver still used
+`/private/var/folders/.../omo-senpi-qa-rGRUzp/agent`, removed the sandbox on
+exit, and observed no protected-state change. Earlier Linux/current-branch
+evidence in this directory retains the full certified isolation proof.
+
+Exact command outcomes are recorded in `merge-refresh-20260904.txt`.
