@@ -25,3 +25,8 @@ Hermetic-scanner corrected focused suites: 26 pass, 0 fail, 59 assertions.
 Hermetic-scanner adapter typecheck and full build: PASS.
 Hermetic-scanner OpenCode QA common self-check and SSE self-test: PASS.
 Hermetic-scanner real OpenCode run and sandbox containment: PASS.
+Home-boundary failing-first suite: 4 pass, 1 fail, 7 assertions.
+Home-boundary corrected focused suites: 28 pass, 0 fail, 62 assertions.
+Home-boundary adapter typecheck and full build: PASS.
+Home-boundary OpenCode QA common self-check and SSE self-test: PASS.
+Home-boundary real OpenCode run and sandbox containment: PASS.

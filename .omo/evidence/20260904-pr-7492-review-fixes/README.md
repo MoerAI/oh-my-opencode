@@ -75,6 +75,16 @@
   emitted the inline warning, resolved HOME and its database below the
   sandbox, recorded zero isolated sessions, and left the real database
   unchanged at 8072. See `hermetic-scanner-followup.txt`.
+- Final home-boundary review failed first at 4 pass and 1 fail because the
+  scanner walked above HOME. The corrected focused suites passed 28 tests
+  with 0 failures and 62 assertions, including project-inside-HOME and
+  project-outside-HOME behavior. Adapter typecheck, full build, and QA helper
+  checks passed.
+- A real OpenCode run loaded the built plugin for a project below an isolated
+  HOME while a misplaced config existed immediately above HOME. The
+  unresolvable warning remained absent, the isolated database stayed empty,
+  and the real database remained 8072 before and after. See
+  `home-boundary-followup.txt`.
 
 ## Why this is enough
 

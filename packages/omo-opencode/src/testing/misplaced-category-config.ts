@@ -1,5 +1,6 @@
 import { realpathSync } from "node:fs"
-import { basename, dirname, join, resolve } from "node:path"
+import { homedir } from "node:os"
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
 import {
   detectConfigFile,
   getOpenCodeConfigDiscoveryDirs,
@@ -12,16 +13,36 @@ type ConfigCandidate = {
   readonly targetConfigPath: string
 }
 
+type DiagnosticOptions = {
+  readonly homeDirectory?: string
+}
+
 function detectedFile(basePath: string): string | undefined {
   const result = detectConfigFile(basePath)
   return result.format === "none" ? undefined : result.path
 }
 
-function ancestorDirectories(directory: string): string[] {
+function pathKey(filePath: string): string {
+  const normalized = filePath.replaceAll("\\", "/")
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized
+}
+
+function isWithin(parent: string, child: string): boolean {
+  const relativePath = relative(parent, child)
+  return relativePath === "" ||
+    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+}
+
+function ancestorDirectories(directory: string, homeDirectory: string): string[] {
   const directories: string[] = []
-  let current = resolve(directory)
+  const home = canonicalPath(homeDirectory)
+  let current = canonicalPath(directory)
+  const stopAtHome = isWithin(home, current)
   while (true) {
     directories.push(current)
+    if (stopAtHome && pathKey(current) === pathKey(home)) {
+      return directories.reverse()
+    }
     const parent = dirname(current)
     if (parent === current) return directories.reverse()
     current = parent
@@ -64,7 +85,7 @@ function hasTopLevelCategories(config: unknown): boolean {
     "categories" in config
 }
 
-function configCandidates(projectDirectory: string): ConfigCandidate[] {
+function configCandidates(projectDirectory: string, homeDirectory: string): ConfigCandidate[] {
   const candidates: ConfigCandidate[] = []
   const seen = new Set<string>()
   const add = (filePath: string | undefined, targetConfigPath: string): void => {
@@ -80,7 +101,7 @@ function configCandidates(projectDirectory: string): ConfigCandidate[] {
   const explicitConfig = process.env.OPENCODE_CONFIG?.trim()
   if (explicitConfig) add(resolve(explicitConfig), "~/.omo/omo.jsonc")
 
-  const ancestors = ancestorDirectories(projectDirectory)
+  const ancestors = ancestorDirectories(projectDirectory, homeDirectory)
   for (const directory of ancestors) {
     add(detectedFile(join(directory, "opencode")), join(directory, ".omo", "omo.jsonc"))
   }
@@ -91,9 +112,12 @@ function configCandidates(projectDirectory: string): ConfigCandidate[] {
   return candidates
 }
 
-export function getMisplacedCategoryConfigDiagnostics(projectDirectory: string): string[] {
+export function getMisplacedCategoryConfigDiagnostics(
+  projectDirectory: string,
+  options: DiagnosticOptions = {},
+): string[] {
   const diagnostics: string[] = []
-  for (const candidate of configCandidates(projectDirectory)) {
+  for (const candidate of configCandidates(projectDirectory, options.homeDirectory ?? homedir())) {
     const config = readJsoncFile<unknown>(candidate.filePath)
     if (!hasTopLevelCategories(config)) continue
     diagnostics.push(

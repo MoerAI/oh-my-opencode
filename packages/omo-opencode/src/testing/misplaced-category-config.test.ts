@@ -93,4 +93,45 @@ describe("misplaced OpenCode category diagnostics", () => {
       message.includes("profiles.focused.categories")
     )).toBe(false)
   })
+
+  test("#given a project below home #when ancestors are inspected #then discovery stops at home", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "home")
+    const projectDirectory = join(homeDirectory, "project")
+    const homeConfig = join(homeDirectory, "opencode.jsonc")
+    const aboveHomeConfig = join(root, "opencode.jsonc")
+    mkdirSync(projectDirectory, { recursive: true })
+    writeFileSync(homeConfig, misplacedConfig())
+    writeFileSync(aboveHomeConfig, misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes(homeConfig))).toBe(true)
+    expect(diagnostics.some((message) => message.includes(aboveHomeConfig))).toBe(false)
+  })
+
+  test("#given a project outside home #when ancestors are inspected #then discovery reaches its root", () => {
+    // given
+    const root = fixtureRoot()
+    const homeDirectory = join(root, "unrelated-home")
+    const projectDirectory = join(root, "workspace", "project")
+    const ancestorConfig = join(root, "opencode.jsonc")
+    mkdirSync(projectDirectory, { recursive: true })
+    writeFileSync(ancestorConfig, misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = join(root, "user-config")
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      homeDirectory,
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes(ancestorConfig))).toBe(true)
+  })
 })
