@@ -1,7 +1,7 @@
 COMMAND: bun test packages/omo-opencode/src/testing/create-plugin-module.test.ts packages/omo-opencode/src/config
 EXIT: 0
 
-182 pass
+176 pass
 0 fail
-423 expect() calls
-Ran 182 tests across 25 files.
+417 expect() calls
+Ran 176 tests across 23 files.

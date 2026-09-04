@@ -17,8 +17,9 @@
 - Before implementation, the canonical project config case emitted no toast,
   and migration plus diagnostics produced a green `Configuration migrated`
   toast. The focused run reported 14 pass and 2 fail.
-- After implementation, the focused run reported 16 pass and 0 fail.
-- The related config and startup run reported 182 pass and 0 fail.
+- After replaying the change on the current remote head, the focused run
+  reported 17 pass and 0 fail.
+- The related config and startup run reported 176 pass and 0 fail.
 - The adapter typecheck and full root build exited successfully.
 - The OpenCode QA harness found all required dependencies and removed its
   sandbox. The TUI rendered, accepted input, tore down, and reported the real

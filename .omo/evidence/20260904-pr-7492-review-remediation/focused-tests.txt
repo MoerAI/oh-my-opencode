@@ -4,7 +4,7 @@ EXIT: 0
 (pass) #then startup warns that the category overrides are ignored
 (pass) #then a simultaneous migration keeps the diagnostic toast warning-styled
 
-16 pass
+17 pass
 0 fail
-43 expect() calls
-Ran 16 tests across 1 file.
+44 expect() calls
+Ran 17 tests across 1 file.
