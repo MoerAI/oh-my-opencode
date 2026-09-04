@@ -310,6 +310,30 @@ describe("omo launcher", () => {
         expect(capture(fixture).argv).toContain(requestedId)
       })
 
+      test("#then an underscored filename ID explains a header mismatch", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "custom_session_id"
+        const headerId = "01a0464c-0661-73a1-8d6c-cc1df9f27972"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        const sessionFile = join(
+          sessionRoot,
+          "project",
+          `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`,
+        )
+        writeSession(sessionFile, headerId)
+
+        // when
+        const result = run(fixture, ["--session", requestedId], { HOME: home })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain(`searched ${sessionRoot}`)
+        expect(result.stderr).toContain(`omo --session ${headerId}`)
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
       test("#then an ambiguous partial filename ID stays silent", () => {
         // given
         const fixture = createFixture()

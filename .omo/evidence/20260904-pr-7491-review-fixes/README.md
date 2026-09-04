@@ -34,6 +34,15 @@
 - Post-merge real launcher QA repeated all three diagnostic paths.
 - Final real version output:
   `omo 5.0.0-0.beta.42 (engine: senpi 2026.9.4-3)`.
+- Follow-up separator regression: the focused launcher suite first failed at
+  44 pass and 1 fail because `custom_session_id` was truncated to `id`.
+- Parsing from the timestamp separator made the focused suite pass at 45
+  tests, 0 failures, and 160 assertions.
+- The final complete omo-native suite passed at 272 tests, 0 failures, and 780
+  assertions across 27 files; typecheck and `build:omo-native` also passed.
+- A real launcher run with `--session custom_session_id --version` found the
+  underscored filename, reported its mismatched header ID, emitted both safe
+  retry forms, and printed version `5.0.0-0.beta.42`.
 
 ## Why this is enough
 

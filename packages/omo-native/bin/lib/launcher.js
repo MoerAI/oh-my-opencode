@@ -122,7 +122,7 @@ function readSessionHeaderId(filePath) {
 
 function sessionFilenameId(filename) {
   if (!filename.endsWith(".jsonl")) return undefined
-  const separator = filename.lastIndexOf("_")
+  const separator = filename.indexOf("_")
   if (separator < 0) return undefined
   return filename.slice(separator + 1, -".jsonl".length) || undefined
 }
