@@ -127,6 +127,12 @@ function sessionFilenameId(filename) {
   return filename.slice(separator + 1, -".jsonl".length) || undefined
 }
 
+export function sessionResumeSuggestion(headerId, filePath, platform = process.platform) {
+  const headerSuggestion = `\`omo --session ${headerId}\``
+  if (platform === "win32") return headerSuggestion
+  return `${headerSuggestion} or \`omo --session ${quoteShellArgument(filePath)}\``
+}
+
 function printSessionResumeDiagnostic(args, env) {
   const requestedId = optionValue(args, "--session")
   if (!requestedId || /[\\/]/.test(requestedId) || requestedId.endsWith(".jsonl")) return
@@ -164,9 +170,7 @@ function printSessionResumeDiagnostic(args, env) {
   console.error(
     `omo: candidate ${candidate.path} was rejected because its header id is '${headerId}', not filename id '${candidate.filenameId}'`,
   )
-  console.error(
-    `omo: retry with \`omo --session ${headerId}\` or \`omo --session ${quoteShellArgument(candidate.path)}\``,
-  )
+  console.error(`omo: retry with ${sessionResumeSuggestion(headerId, candidate.path)}`)
 }
 
 async function spawnSenpi(args, withExtension) {

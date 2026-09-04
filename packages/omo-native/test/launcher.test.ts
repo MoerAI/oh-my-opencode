@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import { sessionResumeSuggestion } from "../bin/lib/launcher.js"
 import { updateTarget } from "../bin/lib/package-paths.js"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
@@ -242,6 +243,19 @@ describe("omo launcher", () => {
           "--session",
           requestedId,
         ])
+      })
+
+      test("#then Windows omits a path alternative that cannot be portable across shells", () => {
+        // given
+        const headerId = "01a0464c-0661-73a1-8d6c-cc1df9f27972"
+        const sessionFile = String.raw`C:\Users\alice\$session state\entry.jsonl`
+
+        // when
+        const suggestion = sessionResumeSuggestion(headerId, sessionFile, "win32")
+
+        // then
+        expect(suggestion).toBe(`\`omo --session ${headerId}\``)
+        expect(suggestion).not.toContain(sessionFile)
       })
 
       test("#then an environment session directory suppresses the default-store diagnostic", () => {
