@@ -29,6 +29,9 @@
 - Both real runs exited zero.
 - The real OpenCode database contained 8072 sessions before and after each
   run.
+- After merging `upstream/dev@0a5dab201`, the 49 focused tests, adapter
+  typecheck, full build, both real warning scenarios, and both database
+  isolation checks passed again.
 
 ## Why this is enough
 

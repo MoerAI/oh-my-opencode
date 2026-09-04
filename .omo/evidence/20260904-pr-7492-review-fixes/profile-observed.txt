@@ -1,2 +1,2 @@
-[oh-my-openagent] OMO ignores "categories" in /private/tmp/oh-my-openagent-7492-repair/.omo/evidence/20260904-pr-7492-review-fixes/profile/xdg-config/opencode/profiles/focused/opencode.jsonc; move it to ~/.omo/omo.jsonc under profiles.focused.opencode.categories.
+[oh-my-openagent] OMO ignores "categories" in /private/tmp/oh-my-openagent-7492-final/.omo/evidence/20260904-pr-7492-review-fixes/profile/xdg-config/opencode/profiles/focused/opencode.jsonc; move it to ~/.omo/omo.jsonc under profiles.focused.opencode.categories.
 status=0 real_db_sessions_before=8072 real_db_sessions_after=8072
