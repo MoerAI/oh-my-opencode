@@ -232,6 +232,26 @@ describe("createPluginModule()", () => {
     })
   })
 
+  it("#given a worktree boundary #then startup forwards it to config diagnostics", async () => {
+    // given
+    const directory = "/tmp/project/packages/app"
+    const worktree = "/tmp/project"
+    const pluginModule = createTestPluginModule()
+
+    // when
+    await pluginModule.server({
+      directory,
+      worktree,
+      client: {},
+    } as Parameters<typeof pluginModule.server>[0])
+
+    // then
+    expect(mockGetMisplacedCategoryConfigDiagnostics).toHaveBeenCalledWith(
+      directory,
+      { worktreeDirectory: worktree },
+    )
+  })
+
   describe("#given bundled security skills are enabled", () => {
     it("#then startup exposes them through a runtime skill source URL", async () => {
       // given
@@ -632,7 +652,7 @@ describe("createPluginModule()", () => {
         expect(showToast).toHaveBeenCalledTimes(1)
         expect(showToast.mock.calls[0]?.[0]).toMatchObject({
           body: {
-            message: expect.stringContaining("profiles.focused.opencode.categories"),
+            message: expect.stringContaining('profiles.focused."[opencode]".categories'),
           },
         })
       } finally {

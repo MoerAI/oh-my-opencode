@@ -59,7 +59,7 @@
   and SSE self-test passed.
 - Real isolated OpenCode runs diagnosed both the inline source and the active
   profile source. The profile hint now targets
-  `profiles.focused.opencode.categories`; both runs exited zero. Each receipt
+  `profiles.focused."[opencode]".categories`; both runs exited zero. Each receipt
   records its tested commit, capture ID, UTC timestamp, driver, runner,
   resolved HOME and database path, explicit sandbox-containment assertions,
   zero isolated sessions, and the real database unchanged at 8072 sessions.
@@ -113,6 +113,40 @@
   exactly one warning targeting `<project>/.omo/omo.jsonc`, not the user
   layer. The sandbox database remained empty and the real database stayed at
   8072 sessions. See `scope-precedence-followup.txt`.
+- Lexical-ancestry review failed first at 12 pass and 1 fail because the
+  scanner switched to physical parents at a cwd symlink. The corrected
+  focused suites passed 36 tests with 0 failures and 79 assertions. Traversal
+  now retains lexical parents while canonical paths are limited to boundary
+  comparison and duplicate reconciliation.
+- Root, adapter, and testing initialization maps now document the production
+  misplaced-category diagnostic stage at its actual point after config load.
+- Adapter typecheck, full build, QA helper checks, and a final real OpenCode
+  project-scope run passed with an empty sandbox database and the real
+  database unchanged at 8072. See `lexical-ancestry-followup.txt`.
+- A final loader-parity audit reproduced profile precedence and harness-key
+  errors, incomplete OpenCode source enumeration, missing home `.opencode`,
+  worktree/disable mismatches, unbounded ancestor depth, and inherited test
+  discovery state. The combined failing-first run reported 11 pass and 8
+  fail.
+- The scanner now uses the unified profile resolver, the literal
+  `"[opencode]"` harness key, both OpenCode file formats plus legacy
+  `config.json`, independent home `.opencode` discovery, worktree and disable
+  boundaries, the shared 256-directory limit, and fully isolated discovery
+  environment variables. Startup forwards OpenCode's worktree boundary.
+- Final focused suites passed 43 tests with 0 failures and 94 assertions.
+  Adapter typecheck, full build, and QA helper checks passed. Real OpenCode
+  proved `OMO_PROFILE` precedence and the literal harness key, then proved
+  project diagnostics remain absent when project config discovery is
+  disabled. Both sandboxes stayed empty and the real database remained 8072
+  before and after. See `complete-loader-parity-followup.txt`.
+- Post-audit source enumeration distinguished the default legacy
+  `config.json` from a custom directory's ignored file. A failing-first run
+  reported 18 pass and 1 fail; the definitive suite remained 43 pass with 94
+  assertions. Real OpenCode emitted exactly two warnings for loaded
+  `opencode.json` and default legacy `config.json`, with no custom legacy
+  warning.
+- The production scanner was split into 58-line diagnostic and 187-line path
+  modules so both remain under the repository's 200-line soft limit.
 
 ## Why this is enough
 

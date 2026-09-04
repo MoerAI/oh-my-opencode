@@ -46,3 +46,18 @@ Scope-precedence corrected focused suites: 35 pass, 0 fail, 77 assertions.
 Scope-precedence adapter typecheck and full build: PASS.
 Scope-precedence OpenCode QA common self-check and SSE self-test: PASS.
 Scope-precedence real OpenCode run and sandbox containment: PASS.
+Lexical-ancestry failing-first suite: 12 pass, 1 fail, 23 assertions.
+Lexical-ancestry corrected focused suites: 36 pass, 0 fail, 79 assertions.
+Lexical-ancestry adapter typecheck and full build: PASS.
+Lexical-ancestry OpenCode QA common self-check and SSE self-test: PASS.
+Lexical-ancestry final real OpenCode run and sandbox containment: PASS.
+Initialization documentation review: PASS.
+Complete loader-parity failing-first suite: 11 pass, 8 fail, 31 assertions.
+Complete loader-parity custom legacy failing-first suite: 18 pass, 1 fail, 34 assertions.
+Complete loader-parity corrected focused suites: 43 pass, 0 fail, 94 assertions.
+Complete loader-parity adapter typecheck and full build: PASS.
+Complete loader-parity OpenCode QA common self-check and SSE self-test: PASS.
+Real profile precedence and harness-key OpenCode run: PASS.
+Real disabled-project-config OpenCode run: PASS.
+Real dual-format and legacy-source OpenCode run: PASS.
+Complete loader-parity real database sessions: 8072 before, 8072 after all runs.

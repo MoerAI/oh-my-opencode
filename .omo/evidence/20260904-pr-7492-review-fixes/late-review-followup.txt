@@ -34,7 +34,7 @@ captured_at_utc=2026-09-04T20:52:21Z
 tested_commit=a0e86726f347b07b04287f5cdf6247452383b0cf
 runner=opencode-1.18.28-darwin-arm64-local
 driver=opencode debug config --print-logs
-[oh-my-openagent] OMO ignores "categories" in <profile-config>/opencode.jsonc; move it to ~/.omo/omo.jsonc under profiles.focused.opencode.categories.
+[oh-my-openagent] OMO ignores "categories" in <profile-config>/opencode.jsonc; move it to ~/.omo/omo.jsonc under profiles.focused."[opencode]".categories.
 resolved_home=<sandbox>/home-profile-proof
 resolved_db=<sandbox>/data-profile-proof/opencode/opencode.db
 home_inside_sandbox=PASS

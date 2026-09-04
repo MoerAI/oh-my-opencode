@@ -179,7 +179,10 @@ export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): P
     deps.migrateLegacyWorkspaceDirectory(input.directory)
     startupMigration ??= deps.runOpenCodeStartupMigration({ cwd: input.directory })
     const startupValidation = deps.loadConfigChain(input.directory)
-    const misplacedCategoryConfigs = deps.getMisplacedCategoryConfigDiagnostics(input.directory)
+    const misplacedCategoryConfigs = deps.getMisplacedCategoryConfigDiagnostics(
+      input.directory,
+      { worktreeDirectory: input.worktree },
+    )
     for (const misplacedCategoryConfig of misplacedCategoryConfigs) {
       console.warn(`[oh-my-openagent] ${misplacedCategoryConfig}`)
       deps.log("[config] ignored misplaced category overrides", { diagnostic: misplacedCategoryConfig })
