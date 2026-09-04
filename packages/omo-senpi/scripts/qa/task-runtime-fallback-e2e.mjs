@@ -99,6 +99,8 @@ function agentFallbackChecks(agentType) {
 function childEnv(baseEnv, sandbox, sessionDir, scenarioName) {
   const common = {
     HOME: sandbox.homeDir,
+    OMO_CODING_AGENT_DIR: sandbox.agentDir,
+    PI_CODING_AGENT_DIR: sandbox.agentDir,
     SENPI_CODING_AGENT_DIR: sandbox.agentDir,
     SENPI_CODING_AGENT_SESSION_DIR: sessionDir,
     XDG_CONFIG_HOME: sandbox.xdgConfigHome,
@@ -242,12 +244,23 @@ function selfTest() {
   if (!JSON.stringify(parsed).includes(finalText)) throw new Error("event parser did not preserve final text")
   const sandbox = createSandbox()
   const isolated = childEnv(
-    { ...process.env, OPENAI_API_KEY: "secret", SENPI_CODING_AGENT_DIR: "/real" },
+    {
+      ...process.env,
+      OPENAI_API_KEY: "secret",
+      OMO_CODING_AGENT_DIR: "/real-omo",
+      PI_CODING_AGENT_DIR: "/real-pi",
+      SENPI_CODING_AGENT_DIR: "/real-senpi",
+    },
     sandbox,
     join(sandbox.root, "sessions"),
     "explore-qwen-fallback",
   )
-  if (isolated.OPENAI_API_KEY !== undefined || isolated.SENPI_CODING_AGENT_DIR !== sandbox.agentDir) {
+  if (
+    isolated.OPENAI_API_KEY !== undefined ||
+    isolated.OMO_CODING_AGENT_DIR !== sandbox.agentDir ||
+    isolated.PI_CODING_AGENT_DIR !== sandbox.agentDir ||
+    isolated.SENPI_CODING_AGENT_DIR !== sandbox.agentDir
+  ) {
     throw new Error("child environment isolation failed")
   }
   if (selectedScenarios("explore-qwen-fallback,librarian-qwen-fallback").length !== 2) {

@@ -52,6 +52,18 @@
   tests passed, and the full Senpi gate repeated at 2677 pass, 32 skips, and
   0 fail.
 
+## Agent-home isolation follow-up
+
+The live lane now pins `OMO_CODING_AGENT_DIR`, `PI_CODING_AGENT_DIR`, and
+`SENPI_CODING_AGENT_DIR` to the driver-created sandbox. Its self-test seeds
+all three with distinct outside paths and fails unless every result equals
+`sandbox.agentDir`.
+
+A real Senpi run was launched with caller-provided OMO and Pi agent paths
+under the evidence directory. Explore and Librarian both passed on
+`opencode-go/qwen3.7-plus`; after exit, neither caller-provided path existed.
+Raw artifacts are under `agent-home-isolation/`.
+
 ## Why this is enough
 
 The live scenario crosses the exact missing seam: real Senpi loads the
