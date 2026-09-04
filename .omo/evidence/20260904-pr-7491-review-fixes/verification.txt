@@ -2,3 +2,6 @@ Focused launcher tests: 42 pass, 0 fail, 151 assertions.
 Complete omo-native suite: 250 pass, 0 fail, 734 assertions across 24 files.
 omo-native TypeScript check: exit 0.
 build:omo-native: exit 0, 36 required payload artifacts present.
+Post-merge omo-native suite: 270 pass, 0 fail, 774 assertions across 27 files.
+Post-merge TypeScript check: exit 0.
+Post-merge build:omo-native: exit 0, 37 required payload artifacts present.

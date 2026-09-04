@@ -19,8 +19,8 @@
   the environment override still scanned the default store, and the partial
   ID did not find the candidate.
 - Corrected focused run: 42 pass, 0 fail, 151 assertions.
-- Complete omo-native suite: 250 pass, 0 fail, 734 assertions across 24
-  files.
+- Complete omo-native suite before the dev merge: 250 pass, 0 fail, 734
+  assertions across 24 files.
 - omo-native typecheck: exit 0.
 - `bun run build:omo-native`: exit 0 with all 36 required payload artifacts.
 - Real launcher unique partial-ID run printed the mismatched filename/header
@@ -28,8 +28,12 @@
 - Real launcher custom-session-dir run printed no default-store diagnostic.
 - Real launcher ambiguous-partial run printed no diagnostic.
 - Real launcher help rendered successfully through the pinned engine.
-- Real version output:
-  `omo 5.0.0-0.beta.39 (engine: senpi 2026.9.3-3)`.
+- After merging `upstream/dev@0a5dab201`, the package suite passed again at
+  270 pass, 0 fail, 774 assertions across 27 files; typecheck and build
+  passed with all 37 required payload artifacts.
+- Post-merge real launcher QA repeated all three diagnostic paths.
+- Final real version output:
+  `omo 5.0.0-0.beta.42 (engine: senpi 2026.9.4-3)`.
 
 ## Why this is enough
 
