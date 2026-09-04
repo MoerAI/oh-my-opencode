@@ -124,6 +124,25 @@ describe("misplaced OpenCode category diagnostics", () => {
     )).toBe(false)
   })
 
+  test("#given a dotted profile name #when diagnosed #then it remains one configuration key", () => {
+    // given
+    const root = fixtureRoot()
+    const projectDirectory = join(root, "project")
+    const profileConfigDir = join(root, "profiles", "client.prod")
+    mkdirSync(profileConfigDir, { recursive: true })
+    writeFileSync(join(profileConfigDir, "opencode.jsonc"), misplacedConfig())
+    process.env.OPENCODE_CONFIG_DIR = profileConfigDir
+    process.env.OMO_PROFILE = "client.prod"
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory)
+
+    // then
+    expect(diagnostics.some((message) =>
+      message.includes('profiles."client.prod"."[opencode]".categories')
+    )).toBe(true)
+  })
+
   test("#given OMO_PROFILE overrides the config-dir profile #when diagnosed #then the active profile wins", () => {
     // given
     const root = fixtureRoot()

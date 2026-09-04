@@ -66,3 +66,8 @@ Profile/global scope corrected focused suites: 44 pass, 0 fail, 97 assertions.
 Profile/global scope adapter typecheck and full build: PASS.
 Profile/global scope OpenCode QA helper gate: PASS.
 Profile/global scope real OpenCode run and sandbox containment: PASS.
+Dotted profile key failing-first suite: 20 pass, 1 fail, 42 assertions.
+Dotted profile key corrected focused suites: 45 pass, 0 fail, 98 assertions.
+Dotted profile key adapter typecheck and full build: PASS.
+Dotted profile key OpenCode QA helper gate: PASS.
+Dotted profile key real OpenCode run and sandbox containment: PASS.

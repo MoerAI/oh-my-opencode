@@ -145,7 +145,7 @@
   assertions. Real OpenCode emitted exactly two warnings for loaded
   `opencode.json` and default legacy `config.json`, with no custom legacy
   warning.
-- The production scanner was split into 58-line diagnostic and 199-line path
+- The production scanner was split into 58-line diagnostic and 200-line path
   modules so both remain under the repository's 200-line soft limit.
 - Global/profile scope review failed first at 19 pass and 1 fail because every
   user source inherited the active profile target. The corrected focused
@@ -160,6 +160,12 @@
   base `"[opencode]".categories`. The isolated database stayed empty and the
   real database remained 8072 before and after. See
   `profile-global-scope-followup.txt`.
+- Dotted profile names failed first at 20 pass and 1 fail because the emitted
+  path parsed one record key as two nested keys. The corrected focused suites
+  passed 45 tests with 0 failures and 98 assertions. Real OpenCode then
+  emitted `profiles."client.prod"."[opencode]".categories` while the
+  simultaneous global source stayed at base `"[opencode]".categories`. See
+  `dotted-profile-key-followup.txt`.
 
 ## Why this is enough
 

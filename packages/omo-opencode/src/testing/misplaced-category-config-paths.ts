@@ -108,10 +108,11 @@ export function userOmoTargetPath(homeDirectory: string): string {
   return `~/.omo/${filename}`
 }
 
+const formatConfigKey = (key: string): string => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key)
 export function targetPath(basePath: string, profileName: string | undefined): string {
   return profileName === undefined
     ? `${basePath} under "[opencode]".categories`
-    : `${basePath} under profiles.${profileName}."[opencode]".categories`
+    : `${basePath} under profiles.${formatConfigKey(profileName)}."[opencode]".categories`
 }
 
 function isProfileConfigDirectory(configDirectory: string): boolean {
