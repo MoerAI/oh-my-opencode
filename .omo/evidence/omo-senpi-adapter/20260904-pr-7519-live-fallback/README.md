@@ -64,6 +64,11 @@ under the evidence directory. Explore and Librarian both passed on
 `opencode-go/qwen3.7-plus`; after exit, neither caller-provided path existed.
 Raw artifacts are under `agent-home-isolation/`.
 
+After merging `upstream/dev@0a5dab201`, the same real Senpi isolation lane
+passed again under `agent-home-isolation-post-merge/`. The exact Bun 1.4.0
+Senpi gate then passed with 2677 tests, 32 platform/fixture skips, 0 failures,
+and 8503 assertions across 352 files.
+
 ## Why this is enough
 
 The live scenario crosses the exact missing seam: real Senpi loads the
