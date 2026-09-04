@@ -153,13 +153,23 @@ function startupToastBody(input: {
   if (input.error !== undefined) {
     return { title: "Configuration migration failed", message: `${input.error}${diagnostics}`, variant: "error" }
   }
+  if (diagnostics.length > 0) {
+    return {
+      title: "Configuration diagnostics",
+      message: `${summary}${conflicts}${diagnostics}`.trim(),
+      variant: "warning",
+    }
+  }
   if (summary.length > 0) return { title: "Configuration migrated", message: `${summary}${conflicts}${diagnostics}`, variant: "success" }
-  if (diagnostics.length > 0) return { title: "Configuration diagnostics", message: input.diagnostics.join(" "), variant: "warning" }
   return undefined
 }
 
 function misplacedCategoryConfigDiagnostic(projectDirectory: string): string | undefined {
-  const configDirs = new Set([projectDirectory, ...getOpenCodeConfigDirs({ binary: "opencode" })])
+  const configDirs = new Set([
+    join(projectDirectory, ".opencode"),
+    projectDirectory,
+    ...getOpenCodeConfigDirs({ binary: "opencode" }),
+  ])
   for (const configDir of configDirs) {
     const configFile = detectConfigFile(join(configDir, "opencode"))
     if (configFile.format === "none") continue

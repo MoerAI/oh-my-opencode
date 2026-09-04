@@ -1,0 +1,15 @@
+SURFACE: real OpenCode 1.18.27 server with the built local plugin
+SANDBOX: isolated HOME and XDG data/config/state/cache directories
+
+HEALTH:
+{"healthy":true,"version":"1.18.27"}
+
+OBSERVED STARTUP WARNING:
+[oh-my-openagent] OMO ignores "categories" in <project>/.opencode/opencode.jsonc; move it to ~/.omo/omo.jsonc.
+
+HOST SESSION COUNT BEFORE: 8067
+HOST SESSION COUNT AFTER: 8067
+SERVER CURL STATUS AFTER TEARDOWN: 7
+
+RESULT: plugin warning observed, host database unchanged, server stopped, and
+the temporary sandbox removed.
