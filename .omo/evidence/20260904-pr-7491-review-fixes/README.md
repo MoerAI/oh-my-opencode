@@ -43,14 +43,29 @@
 - A real launcher run with `--session custom_session_id --version` found the
   underscored filename, reported its mismatched header ID, emitted both safe
   retry forms, and printed version `5.0.0-0.beta.42`.
+- Final review added failing-first coverage for a valid header-index match
+  hidden behind an unrelated filename and for both sides of the `--`
+  option-separator boundary. The first run reported 45 pass and 3 fail.
+- The corrected launcher defers the all-header scan to the rare unique
+  filename-mismatch path, remains silent when Senpi can resolve a matching
+  header, and scans only arguments before `--`. Bun re-exec and the generated
+  Bun-global shim now inject Bun's own separator so the user's separator
+  survives unchanged.
+- Final affected suites passed 85 tests with 0 failures and 252 assertions.
+  The complete omo-native suite passed 276 tests with 0 failures and 791
+  assertions across 27 files. Typecheck and `build:omo-native` passed.
+- Real launcher QA forced the Bun re-exec path. A header-index match produced
+  no rejection diagnostic; a prompt-side `--session-dir` did not suppress a
+  real pre-separator warning; and prompt-side `--session` text produced no
+  warning. Each command exited zero and printed version `5.0.0-0.beta.42`.
 
 ## Why this is enough
 
 The tests execute the launcher boundary with a captured child environment and
-arguments. The manual runs use the actual built launcher and pinned Senpi
-engine, so they prove the user-visible stderr guidance, suppression rule,
-ambiguity handling, help surface, and version surface rather than only helper
-logic.
+arguments, including the Node and Bun argument paths. The manual runs use the
+actual built launcher and pinned Senpi engine, so they prove the user-visible
+stderr guidance, suppression rule, ambiguity handling, separator preservation,
+help surface, and version surface rather than only helper logic.
 
 ## What was omitted
 

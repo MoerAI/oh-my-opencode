@@ -118,14 +118,19 @@ process.exit(Number(process.env.FAKE_EXIT ?? 0))
   return { root, packageRoot, launcher: join(packageRoot, "bin", "omo.js"), captureFile, shimPath }
 }
 
-function run(fixture: Fixture, args: string[], env: NodeJS.ProcessEnv = {}) {
+function run(
+  fixture: Fixture,
+  args: string[],
+  env: NodeJS.ProcessEnv = {},
+  interpreter = process.execPath,
+) {
   // A developer machine exports the agent directory for its own install; inheriting it would let
   // the override path answer assertions that are about the unconfigured default.
   const inherited: NodeJS.ProcessEnv = { ...process.env, PATH: "/usr/bin:/bin", CAPTURE_FILE: fixture.captureFile }
   delete inherited.OMO_CODING_AGENT_DIR
   delete inherited.SENPI_CODING_AGENT_DIR
   delete inherited.PI_CODING_AGENT_DIR
-  return spawnSync(process.execPath, [fixture.launcher, ...args], {
+  return spawnSync(interpreter, [fixture.launcher, ...args], {
     encoding: "utf8",
     env: { ...inherited, ...env },
   })
@@ -212,6 +217,80 @@ describe("omo launcher", () => {
         expect(result.stderr).toContain(sessionFile)
         expect(result.stderr).toContain(`header id is '${headerId}'`)
         expect(result.stderr).toContain(`omo --session ${headerId}`)
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
+      test("#then an indexed matching header suppresses a filename mismatch diagnostic", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        writeSession(
+          join(sessionRoot, "first", `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`),
+          "01a0464c-0661-73a1-8d6c-cc1df9f27972",
+        )
+        writeSession(
+          join(sessionRoot, "second", "2026-08-28T14-38-25-381Z_unrelated-filename.jsonl"),
+          requestedId,
+        )
+
+        // when
+        const result = run(fixture, ["--session", requestedId], { HOME: home })
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).not.toContain(`searched ${sessionRoot}`)
+        expect(result.stderr).not.toContain("was rejected")
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
+      test("#then session-like prompt text after the option separator stays diagnostic-free", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        writeSession(
+          join(sessionRoot, "project", `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`),
+          "01a0464c-0661-73a1-8d6c-cc1df9f27972",
+        )
+
+        // when
+        const node = runtimeInterpreter("node")
+        if (!node) throw new Error("Node is required to verify launcher option parsing")
+        const result = run(fixture, ["--", "--session", requestedId], { HOME: home, OMO_RUNTIME: "node" }, node)
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).not.toContain(`searched ${sessionRoot}`)
+        expect(capture(fixture).argv).toContain(requestedId)
+      })
+
+      test("#then a prompt-side session directory cannot suppress an earlier resume diagnostic", () => {
+        // given
+        const fixture = createFixture()
+        const home = join(fixture.root, "home")
+        const requestedId = "01a048ce-c465-776b-959c-dcb362446db7"
+        const sessionRoot = join(home, ".omo", "agent", "sessions")
+        writeSession(
+          join(sessionRoot, "project", `2026-08-28T14-38-25-381Z_${requestedId}.jsonl`),
+          "01a0464c-0661-73a1-8d6c-cc1df9f27972",
+        )
+
+        // when
+        const node = runtimeInterpreter("node")
+        if (!node) throw new Error("Node is required to verify launcher option parsing")
+        const result = run(
+          fixture,
+          ["--session", requestedId, "--", "--session-dir", join(fixture.root, "prompt text")],
+          { HOME: home, OMO_RUNTIME: "node" },
+          node,
+        )
+
+        // then
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain(`searched ${sessionRoot}`)
         expect(capture(fixture).argv).toContain(requestedId)
       })
 

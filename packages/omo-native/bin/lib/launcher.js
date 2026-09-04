@@ -97,11 +97,17 @@ function senpiEnvironment(senpiRoot) {
   return env
 }
 
+function optionArguments(args) {
+  const separator = args.indexOf("--")
+  return separator >= 0 ? args.slice(0, separator) : args
+}
+
 function optionValue(args, name) {
-  const inline = args.find((arg) => arg.startsWith(`${name}=`))
+  const optionArgs = optionArguments(args)
+  const inline = optionArgs.find((arg) => arg.startsWith(`${name}=`))
   if (inline) return inline.slice(name.length + 1)
-  const index = args.indexOf(name)
-  return index >= 0 ? args[index + 1] : undefined
+  const index = optionArgs.indexOf(name)
+  return index >= 0 ? optionArgs[index + 1] : undefined
 }
 
 function readSessionHeaderId(filePath) {
@@ -149,12 +155,16 @@ function printSessionResumeDiagnostic(args, env) {
   }
 
   const candidates = []
+  const sessionFiles = []
   for (const directory of directories) {
     try {
       for (const filename of readdirSync(directory)) {
+        if (!filename.endsWith(".jsonl")) continue
+        const filePath = join(directory, filename)
+        sessionFiles.push(filePath)
         const filenameId = sessionFilenameId(filename)
         if (filenameId?.startsWith(requestedId)) {
-          candidates.push({ path: join(directory, filename), filenameId })
+          candidates.push({ path: filePath, filenameId })
         }
       }
     } catch {
@@ -166,6 +176,7 @@ function printSessionResumeDiagnostic(args, env) {
   const candidate = candidates[0]
   const headerId = readSessionHeaderId(candidate.path)
   if (!headerId || headerId.startsWith(requestedId)) return
+  if (sessionFiles.some((filePath) => readSessionHeaderId(filePath)?.startsWith(requestedId))) return
   console.error(`omo: searched ${sessionRoot}`)
   console.error(
     `omo: candidate ${candidate.path} was rejected because its header id is '${headerId}', not filename id '${candidate.filenameId}'`,
@@ -184,7 +195,8 @@ async function spawnSenpi(args, withExtension) {
 }
 
 function isInteractiveDefault(args) {
-  return process.stderr.isTTY === true && !args.includes("-p") && !args.includes("--print")
+  const optionArgs = optionArguments(args)
+  return process.stderr.isTTY === true && !optionArgs.includes("-p") && !optionArgs.includes("--print")
 }
 
 /**
