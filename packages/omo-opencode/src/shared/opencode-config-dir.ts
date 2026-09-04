@@ -127,19 +127,14 @@ export function getOpenCodeConfigDirs(options: OpenCodeConfigDirOptions): string
   )
 }
 
-export function getOpenCodeConfigDiscoveryDirs(): string[] {
+export function getOpenCodeConfigDiscoveryDirs(version: string | null = null): string[] {
   const appData = process.env.APPDATA?.trim()
   return Array.from(new Set([
     ...getOpenCodeConfigDirs({ binary: "opencode" }),
     ...(process.platform === "win32" && appData ? [win32.join(appData, "opencode")] : []),
     getOpenCodeConfigDir({
       binary: "opencode-desktop",
-      version: null,
-      checkExisting: false,
-    }),
-    getOpenCodeConfigDir({
-      binary: "opencode-desktop",
-      version: "desktop-dev",
+      version,
       checkExisting: false,
     }),
   ]))

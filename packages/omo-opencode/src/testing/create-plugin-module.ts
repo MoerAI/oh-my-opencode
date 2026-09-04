@@ -34,6 +34,7 @@ import { logLegacyPluginStartupWarning } from "../shared/log-legacy-plugin-start
 import { migrateLegacyWorkspaceDirectory } from "../shared/legacy-workspace-migration"
 import { sweepOmoFamiliesBestEffort } from "../shared/omo-process-sweep"
 import { injectServerAuthIntoClient } from "../shared/opencode-server-auth"
+import { getOpenCodeVersion } from "../shared/opencode-version"
 import { recordPluginTelemetry } from "../shared/posthog"
 import {
   initLiveServerRoute,
@@ -74,6 +75,7 @@ export type PluginModuleDeps = {
   warmLiveServerProbe: typeof warmLiveServerProbe
   loadConfigChain: typeof validatePluginConfig
   loadPluginConfig: typeof loadPluginConfig
+  getOpenCodeVersion: typeof getOpenCodeVersion
   getMisplacedCategoryConfigDiagnostics: typeof getMisplacedCategoryConfigDiagnostics
   recordPluginTelemetry: typeof recordPluginTelemetry
   initI18n: typeof initI18n
@@ -109,6 +111,7 @@ const defaultPluginModuleDeps: PluginModuleDeps = {
   warmLiveServerProbe,
   loadConfigChain: validatePluginConfig,
   loadPluginConfig,
+  getOpenCodeVersion,
   getMisplacedCategoryConfigDiagnostics,
   recordPluginTelemetry,
   initI18n,
@@ -181,7 +184,10 @@ export function createPluginModule(overrides: Partial<PluginModuleDeps> = {}): P
     const startupValidation = deps.loadConfigChain(input.directory)
     const misplacedCategoryConfigs = deps.getMisplacedCategoryConfigDiagnostics(
       input.directory,
-      { worktreeDirectory: input.worktree },
+      {
+        openCodeVersion: deps.getOpenCodeVersion(),
+        worktreeDirectory: input.worktree,
+      },
     )
     for (const misplacedCategoryConfig of misplacedCategoryConfigs) {
       console.warn(`[oh-my-openagent] ${misplacedCategoryConfig}`)

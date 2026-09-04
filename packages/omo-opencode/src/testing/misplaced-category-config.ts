@@ -1,17 +1,20 @@
 import {
   MAX_PROJECT_CONFIG_DIRECTORY_DEPTH,
+  resolveHomeDir,
   resolveOmoProfileName,
 } from "@oh-my-opencode/omo-config-core"
-import { homedir, userInfo } from "node:os"
+import { userInfo } from "node:os"
 import { parseJsoncSafe, readJsoncFile } from "../shared"
 import {
   getMisplacedCategoryConfigCandidates,
-  type MisplacedCategoryDiagnosticOptions,
+  type MisplacedCategoryDiagnosticOptions as MisplacedCategoryPathOptions,
   targetPath,
   userOmoTargetPath,
 } from "./misplaced-category-config-paths"
 
-export type { MisplacedCategoryDiagnosticOptions } from "./misplaced-category-config-paths"
+export type MisplacedCategoryDiagnosticOptions = MisplacedCategoryPathOptions & {
+  readonly environment?: NodeJS.ProcessEnv
+}
 
 const ACCOUNT_HOME_DIRECTORY = userInfo().homedir
 
@@ -24,8 +27,9 @@ export function getMisplacedCategoryConfigDiagnostics(
   projectDirectory: string,
   options: MisplacedCategoryDiagnosticOptions = {},
 ): string[] {
-  const homeDirectory = options.homeDirectory ?? homedir()
-  const profileName = resolveOmoProfileName()
+  const environment = options.environment ?? process.env
+  const homeDirectory = options.homeDirectory ?? resolveHomeDir(environment)
+  const profileName = resolveOmoProfileName({ env: environment })
   const diagnostics: string[] = []
   const candidates = getMisplacedCategoryConfigCandidates(
     projectDirectory,
@@ -35,6 +39,7 @@ export function getMisplacedCategoryConfigDiagnostics(
         process.env.OPENCODE_DISABLE_PROJECT_CONFIG === "true",
       homeDirectory,
       maxProjectDepth: options.maxProjectDepth ?? MAX_PROJECT_CONFIG_DIRECTORY_DEPTH,
+      openCodeVersion: options.openCodeVersion ?? null,
       worktreeDirectory: options.worktreeDirectory,
     },
     profileName,

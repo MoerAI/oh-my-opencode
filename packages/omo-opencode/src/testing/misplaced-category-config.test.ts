@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import { getOpenCodeConfigDir, getOpenCodeConfigDiscoveryDirs } from "../shared"
 import { getMisplacedCategoryConfigDiagnostics } from "./misplaced-category-config"
 
 const roots: string[] = []
@@ -217,6 +218,30 @@ describe("misplaced OpenCode category diagnostics", () => {
     expect(diagnostics.some((message) => message.includes(join(configDir, "opencode.jsonc")))).toBe(false)
   })
 
+  test("#given stable and dev Desktop versions #when discovery roots resolve #then only the active edition is included", () => {
+    // given
+    const stableDirectory = getOpenCodeConfigDir({
+      binary: "opencode-desktop",
+      checkExisting: false,
+      version: "1.18.28",
+    })
+    const devDirectory = getOpenCodeConfigDir({
+      binary: "opencode-desktop",
+      checkExisting: false,
+      version: "1.18.28-dev",
+    })
+
+    // when
+    const stableDirectories = getOpenCodeConfigDiscoveryDirs("1.18.28")
+    const devDirectories = getOpenCodeConfigDiscoveryDirs("1.18.28-dev")
+
+    // then
+    expect(stableDirectories).toContain(stableDirectory)
+    expect(stableDirectories).not.toContain(devDirectory)
+    expect(devDirectories).not.toContain(stableDirectory)
+    expect(devDirectories).toContain(devDirectory)
+  })
+
   test("#given home .opencode config outside project ancestry #when inspected #then the user source is scanned", () => {
     // given
     const root = fixtureRoot()
@@ -239,6 +264,27 @@ describe("misplaced OpenCode category diagnostics", () => {
     expect(diagnostics.some((message) =>
       message.includes('~/.omo/omo.jsonc under "[opencode]".categories.')
     )).toBe(true)
+  })
+
+  test("#given HOME and USERPROFILE differ #when defaults resolve #then the unified HOME wins", () => {
+    // given
+    const root = fixtureRoot()
+    const configuredHome = join(root, "configured-home")
+    const accountHomeDirectory = join(root, "account-home")
+    const projectDirectory = join(accountHomeDirectory, "project")
+    const source = join(configuredHome, ".opencode", "opencode.jsonc")
+    mkdirSync(dirname(source), { recursive: true })
+    mkdirSync(projectDirectory, { recursive: true })
+    writeFileSync(source, misplacedConfig())
+
+    // when
+    const diagnostics = getMisplacedCategoryConfigDiagnostics(projectDirectory, {
+      accountHomeDirectory,
+      environment: { HOME: configuredHome, USERPROFILE: accountHomeDirectory },
+    })
+
+    // then
+    expect(diagnostics.some((message) => message.includes(source))).toBe(true)
   })
 
   test("#given a project below home #when ancestors are inspected #then discovery stops at home", () => {

@@ -167,6 +167,16 @@
   emitted `profiles."client.prod"."[opencode]".categories` while the
   simultaneous global source stayed at base `"[opencode]".categories`. See
   `dotted-profile-key-followup.txt`.
+- Active Desktop edition and unified-home regressions failed first together at
+  21 pass and 2 fail. The corrected focused suites passed 47 tests with 0
+  failures and 103 assertions.
+- Real OpenCode scanned the stable Desktop source and unified `HOME/.opencode`
+  source while excluding a simultaneous inactive Desktop-dev source. The
+  sandbox database stayed empty and the real database remained 8072 before
+  and after. See `active-desktop-home-followup.txt`.
+- The disputed related-suite file count was re-run with the exact committed
+  command. Bun 1.4.0 reported 23 files again, so the evidence now records that
+  direct revalidation instead of replacing it with a manual filename count.
 
 ## Why this is enough
 

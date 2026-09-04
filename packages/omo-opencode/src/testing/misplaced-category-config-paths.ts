@@ -7,9 +7,9 @@ export type MisplacedCategoryDiagnosticOptions = {
   readonly disableProjectConfig?: boolean
   readonly homeDirectory?: string
   readonly maxProjectDepth?: number
+  readonly openCodeVersion?: string | null
   readonly worktreeDirectory?: string
 }
-
 export type ConfigCandidate = {
   readonly filePath: string
   readonly priority: number
@@ -17,7 +17,7 @@ export type ConfigCandidate = {
 }
 
 type RequiredDiscoveryOptions = "accountHomeDirectory" | "disableProjectConfig"
-  | "homeDirectory" | "maxProjectDepth"
+  | "homeDirectory" | "maxProjectDepth" | "openCodeVersion"
 type ConfigDiscoveryOptions =
   & Required<Pick<MisplacedCategoryDiagnosticOptions, RequiredDiscoveryOptions>>
   & Pick<MisplacedCategoryDiagnosticOptions, "worktreeDirectory">
@@ -146,7 +146,7 @@ export function getMisplacedCategoryConfigCandidates(
   const baseUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), undefined)
   const profileUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), profileName)
 
-  for (const configDirectory of getOpenCodeConfigDiscoveryDirs()) {
+  for (const configDirectory of getOpenCodeConfigDiscoveryDirs(options.openCodeVersion)) {
     const target = profileName !== undefined && isProfileConfigDirectory(configDirectory)
       ? profileUserTarget
       : baseUserTarget

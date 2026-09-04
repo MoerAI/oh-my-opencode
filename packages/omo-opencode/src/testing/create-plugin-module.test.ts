@@ -30,6 +30,7 @@ const mockRunOpenCodeStartupMigration = mock(() => ({
   skippedConflictCount: 0,
 }))
 const mockLoadPluginConfig = mock(() => ({}))
+const mockGetOpenCodeVersion = mock(() => "1.18.28")
 const mockLoadConfigChain = mock((directory: string) => ({
   config: mockLoadPluginConfig(directory, {}),
   messages: [],
@@ -100,6 +101,7 @@ function createTestPluginModule(overrides: Parameters<typeof createPluginModule>
     runOpenCodeStartupMigration: mockRunOpenCodeStartupMigration,
     loadConfigChain: mockLoadConfigChain as never,
     loadPluginConfig: mockLoadPluginConfig as never,
+    getOpenCodeVersion: mockGetOpenCodeVersion,
     getMisplacedCategoryConfigDiagnostics: mockGetMisplacedCategoryConfigDiagnostics,
     isTmuxIntegrationEnabled: mockIsTmuxIntegrationEnabled as never,
     createRuntimeTmuxConfig: mockCreateRuntimeTmuxConfig as never,
@@ -248,7 +250,10 @@ describe("createPluginModule()", () => {
     // then
     expect(mockGetMisplacedCategoryConfigDiagnostics).toHaveBeenCalledWith(
       directory,
-      { worktreeDirectory: worktree },
+      {
+        openCodeVersion: "1.18.28",
+        worktreeDirectory: worktree,
+      },
     )
   })
 

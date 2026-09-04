@@ -71,3 +71,9 @@ Dotted profile key corrected focused suites: 45 pass, 0 fail, 98 assertions.
 Dotted profile key adapter typecheck and full build: PASS.
 Dotted profile key OpenCode QA helper gate: PASS.
 Dotted profile key real OpenCode run and sandbox containment: PASS.
+Desktop edition and unified-home failing-first suite: 21 pass, 2 fail, 44 assertions.
+Desktop edition and unified-home corrected suites: 47 pass, 0 fail, 103 assertions.
+Desktop edition and unified-home adapter typecheck and full build: PASS.
+Desktop edition and unified-home OpenCode QA helper gate: PASS.
+Desktop edition and unified-home real OpenCode run: PASS.
+Related suite count revalidation: 183 pass, 0 fail, 429 assertions, 23 files.
