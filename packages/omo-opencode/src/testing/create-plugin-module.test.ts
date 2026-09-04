@@ -30,7 +30,6 @@ const mockRunOpenCodeStartupMigration = mock(() => ({
   skippedConflictCount: 0,
 }))
 const mockLoadPluginConfig = mock(() => ({}))
-const mockGetOpenCodeVersion = mock(() => "1.18.28")
 const mockLoadConfigChain = mock((directory: string) => ({
   config: mockLoadPluginConfig(directory, {}),
   messages: [],
@@ -101,7 +100,6 @@ function createTestPluginModule(overrides: Parameters<typeof createPluginModule>
     runOpenCodeStartupMigration: mockRunOpenCodeStartupMigration,
     loadConfigChain: mockLoadConfigChain as never,
     loadPluginConfig: mockLoadPluginConfig as never,
-    getOpenCodeVersion: mockGetOpenCodeVersion,
     getMisplacedCategoryConfigDiagnostics: mockGetMisplacedCategoryConfigDiagnostics,
     isTmuxIntegrationEnabled: mockIsTmuxIntegrationEnabled as never,
     createRuntimeTmuxConfig: mockCreateRuntimeTmuxConfig as never,
@@ -250,10 +248,7 @@ describe("createPluginModule()", () => {
     // then
     expect(mockGetMisplacedCategoryConfigDiagnostics).toHaveBeenCalledWith(
       directory,
-      {
-        openCodeVersion: "1.18.28",
-        worktreeDirectory: worktree,
-      },
+      { worktreeDirectory: worktree },
     )
   })
 
@@ -675,9 +670,13 @@ describe("createPluginModule()", () => {
       const desktopConfigDir = join(xdgConfig, "ai.opencode.desktop")
       const previousConfigDir = process.env.OPENCODE_CONFIG_DIR
       const previousXdgConfig = process.env.XDG_CONFIG_HOME
+      const previousClient = process.env.OPENCODE_CLIENT
+      const previousChannel = process.env.OPENCODE_CHANNEL
       const previousPlatform = process.platform
       Object.defineProperty(process, "platform", { value: "linux" })
       process.env.OPENCODE_CONFIG_DIR = join(fixtureRoot, "cli-config")
+      process.env.OPENCODE_CHANNEL = "prod"
+      process.env.OPENCODE_CLIENT = "desktop"
       process.env.XDG_CONFIG_HOME = xdgConfig
       mkdirSync(desktopConfigDir, { recursive: true })
       writeFileSync(join(desktopConfigDir, "opencode.jsonc"), `{
@@ -705,6 +704,10 @@ describe("createPluginModule()", () => {
         })
       } finally {
         Object.defineProperty(process, "platform", { value: previousPlatform })
+        if (previousChannel === undefined) delete process.env.OPENCODE_CHANNEL
+        else process.env.OPENCODE_CHANNEL = previousChannel
+        if (previousClient === undefined) delete process.env.OPENCODE_CLIENT
+        else process.env.OPENCODE_CLIENT = previousClient
         if (previousConfigDir === undefined) delete process.env.OPENCODE_CONFIG_DIR
         else process.env.OPENCODE_CONFIG_DIR = previousConfigDir
         if (previousXdgConfig === undefined) delete process.env.XDG_CONFIG_HOME

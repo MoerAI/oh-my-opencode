@@ -30,6 +30,11 @@ real_db_sessions_after=8072
 host_fixture_cleanup=PASS
 status=0
 
+SUPERSEDED
+This historical run exposed that a CLI process still scanned a Desktop source.
+The final host-aware behavior and replacement real runs are recorded in
+runtime-host-scope-followup.txt.
+
 WHY ENOUGH
 The deterministic regressions pin edition selection, startup version
 forwarding, and the shared loader's HOME precedence. The real OpenCode run

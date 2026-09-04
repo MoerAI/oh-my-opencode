@@ -181,6 +181,17 @@
   both Desktop editions. The corrected shared-helper suite passed 31 tests
   with 0 failures and 36 assertions, and the 47 diagnostic/factory tests
   remained green. See `ci-regression-followup.txt`.
+- An independent final audit found that the OpenCode binary version probe did
+  not identify the running host and that three unrelated factories still ran
+  the production scanner. The final implementation now derives host identity
+  from OpenCode's official `OPENCODE_CLIENT`, `OPENCODE_CHANNEL`, and Desktop
+  `XDG_STATE_HOME` signals, excludes Desktop roots from CLI sessions, and
+  stubs the scanner in all direct factories.
+- The six affected suites passed 91 tests with 0 failures and 171 assertions.
+  Real OpenCode then proved three isolated lanes: CLI scanned no Desktop root,
+  stable Desktop scanned only stable, and dev Desktop scanned only dev. Every
+  sandbox database stayed empty and the host database remained 8072 before
+  and after. See `runtime-host-scope-followup.txt`.
 
 ## Why this is enough
 

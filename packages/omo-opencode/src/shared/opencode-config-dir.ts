@@ -2,17 +2,9 @@ import { existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { join, posix, resolve, win32 } from "node:path"
 
-import type {
-  OpenCodeBinaryType,
-  OpenCodeConfigDirOptions,
-  OpenCodeConfigPaths,
-} from "./opencode-config-dir-types"
+import type { OpenCodeBinaryType, OpenCodeConfigDirOptions, OpenCodeConfigPaths } from "./opencode-config-dir-types"
 
-export type {
-  OpenCodeBinaryType,
-  OpenCodeConfigDirOptions,
-  OpenCodeConfigPaths,
-} from "./opencode-config-dir-types"
+export type { OpenCodeBinaryType, OpenCodeConfigDirOptions, OpenCodeConfigPaths } from "./opencode-config-dir-types"
 
 export const TAURI_APP_IDENTIFIER = "ai.opencode.desktop"
 export const TAURI_APP_IDENTIFIER_DEV = "ai.opencode.desktop.dev"
@@ -119,24 +111,20 @@ export function getOpenCodeConfigDirs(options: OpenCodeConfigDirOptions): string
 
   const customConfigDir = getCliCustomConfigDir()
 
-  return Array.from(
-    new Set([
-      ...(customConfigDir ? [customConfigDir] : []),
-      getCliDefaultConfigDir(),
-    ]),
-  )
+  return Array.from(new Set([
+    ...(customConfigDir ? [customConfigDir] : []),
+    getCliDefaultConfigDir(),
+  ]))
 }
 
-export function getOpenCodeConfigDiscoveryDirs(version: string | null = null): string[] {
+export function getOpenCodeConfigDiscoveryDirs(options: OpenCodeConfigDirOptions): string[] {
   const appData = process.env.APPDATA?.trim()
   return Array.from(new Set([
     ...getOpenCodeConfigDirs({ binary: "opencode" }),
     ...(process.platform === "win32" && appData ? [win32.join(appData, "opencode")] : []),
-    getOpenCodeConfigDir({
-      binary: "opencode-desktop",
-      version,
-      checkExisting: false,
-    }),
+    ...(options.binary === "opencode-desktop"
+      ? [getOpenCodeConfigDir({ ...options, checkExisting: false })]
+      : []),
   ]))
 }
 

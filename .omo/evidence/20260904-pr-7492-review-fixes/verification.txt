@@ -80,3 +80,8 @@ Related suite count revalidation: 183 pass, 0 fail, 429 assertions, 23 files.
 Ubuntu shard 1 stale Desktop assertion: reproduced from CI.
 Corrected config-directory suite: 31 pass, 0 fail, 36 assertions.
 Post-repair diagnostic suites: 47 pass, 0 fail, 103 assertions.
+Runtime-host failing-first suite: 0 pass, 1 fail, 1 import error.
+Final six affected suites: 91 pass, 0 fail, 171 assertions.
+Final runtime-host adapter typecheck and full build: PASS.
+Final runtime-host OpenCode QA helper gate: PASS.
+CLI, stable Desktop, and dev Desktop real OpenCode lanes: PASS.

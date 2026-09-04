@@ -18,11 +18,14 @@ const DISCOVERY_ENV_KEYS = [
   "HOME",
   "OCX_PROFILE",
   "OMO_PROFILE",
+  "OPENCODE_CHANNEL",
+  "OPENCODE_CLIENT",
   "OPENCODE_CONFIG",
   "OPENCODE_CONFIG_CONTENT",
   "OPENCODE_CONFIG_DIR",
   "OPENCODE_DISABLE_PROJECT_CONFIG",
   "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
 ] as const
 const previousDiscoveryEnv = Object.fromEntries(
   DISCOVERY_ENV_KEYS.map((key) => [key, process.env[key]]),
@@ -232,8 +235,14 @@ describe("misplaced OpenCode category diagnostics", () => {
     })
 
     // when
-    const stableDirectories = getOpenCodeConfigDiscoveryDirs("1.18.28")
-    const devDirectories = getOpenCodeConfigDiscoveryDirs("1.18.28-dev")
+    const stableDirectories = getOpenCodeConfigDiscoveryDirs({
+      binary: "opencode-desktop",
+      version: "1.18.28",
+    })
+    const devDirectories = getOpenCodeConfigDiscoveryDirs({
+      binary: "opencode-desktop",
+      version: "1.18.28-dev",
+    })
 
     // then
     expect(stableDirectories).toContain(stableDirectory)

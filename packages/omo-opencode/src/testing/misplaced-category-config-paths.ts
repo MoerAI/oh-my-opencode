@@ -1,13 +1,13 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs"
 import { basename, dirname, join, resolve } from "node:path"
-import { getOpenCodeConfigDirs, getOpenCodeConfigDiscoveryDirs } from "../shared"
+import { getOpenCodeConfigDirs, getOpenCodeConfigDiscoveryDirs, type OpenCodeConfigDirOptions } from "../shared"
 
 export type MisplacedCategoryDiagnosticOptions = {
   readonly accountHomeDirectory?: string
   readonly disableProjectConfig?: boolean
   readonly homeDirectory?: string
   readonly maxProjectDepth?: number
-  readonly openCodeVersion?: string | null
+  readonly openCodeHost?: OpenCodeConfigDirOptions
   readonly worktreeDirectory?: string
 }
 export type ConfigCandidate = {
@@ -17,7 +17,7 @@ export type ConfigCandidate = {
 }
 
 type RequiredDiscoveryOptions = "accountHomeDirectory" | "disableProjectConfig"
-  | "homeDirectory" | "maxProjectDepth" | "openCodeVersion"
+  | "homeDirectory" | "maxProjectDepth" | "openCodeHost"
 type ConfigDiscoveryOptions =
   & Required<Pick<MisplacedCategoryDiagnosticOptions, RequiredDiscoveryOptions>>
   & Pick<MisplacedCategoryDiagnosticOptions, "worktreeDirectory">
@@ -146,7 +146,7 @@ export function getMisplacedCategoryConfigCandidates(
   const baseUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), undefined)
   const profileUserTarget = targetPath(userOmoTargetPath(options.homeDirectory), profileName)
 
-  for (const configDirectory of getOpenCodeConfigDiscoveryDirs(options.openCodeVersion)) {
+  for (const configDirectory of getOpenCodeConfigDiscoveryDirs(options.openCodeHost)) {
     const target = profileName !== undefined && isProfileConfigDirectory(configDirectory)
       ? profileUserTarget
       : baseUserTarget

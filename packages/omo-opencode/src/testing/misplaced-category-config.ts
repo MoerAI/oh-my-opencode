@@ -4,7 +4,11 @@ import {
   resolveOmoProfileName,
 } from "@oh-my-opencode/omo-config-core"
 import { userInfo } from "node:os"
-import { parseJsoncSafe, readJsoncFile } from "../shared"
+import {
+  getOpenCodeRuntimeConfigOptions,
+  parseJsoncSafe,
+  readJsoncFile,
+} from "../shared"
 import {
   getMisplacedCategoryConfigCandidates,
   type MisplacedCategoryDiagnosticOptions as MisplacedCategoryPathOptions,
@@ -30,6 +34,8 @@ export function getMisplacedCategoryConfigDiagnostics(
   const environment = options.environment ?? process.env
   const homeDirectory = options.homeDirectory ?? resolveHomeDir(environment)
   const profileName = resolveOmoProfileName({ env: environment })
+  const openCodeHost = options.openCodeHost ??
+    getOpenCodeRuntimeConfigOptions(environment)
   const diagnostics: string[] = []
   const candidates = getMisplacedCategoryConfigCandidates(
     projectDirectory,
@@ -39,7 +45,7 @@ export function getMisplacedCategoryConfigDiagnostics(
         process.env.OPENCODE_DISABLE_PROJECT_CONFIG === "true",
       homeDirectory,
       maxProjectDepth: options.maxProjectDepth ?? MAX_PROJECT_CONFIG_DIRECTORY_DEPTH,
-      openCodeVersion: options.openCodeVersion ?? null,
+      openCodeHost,
       worktreeDirectory: options.worktreeDirectory,
     },
     profileName,
