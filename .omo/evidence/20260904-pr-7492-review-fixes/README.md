@@ -59,15 +59,20 @@
   and SSE self-test passed.
 - Real isolated OpenCode runs diagnosed both the inline source and the active
   profile source. The profile hint now targets
-  `profiles.focused.opencode.categories`; both runs exited zero and left the
-  real database unchanged at 8072 sessions.
+  `profiles.focused.opencode.categories`; both runs exited zero. Each receipt
+  records its tested commit, capture ID, UTC timestamp, driver, runner,
+  resolved HOME and database path, explicit sandbox-containment assertions,
+  zero isolated sessions, and the real database unchanged at 8072 sessions.
+  See `late-review-followup.txt`.
 
 ## Why this is enough
 
 The focused tests pin the cross-platform candidate list and both diagnostic
 branches. The real OpenCode runs load the locally built plugin through
-OpenCode's actual config/plugin startup path, observe each warning on stderr,
-and prove the isolated runs did not add sessions to the real database.
+OpenCode's actual config/plugin startup path and observe each warning on
+stderr. Canonical HOME and database paths were asserted to be descendants of
+the sandbox; the unchanged real database count is a separate host-state check,
+not the basis of the isolation claim.
 
 ## What was omitted
 
