@@ -51,3 +51,21 @@ unit suite (36 pass in the checker dir, 84 pass in the wider scope) and the
 ## What was omitted
 No credentials, tokens, or private configuration. Fixtures use a synthetic plugin
 list. Temp bundles under /tmp and the base worktree were removed after the runs.
+
+
+## SSE wire capture (session.created)
+`harness-sse.sh` attaches the real `GET /event` SSE stream of the isolated
+sandbox server, triggers a session, and captures the raw stream. Result
+(`harness-sse-green.txt`, raw in `sse-raw-green.txt`):
+
+- `session_created_on_sse_wire: yes`
+- `sse_event_type_histogram: 1 "type":"session.created"; 1 "type":"server.connected";`
+- `session_created_line: data: {"type":"session.created","properties":{"sessionID":"ses_…"}}`
+- probe decision on the same hook: `findPluginEntry = { entry: "oh-my-openagent@4.19.4", isPinned: true, pinnedVersion: "4.19.4" }`
+- real `opencode.db` session count unchanged: 8077 -> 8077
+
+This proves `session.created` reached the SSE wire (per the AGENTS.md
+sse-hook-probe mandate) in the same isolated run that records the fixed
+function's decision. The earlier empty `sse_session_event_types` field was a
+harness capture bug (stream grep timing), not a plugin defect; the raw-stream
+capture here shows the event verbatim.
