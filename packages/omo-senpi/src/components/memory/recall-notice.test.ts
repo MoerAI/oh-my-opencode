@@ -34,6 +34,11 @@ describe("renderMemorianNudgedEntry", () => {
     expect(renderMemorianNudgedEntry({ data: null } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
   })
 
+  test("#given a multiline hint #when rendered #then nothing is drawn", () => {
+    const multiline = { version: 1, nudges: [{ path: "memory/a.md", hint: "first\nsecond" }] }
+    expect(renderMemorianNudgedEntry({ data: multiline } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
   test("#given a hint that normalizes to nothing or exceeds the gate budget #when rendered #then nothing is drawn", () => {
     const blank = { version: 1, nudges: [{ path: "memory/a.md", hint: "   \u001b[31m\t" }] }
     expect(renderMemorianNudgedEntry({ data: blank } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
@@ -69,6 +74,60 @@ describe("renderMemorianGateEntry", () => {
 
   test("#given a dropped gate #when rendered #then nothing is drawn", () => {
     expect(renderMemorianGateEntry({ data: { version: 1, status: "dropped", cause: "compaction", candidateCount: 1 } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+})
+
+describe("renderMemorianGateEntry reason and runId", () => {
+  const renderGate = (data: unknown, width = 120): string => {
+    const component = renderMemorianGateEntry({ data } as never, { expanded: false }, PLAIN_THEME as never)
+    expect(component).toBeDefined()
+    return component!.render(width).join("\\n")
+  }
+
+  test("#given a failed gate with a valid reason and runId #when rendered #then the dim reason and run lines follow the title", () => {
+    const output = renderGate({ version: 1, status: "failed", cause: "child_failed", reason: "provider failed", runId: "run-123", candidateCount: 2 })
+    expect(output).toContain("Memorian gate failed")
+    expect(output).toContain("provider failed")
+    expect(output).toContain("run run-123")
+  })
+
+  test("#given a failed gate whose reason is multiline, overlong or secret-like #when rendered #then the notice is drawn without the reason line", () => {
+    for (const reason of ["line1\nline2", "x".repeat(161), "Authorization: Bearer sk-live-abcdefghijklmnop"]) {
+      const output = renderGate({ version: 1, status: "failed", cause: "child_failed", reason, candidateCount: 2 })
+      expect(output).toContain("Memorian gate failed")
+      expect(output).not.toContain(reason)
+    }
+  })
+
+  test("#given a dropped gate with a reason #when rendered #then nothing is drawn", () => {
+    expect(renderMemorianGateEntry({ data: { version: 1, status: "dropped", cause: "cancelled", reason: "why", candidateCount: 1 } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
+  test("#given a skipped gate record without reason #when rendered #then the output is byte-identical to before", () => {
+    const component = renderMemorianGateEntry({ data: { version: 1, status: "skipped", cause: "quick_category_unavailable", candidateCount: 2 } } as never, { expanded: false }, PLAIN_THEME as never)
+    expect(JSON.stringify(component?.render(120))).toBe(JSON.stringify(["                                                                                                                        ", " \u001b[1m⚠ Memorian gate skipped · quick_category_unavailable\u001b[22m                                                                   ", " Memorian could not judge the stored memories for the previous turn.                                                    ", "                                                                                                                        "]))
+  })
+
+  test("#given a failed gate with an invalid reason but a valid runId #when rendered #then the title and the run line are drawn and the reason line is absent", () => {
+    const output = renderGate({ version: 1, status: "failed", cause: "child_failed", reason: "line1\nline2", runId: "safe-123", candidateCount: 1 })
+    expect(output).toContain("Memorian gate failed")
+    expect(output).toContain("run safe-123")
+    expect(output).not.toContain("line1")
+  })
+
+  test("#given a reason of exactly 160 characters and one of 161 #when rendered #then the first is drawn and the second is omitted", () => {
+    const exact = "x".repeat(160)
+    expect(renderGate({ version: 1, status: "failed", cause: "child_failed", reason: exact, candidateCount: 1 }, 300)).toContain(exact)
+    expect(renderGate({ version: 1, status: "failed", cause: "child_failed", reason: "x".repeat(161), candidateCount: 1 }, 300)).not.toContain("x".repeat(161))
+  })
+
+  test("#given a reason containing CR/LF or a bearer token #when rendered #then the line is omitted while the title remains", () => {
+    for (const reason of ["line1\r\nline2", "Authorization: Bearer sk-live-abcdefghijklmnop"]) {
+      const output = renderGate({ version: 1, status: "failed", cause: "child_failed", reason, candidateCount: 1 })
+      expect(output).toContain("Memorian gate failed")
+      expect(output).not.toContain("line1")
+      expect(output).not.toContain("Bearer")
+    }
   })
 })
 

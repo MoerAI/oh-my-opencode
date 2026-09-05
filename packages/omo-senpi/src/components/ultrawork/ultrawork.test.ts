@@ -433,6 +433,12 @@ describe("omo-senpi ultrawork component", () => {
     expect(SENPI_ULTRAWORK_DIRECTIVE).toContain("team_create")
   })
 
+  it("#given an eval session #when the shipped directive is inspected #then it names the subscription form the session can call", () => {
+    // then: bash and monitor leave the direct tool list whenever eval exists, so the
+    // only callable form of a subscription is tool.monitor(...) inside a cell.
+    expect(SENPI_ULTRAWORK_DIRECTIVE).toContain("tool.monitor(")
+  })
+
   it("#given the eval guidance #when the shipped directive is inspected #then it defers Bun skill availability to the runtime signal", () => {
     expect(SENPI_ULTRAWORK_DIRECTIVE).not.toContain("kernel is Bun 1.4")
     expect(SENPI_ULTRAWORK_DIRECTIVE).toMatch(/If the\s+eval tool reports a Bun kernel/)

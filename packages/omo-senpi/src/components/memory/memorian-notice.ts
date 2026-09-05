@@ -1,10 +1,11 @@
 import type { EntryRenderer } from "@code-yeongyu/senpi"
-import { NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
+import { containsSecretLikeMaterial, isValidHint, NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
 
 import { joinFields, noticeComponent, normalizeRendererText } from "./worker/entry-renderers"
 
 export const NUDGED_ENTRY_TYPE = "omo-memorian:nudged"
 export const GATE_ENTRY_TYPE = "omo-memorian:gate"
+export const GATE_REASON_MAX_CHARS = 160
 
 export interface MemorianNudgedRecord {
   readonly version: 1
@@ -17,6 +18,8 @@ export interface MemorianGateRecord {
   readonly cause?: string
   readonly model?: string
   readonly candidateCount: number
+  readonly reason?: string
+  readonly runId?: string
 }
 
 // Both renderers are fail-closed: a record that does not match the producer contract draws
@@ -54,7 +57,7 @@ export const renderMemorianNudgedEntry: EntryRenderer<MemorianNudgedRecord> = (e
 function normalizeNudge(value: unknown): { readonly path: string; readonly hint: string } | undefined {
   if (!isRecord(value)) return undefined
   if (typeof value.path !== "string" || typeof value.hint !== "string") return undefined
-  if (value.hint.length > NUDGE_HINT_MAX_CHARS) return undefined
+  if (value.hint.length > NUDGE_HINT_MAX_CHARS || !isValidHint(value.hint)) return undefined
   const path = normalizeRendererText(value.path)
   const hint = normalizeRendererText(value.hint)
   if (path.length === 0 || hint.length === 0) return undefined
@@ -65,6 +68,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
+function validGateReason(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const normalized = normalizeRendererText(value)
+  if (normalized.length === 0 || normalized.length > GATE_REASON_MAX_CHARS || containsSecretLikeMaterial(value)) return undefined
+  if (/[\r\n]/u.test(value)) return undefined
+  return normalized
+}
+
+function validRunId(value: unknown): string | undefined {
+  return typeof value === "string" && /^[A-Za-z0-9-]{1,64}$/.test(value) ? value : undefined
+}
+
 export const renderMemorianGateEntry: EntryRenderer<MemorianGateRecord> = (entry, options, theme) => {
   const record: unknown = entry.data
   if (!isRecord(record) || record.version !== 1) return undefined
@@ -73,6 +88,12 @@ export const renderMemorianGateEntry: EntryRenderer<MemorianGateRecord> = (entry
   if (record.status === "dropped") return undefined
   if (record.status !== "skipped" && record.status !== "failed") return undefined
   const cause = typeof record.cause === "string" ? normalizeRendererText(record.cause) : undefined
+  const reason = validGateReason(record.reason)
+  const runId = validRunId(record.runId)
+  const extra = [
+    ...(reason === undefined ? [] : [{ text: reason, tone: "dim" as const }]),
+    ...(runId === undefined ? [] : [{ text: `run ${runId}`, tone: "dim" as const }]),
+  ]
   return noticeComponent({
     glyph: record.status === "skipped" ? "⚠" : "✗",
     title: joinFields([`Memorian gate ${record.status === "skipped" ? "skipped" : "failed"}`, cause]),
@@ -80,5 +101,6 @@ export const renderMemorianGateEntry: EntryRenderer<MemorianGateRecord> = (entry
     why: record.status === "skipped"
       ? "Memorian could not judge the stored memories for the previous turn."
       : "Memorian failed while judging the stored memories for the previous turn.",
+    ...(extra.length === 0 ? {} : { extra }),
   }, options, theme)
 }

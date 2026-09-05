@@ -115,6 +115,7 @@ export {
   mergeChildCustomTools,
 } from "./runners"
 export type {
+  ChildCompletionPolicy,
   ChildHandle,
   ChildSession,
   ChildSessionEvent,

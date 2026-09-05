@@ -34,7 +34,7 @@ describe("AGENT_FALLBACK_CHAINS", () => {
       explore: 8,
       librarian: 8,
       metis: 5,
-      momus: 7,
+      momus: 6,
     })
   })
 
@@ -68,10 +68,9 @@ describe("AGENT_FALLBACK_CHAINS", () => {
         { providers: ["kimi-for-coding"], model: "kimi-k3" }
       ],
       momus: [
-        { providers: ["openai", "openai-codex"], model: "gpt-5.6-terra", variant: "high" },
-        { providers: ["github-copilot"], model: "gpt-5.6-terra", variant: "high" },
-        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "xhigh" },
-        { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "high" },
+        { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "xhigh" },
+        { providers: ["github-copilot"], model: "gpt-6-astra", variant: "high" },
+        { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "high" },
         { providers: ["anthropic", "github-copilot", "opencode"], model: "claude-opus-5", variant: "max" },
         { providers: ["google", "github-copilot", "opencode"], model: "gemini-3.1-pro", variant: "high" },
         { providers: ["opencode-go"], model: "glm-5.2" }

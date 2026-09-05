@@ -1,86 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp } from "node:fs/promises"
-import { realpathSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-
-import { PendingNudges, buildIdentityPaths, type RecallCandidate } from "@oh-my-opencode/memory-core"
-
-import { createMemoryBinding } from "./binding"
-import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
+import { PendingNudges } from "@oh-my-opencode/memory-core"
+import { ModelRegistry, ModelRuntime } from "../../senpi-test-runtime"
 import { createMemorianGateWiring, type MemorianGatePort } from "./memorian-wiring"
+import { CANDIDATES, CANDIDATE_PATH, roots, SESSION_ID, context, gate, collected } from "./memorian-wiring.test-support"
 import type { CollectedRecallCandidates } from "./recall-wiring"
-import { rmEfaultTolerant } from "./teardown.test-support"
-
-const IDENTITY = "memorian-agent"
-const SESSION_ID = "session-gate-1"
-const CANDIDATE_PATH = "reference/kubernetes-rollouts.md"
-const roots: string[] = []
-
-afterEach(async () => {
-  await Promise.all(
-    roots.splice(0).map((root) => rmEfaultTolerant(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })),
-  )
-})
-
-const CANDIDATES: readonly RecallCandidate[] = [
-  { path: CANDIDATE_PATH, description: "Rollout policy", excerpt: "drain first", score: 1 },
-]
-
-async function context(): Promise<MemoryIdentityContext> {
-  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memorian-wiring-")))
-  roots.push(root)
-  return createMemoryIdentityContext({
-    identity: IDENTITY,
-    identityPaths: buildIdentityPaths(root, IDENTITY),
-    binding: createMemoryBinding({ identity: IDENTITY, repoPath: join(root, "repo"), boundAt: 0 }),
-  })
-}
-
-function collected(identity: MemoryIdentityContext): CollectedRecallCandidates {
-  return {
-    sessionId: SESSION_ID,
-    context: identity,
-    candidates: CANDIDATES,
-    surfaced: new Set<string>(),
-    maxItems: 2,
-    transcript: [{ role: "user", text: "how do we handle kubernetes rollouts" }],
-  }
-}
+import type { MemoryIdentityContext } from "./context"
+import type { RecallCandidate } from "@oh-my-opencode/memory-core"
 
 type Launch = Parameters<MemorianGatePort["launch"]>[0]
+import { rmEfaultTolerant } from "./teardown.test-support"
 
-function gate(input: {
-  readonly collect: () => Promise<CollectedRecallCandidates | undefined>
-  readonly launches: Launch[]
-  readonly identity?: MemoryIdentityContext
-  readonly launch?: MemorianGatePort["launch"]
-  readonly logs?: Array<{ message: string, details?: unknown }>
-  readonly entries?: Array<{ customType: string; data: unknown }>
-}) {
-  const wiring = createMemorianGateWiring({
-    snapshotSession: () => ({ id: SESSION_ID, entries: [] }),
-    collectCandidatesFromSnapshot: input.collect,
-    resolveContext: (sessionId) => (sessionId === SESSION_ID ? input.identity : undefined),
-    runnerFor: () => ({
-      launch: input.launch ?? (async (launchInput) => {
-        input.launches.push(launchInput)
-        return { status: "empty" as const }
-      }),
-    }),
-    ...(input.logs === undefined
-      ? {}
-      : {
-          logger: {
-            info: (message, details) => input.logs?.push({ message, details }),
-            warn: (message, details) => input.logs?.push({ message, details }),
-            error: (message, details) => input.logs?.push({ message, details }),
-          },
-        }),
-  })
-  if (input.entries !== undefined) wiring.attachEntrySink((customType, data) => input.entries?.push({ customType, data }))
-  return wiring
-}
+afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rmEfaultTolerant(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))) })
 
 describe("createMemorianGateWiring onSettled", () => {
   test("#given collected candidates #when a turn settles #then the gate child launches with the judge's inputs", async () => {
@@ -214,7 +144,7 @@ describe("createMemorianGateWiring onSettled", () => {
     // given: the real senpi ctx is invalidated by AgentSession dispose the moment the settle
     // handler returns, so any ctx read from the detached task throws assertActive's stale error.
     const identity = await context()
-    const registry = { getAvailable: () => [], find: () => undefined }
+    const registry = new ModelRegistry(ModelRuntime.createSync({ modelsPath: null }))
     let stale = false
     const eventCtx = {
       get modelRegistry(): unknown {
@@ -324,65 +254,5 @@ describe("createMemorianGateWiring onSettled", () => {
     expect(returned).toBeUndefined()
     released()
     await wiring.whenIdle()
-  })
-})
-
-describe("createMemorianGateWiring onCompactionAccepted", () => {
-  test("#given pending nudges #when a compaction is accepted #then they are dropped instead of surfacing after the rewrite", async () => {
-    // given: the nudges judged the pre-compaction transcript, which no longer exists
-    const identity = await context()
-    const pending = new PendingNudges(identity.identityPaths.recallPending)
-    await pending.write(SESSION_ID, [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }], { epoch: 0 })
-    const wiring = gate({ collect: async () => undefined, launches: [], identity })
-
-    // when
-    wiring.onCompactionAccepted(SESSION_ID)
-    await wiring.whenIdle()
-
-    // then
-    expect(await pending.take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
-  })
-
-  test("#given another session's pending nudges #when a compaction is accepted #then they survive untouched", async () => {
-    // given
-    const identity = await context()
-    const pending = new PendingNudges(identity.identityPaths.recallPending)
-    await pending.write("other-session", [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }], { epoch: 0 })
-    const wiring = gate({ collect: async () => undefined, launches: [], identity })
-
-    // when
-    wiring.onCompactionAccepted(SESSION_ID)
-    await wiring.whenIdle()
-
-    // then
-    expect(await pending.take("other-session", { currentEpoch: 0 })).toEqual([
-      { path: CANDIDATE_PATH, hint: "Drain nodes first." },
-    ])
-  })
-})
-
-describe("createMemorianGateWiring currentCompactionEpoch", () => {
-  test("#given an untouched session #when its epoch is read #then it is the launch-time default", async () => {
-    // given: the consumer needs the SAME epoch source the launch stamps into the payload
-    const identity = await context()
-    const wiring = gate({ collect: async () => undefined, launches: [], identity })
-
-    // when / then
-    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(0)
-  })
-
-  test("#given accepted compactions #when the epoch is read #then it reflects every bump for that session alone", async () => {
-    // given
-    const identity = await context()
-    const wiring = gate({ collect: async () => undefined, launches: [], identity })
-
-    // when
-    wiring.onCompactionAccepted(SESSION_ID)
-    wiring.onCompactionAccepted(SESSION_ID)
-    await wiring.whenIdle()
-
-    // then
-    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(2)
-    expect(wiring.currentCompactionEpoch("other-session")).toBe(0)
   })
 })

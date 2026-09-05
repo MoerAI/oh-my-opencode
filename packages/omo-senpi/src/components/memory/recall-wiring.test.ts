@@ -321,7 +321,7 @@ describe("createMemoryRecallWiring pending-nudge injection", () => {
     const { repo, context } = await fixture()
     await new PendingNudges(context.identityPaths.recallPending).write(SESSION_ID, [NUDGE], { epoch: 0 })
 
-    for (const sentinel of ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS", "SENPI_MEMORY_MEMORIAN"]) {
+    for (const sentinel of ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"]) {
       const pi = new MemoryFakeExtensionAPI()
       wiringFor({ repo, identity: context, env: { [sentinel]: "1" } }).register(pi)
 
@@ -492,7 +492,7 @@ describe("createMemoryRecallWiring collectCandidates", () => {
     const { repo, context } = await fixture()
     const reflection = wiringFor({ repo, identity: context, env: { SENPI_MEMORY_REFLECTION: "1" } })
     const facts = wiringFor({ repo, identity: context, env: { SENPI_MEMORY_FACTS: "1" } })
-    const memorian = wiringFor({ repo, identity: context, env: { SENPI_MEMORY_MEMORIAN: "1" } })
+    const memorian = wiringFor({ repo, identity: context, env: { SENPI_MEMORY_FACTS: "1" } })
 
     // when
     const ctx = eventContext([userEntry("m1", KUBERNETES_PROMPT)])

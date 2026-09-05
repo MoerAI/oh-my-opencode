@@ -80,11 +80,9 @@ export function registerMemoryStatic(input: {
     noticeWiring.register(pi)
     memorianGateWiring.attachEntrySink((customType, data) => pi.appendEntry(customType, data))
   }
-  const toolExposure = options.toolExposure ?? "direct"
   const promptHandler = createPromptHandler({
     resolveContext,
     cache: promptCache,
-    searchExposure: () => toolExposure === "search",
     resolveCompileWarnTokens: () => loadCommandSettings().settings.compile_warn_tokens,
     resolveNudgeTurns: (repo, sessionId, identity) => nudgeWiring.nudgeTurns(repo, sessionId, identity),
     resolveSoulNotice: async (repo, sessionId, identity) => {
@@ -127,7 +125,6 @@ export function registerMemoryStatic(input: {
   })
   registerMemoryWriteListener(pi, options, onMemoryWrite)
   registerMemoryToolSurface(pi, () => (activeSession.current === undefined ? undefined : resolveContext(activeSession.current)), {
-    exposure: toolExposure,
     onCommit: (commit) => {
       const context = activeSession.current === undefined ? undefined : resolveContext(activeSession.current)
       if (context !== undefined) noticeWiring.onCommit(context, commit)
