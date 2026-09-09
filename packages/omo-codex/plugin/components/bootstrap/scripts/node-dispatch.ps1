@@ -71,5 +71,9 @@ if ($null -eq $nodeExe) {
 	exit 127
 }
 
-& $nodeExe $Target @RemainingArgs
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+$input | & $nodeExe $Target @RemainingArgs
 exit $LASTEXITCODE

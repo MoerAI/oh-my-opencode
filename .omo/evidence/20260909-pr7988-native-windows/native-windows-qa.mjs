@@ -74,6 +74,16 @@ try {
   const localHookSha256 = sha256File(localHookPath);
   assert.equal(sha256File(installedHookPath), localHookSha256, "Installed Git Bash hook differs from this checkout's build");
 
+  const inputProbe = join(projectDirectory, "stdin-probe.mjs");
+  writeFileSync(inputProbe, 'let data = ""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => data += chunk); process.stdin.on("end", () => process.stdout.write(data));');
+  const inputPayload = { sentinel: "qa-stdin", value: "\uD55C\uAE00" };
+  const inputRoundTrip = execFileSync("powershell.exe", [
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+    join(plugin.path, "components", "bootstrap", "scripts", "node-dispatch.ps1"), inputProbe,
+  ], { env, cwd: projectDirectory, input: JSON.stringify(inputPayload), encoding: "utf8", timeout: 10_000, windowsHide: true });
+  assert.deepEqual(JSON.parse(inputRoundTrip), inputPayload);
+  replay.push({ type: "native_dispatch_stdin", unicodeRoundTrip: true });
+
   const installedMcpManifest = JSON.parse(readFileSync(join(plugin.path, ".mcp.json"), "utf8"));
   const installedGitBashMcp = installedMcpManifest.mcpServers?.git_bash;
   assert.equal(installedGitBashMcp?.command, "node", "The installed Git Bash MCP must use its shipped Node entrypoint");
@@ -259,6 +269,9 @@ try {
   }
   Object.assign(process.env, originalEnvironment);
   try {
+    const sandboxLiteral = `'${sandbox.replaceAll("'", "''")}'`;
+    const cleanup = `$targets = @(Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.ProcessId -ne ${process.pid} -and $_.CommandLine -and $_.CommandLine.Contains(${sandboxLiteral}) }); foreach ($target in $targets) { $p = Get-Process -Id $target.ProcessId -ErrorAction SilentlyContinue; if ($p -and -not $p.HasExited) { $p.Kill(); if (-not $p.WaitForExit(15000)) { throw "Owned process did not exit" } } }`;
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", cleanup], { encoding: "utf8", timeout: 30_000, windowsHide: true });
     rmSync(sandbox, { recursive: true, force: true });
     result.sandboxRemoved = true;
   } catch (error) {
