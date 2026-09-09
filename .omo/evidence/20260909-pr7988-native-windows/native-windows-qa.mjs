@@ -16,6 +16,7 @@ const replayPath = join(evidenceDirectory, "replay.ndjson");
 const stderrPath = join(evidenceDirectory, "app-server-stderr.log");
 const runnerHome = process.env.USERPROFILE?.trim() || homedir();
 const runnerCodexConfig = join(runnerHome, ".codex", "config.toml");
+const originalEnvironment = { ...process.env };
 const configHashBefore = sha256FileOrAbsent(runnerCodexConfig);
 const sandbox = mkdtempSync(join(tmpdir(), "omo-pr7988-native-windows-"));
 const home = join(sandbox, "home");
@@ -127,6 +128,7 @@ try {
   ];
 
   child = spawn(codexExecutable, [...overrides.flatMap((value) => ["-c", value]), "app-server"], {
+    cwd: projectDirectory,
     env,
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
@@ -251,11 +253,24 @@ try {
     result.error = "Runner ~/.codex/config.toml changed during isolated QA";
     process.exitCode = 1;
   }
+  process.chdir(repoRoot);
+  for (const key of Object.keys(process.env)) {
+    if (!(key in originalEnvironment)) delete process.env[key];
+  }
+  Object.assign(process.env, originalEnvironment);
+  try {
+    rmSync(sandbox, { recursive: true, force: true });
+    result.sandboxRemoved = true;
+  } catch (error) {
+    result.status = "FAIL";
+    result.cleanupError = String(error);
+    result.sandboxRemoved = false;
+    process.exitCode = 1;
+  }
   writeFileSync(replayPath, `${replay.map((entry) => JSON.stringify(sanitize(entry))).join("\n")}\n`);
   writeFileSync(stderrPath, sanitizeText(appServerStderr));
   writeFileSync(resultPath, `${JSON.stringify(sanitize(result), null, 2)}\n`);
   console.log(JSON.stringify(sanitize(result)));
-  rmSync(sandbox, { recursive: true, force: true });
 }
 
 function createLocalModelServer({ expectedContext, replay: events }) {
@@ -339,7 +354,7 @@ async function driveAppServer({ child: appServer, projectDirectory: cwd, hookRun
         }
         if (message.method === "hook/started" || message.method === "hook/completed") {
           const run = message.params.run;
-          const event = { method: message.method, id: run.id, eventName: run.eventName, status: run.status, source: run.source };
+          const event = { method: message.method, ...run };
           runs.push(event);
           events.push({ type: "hook", ...event });
           continue;
