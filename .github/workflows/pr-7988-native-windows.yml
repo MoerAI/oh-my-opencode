@@ -1,0 +1,57 @@
+name: PR 7988 native Windows QA
+
+on:
+  push:
+    branches: [qa/pr-7988-native-windows-st-01a083d1]
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install checkout dependencies and generate installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run build:codex-install
+      - name: Install native Codex 0.144.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/codex-runtime"
+          bun add --cwd "$RUNNER_TEMP/codex-runtime" @openai/codex@0.144.6
+      - name: Resolve native executable
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "$env:RUNNER_TEMP/codex-runtime/node_modules" -Recurse -Filter codex.exe |
+            Select-Object -First 1
+          if (-not $exe) { throw "Native codex.exe is absent" }
+          "CODEX_EXE=$($exe.FullName)" >> $env:GITHUB_ENV
+          $exe.DirectoryName >> $env:GITHUB_PATH
+      - name: Drive actual isolated install and app-server
+        shell: pwsh
+        run: node .omo/evidence/20260909-pr7988-native-windows/native-windows-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr-7988-native-windows
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            .omo/evidence/20260909-pr7988-native-windows/result.json
+            .omo/evidence/20260909-pr7988-native-windows/replay.ndjson
+            .omo/evidence/20260909-pr7988-native-windows/app-server-stderr.log
