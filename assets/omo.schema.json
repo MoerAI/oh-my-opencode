@@ -11767,9 +11767,6 @@
           }
         }
       },
-      "required": [
-        "git_master"
-      ],
       "additionalProperties": false
     },
     "[senpi]": {
@@ -26538,9 +26535,6 @@
                 }
               }
             },
-            "required": [
-              "git_master"
-            ],
             "additionalProperties": false
           },
           "[senpi]": {
@@ -29801,8 +29795,5 @@
       "additionalProperties": {}
     }
   },
-  "required": [
-    "profiles"
-  ],
   "additionalProperties": false
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:80e794a7ee4705f54dc0c24f45fba696230284b0708f25cc7cb6351c4fc9efcb:49df52dff1bb9567c666cc21e9189ab8fb808328d291ec97cdb8d32a4fc8c4a8
+// omo-codex-install:bc3bb113ea819d8b72c7576db558adb445ad7b64a2dbd605369dbfedf2f94008:158cd4d7e4bcbef5dcbb11c2e8383c25652125ae250905d68c7e8f70957a515e
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -112,20 +112,20 @@ var init_atomic_write = __esm(() => {
 
 // packages/telemetry-core/src/activity-state.ts
 import { existsSync as existsSync4, mkdirSync as mkdirSync2, readFileSync as readFileSync2 } from "node:fs";
-import { basename as basename6, join as join32 } from "node:path";
+import { basename as basename6, join as join31 } from "node:path";
 function resolveTelemetryStateDir(product, options = {}) {
   const dataDir = resolveXdgDataDir(product.cacheDirName, {
     env: options.env,
     osProvider: options.osProvider
   });
-  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join32(options.env.XDG_DATA_HOME, product.cacheDirName);
+  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join31(options.env.XDG_DATA_HOME, product.cacheDirName);
   if (dataDir === xdgStateDir || xdgStateDir === undefined && basename6(dataDir) === product.cacheDirName) {
     return dataDir;
   }
-  return join32(dataDir, product.cacheDirName);
+  return join31(dataDir, product.cacheDirName);
 }
 function getTelemetryActivityStateFilePath(stateDir) {
-  return join32(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
+  return join31(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
 }
 function getDailyActiveCaptureState(input) {
   const state = readPostHogActivityState(input.stateDir, input.diagnostics);
@@ -196,9 +196,9 @@ var DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com", DEFAULT_POSTHOG_API_KEY =
 
 // packages/telemetry-core/src/diagnostics.ts
 import { appendFileSync, existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync3 } from "node:fs";
-import { join as join33 } from "node:path";
+import { join as join32 } from "node:path";
 function getTelemetryDiagnosticsFilePath(diagnosticsDir) {
-  return join33(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
+  return join32(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
 }
 function writeTelemetryDiagnostic(input, options) {
   const now = options.now ?? new Date;
@@ -7977,7 +7977,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.41",
+    version: "5.0.0-beta.50",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -8012,7 +8012,7 @@ var init_package = __esm(() => {
       "@oh-my-opencode/utils": "workspace:*"
     },
     devDependencies: {
-      "bun-types": "1.4.0"
+      "bun-types": "1.4.2"
     }
   };
 });
@@ -8198,7 +8198,7 @@ var init_telemetry = __esm(() => {
 
 // packages/omo-codex/src/install/install-local-cli.ts
 import { readFile as readFile23 } from "node:fs/promises";
-import { dirname as dirname12, join as join38, resolve as resolve10 } from "node:path";
+import { dirname as dirname12, join as join37, resolve as resolve10 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // packages/utils/src/runtime/spawn.ts
@@ -8466,7 +8466,7 @@ var defaultRunCommand = async (command, args, options) => {
 };
 
 // packages/omo-codex/src/install/install-codex.ts
-import { join as join34, resolve as resolve9 } from "node:path";
+import { join as join33, resolve as resolve9 } from "node:path";
 import { existsSync as existsSync6 } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 
@@ -10422,15 +10422,6 @@ function delay(milliseconds) {
 }
 
 // packages/omo-codex/src/install/toml-setting-reader.ts
-function hasTomlSetting(config, keyPath) {
-  const targetPath = parseTomlDottedKey(keyPath);
-  if (!targetPath)
-    return false;
-  return hasTomlAssignment(config, (tablePath, settingPath) => {
-    const fullPath = [...tablePath, ...settingPath];
-    return fullPath.length === targetPath.length && fullPath.every((part, index) => part === targetPath[index]);
-  });
-}
 function hasTomlRootDottedKeyPrefix(config, rootKey) {
   return hasTomlAssignment(config, (tablePath, settingPath) => tablePath.length === 0 && settingPath.length > 1 && settingPath[0] === rootKey);
 }
@@ -10873,15 +10864,15 @@ import { readFile as readFile10 } from "node:fs/promises";
 import { join as join15 } from "node:path";
 var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
-    model: "gpt-5.6-sol",
-    modelContextWindow: 650000,
+    model: "gpt-6-astra",
+    modelContextWindow: 600000,
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
   managedProfiles: [
     {
       model: "gpt-5.5",
-      modelContextWindow: 650000,
+      modelContextWindow: 400000,
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     },
@@ -10891,7 +10882,13 @@ var FALLBACK_CODEX_MODEL_CATALOG = {
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     },
-    { model: "gpt-5.5", modelContextWindow: 272000 }
+    { model: "gpt-5.5", modelContextWindow: 272000 },
+    {
+      model: "gpt-5.6-sol",
+      modelContextWindow: 650000,
+      modelReasoningEffort: "high",
+      planModeReasoningEffort: "xhigh"
+    }
   ]
 };
 async function readCodexModelCatalog(codexPackageRoot) {
@@ -10982,27 +10979,18 @@ import { readFileSync } from "node:fs";
 import { dirname as dirname6, isAbsolute as isAbsolute6, join as join16 } from "node:path";
 var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY = `${CODEX_MULTI_AGENT_V2_HEADER}.max_concurrent_threads_per_session`;
-var CODEX_SUBAGENT_THREAD_LIMIT = 1000;
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT = 16;
 function ensureCodexMultiAgentV2Config(config, options = {}) {
   const featureFlag = removeFeatureFlagSetting(config, "multi_agent_v2");
-  const v2Preferred = options.multiAgentVersion === "v2";
-  const modelKnown = options.multiAgentVersion != null || readRootModel(featureFlag.config) !== null;
-  const agentsConfig = v2Preferred ? removeAgentsMaxThreads(featureFlag.config) : modelKnown ? ensureAgentsMaxThreads(featureFlag.config) : raiseExistingAgentsMaxThreads(featureFlag.config);
+  const v2Preferred = options.multiAgentVersion === "v2" || isMultiAgentV2Enabled(featureFlag.config);
+  const agentsConfig = removeAgentsMaxThreads(featureFlag.config, v2Preferred);
   const preserveDisable = featureFlag.value === false && !v2Preferred;
   const featureConfig = preserveDisable ? setMultiAgentV2Disable(agentsConfig) : v2Preferred ? removeMultiAgentV2Disable(agentsConfig) : agentsConfig;
-  if (hasTomlSetting(featureConfig, CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY))
-    return featureConfig;
-  const section = findTomlSection(featureConfig, CODEX_MULTI_AGENT_V2_HEADER);
-  if (!section) {
-    const enabledSetting = preserveDisable ? `enabled = false
-` : "";
-    return appendBlock(featureConfig, `[${CODEX_MULTI_AGENT_V2_HEADER}]
-${enabledSetting}max_concurrent_threads_per_session = ${CODEX_MULTI_AGENT_V2_THREAD_LIMIT}
-`);
+  const withoutManagedLimit = removeManagedMultiAgentV2ThreadLimit(featureConfig);
+  if (preserveDisable && !findTomlSection(withoutManagedLimit, CODEX_MULTI_AGENT_V2_HEADER)) {
+    return appendBlock(withoutManagedLimit, `[${CODEX_MULTI_AGENT_V2_HEADER}]
+enabled = false`);
   }
-  return replaceOrInsertSetting(featureConfig, section, "max_concurrent_threads_per_session", CODEX_MULTI_AGENT_V2_THREAD_LIMIT.toString());
+  return withoutManagedLimit;
 }
 function resolveCodexMultiAgentVersion(config, configPath) {
   const model = readRootModel(config);
@@ -11012,7 +11000,7 @@ function resolveCodexMultiAgentVersion(config, configPath) {
   const catalogVersion = readCatalogMultiAgentVersion(model, catalogPath);
   if (catalogVersion !== null)
     return catalogVersion;
-  return /^gpt-5\.6\b/i.test(model) ? "v2" : null;
+  return /^(?:gpt-5\.6|gpt-6)\b/i.test(model) ? "v2" : null;
 }
 function resolveCatalogPath(configuredPath, configPath) {
   if (configuredPath === null)
@@ -11072,23 +11060,38 @@ function removeFeatureFlagSetting(config, featureName) {
     value: readBooleanSetting(section.text, featureName)
   };
 }
-function ensureAgentsMaxThreads(config) {
-  const maxThreadsValue = CODEX_SUBAGENT_THREAD_LIMIT.toString();
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section) {
-    return appendBlock(config, `[${CODEX_AGENTS_HEADER}]
-max_threads = ${maxThreadsValue}
-`);
-  }
-  return replaceOrInsertSetting(config, section, "max_threads", maxThreadsValue);
+function isMultiAgentV2Enabled(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  return section !== null && /^\s*enabled\s*=\s*true[ \t]*(?:#.*)?$/m.test(section.text);
 }
-function removeAgentsMaxThreads(config) {
+function removeAgentsMaxThreads(config, v2Preferred) {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER);
   if (!section)
     return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
+}
+function removeManagedMultiAgentV2ThreadLimit(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  if (!section)
     return config;
-  return removeSetting(config, section, "max_threads");
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
+}
+function removeMatchingCap(config, section, keyName, expectedValue) {
+  let quote = null;
+  let offset = section.start;
+  for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
+    const scan = scanTomlMultilineLine(line, quote);
+    quote = scan.nextQuote;
+    if (!scan.wasInside) {
+      const assignment = line.indexOf("=");
+      const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim());
+      if (key?.length === 1 && key[0] === keyName && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
+        return config.slice(0, offset) + config.slice(offset + line.length);
+      }
+    }
+    offset += line.length;
+  }
+  return config;
 }
 function removeMultiAgentV2Disable(config) {
   const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
@@ -11103,14 +11106,6 @@ function setMultiAgentV2Disable(config) {
   if (!section)
     return config;
   return replaceOrInsertSetting(config, section, "enabled", "false");
-}
-function raiseExistingAgentsMaxThreads(config) {
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section)
-    return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
-    return config;
-  return replaceOrInsertSetting(config, section, "max_threads", CODEX_SUBAGENT_THREAD_LIMIT.toString());
 }
 function readBooleanSetting(sectionText, key) {
   const match = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*(true|false)\\s*(?:#.*)?$`, "m").exec(sectionText);
@@ -11338,6 +11333,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ],
@@ -11351,6 +11350,28 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
+      }
+    ]
+  ],
+  [
+    "metis",
+    [
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
+      }
+    ]
+  ],
+  [
+    "lazycodex-worker-low",
+    [
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11364,6 +11385,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "ultra" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11377,6 +11402,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11390,6 +11419,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-luna", effort: "max" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11399,6 +11432,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -11408,6 +11445,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -11417,6 +11458,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11426,6 +11471,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11439,6 +11488,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "high" },
         current: { model: "gpt-5.6-sol", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ]
@@ -11450,9 +11503,9 @@ function resolveManagedAgentReasoning(input) {
   const latest = steps[steps.length - 1];
   if (latest === undefined)
     return input.preserved.effort;
-  if (input.bundledModel !== latest.current.model || input.bundledEffort !== latest.current.effort) {
+  const bundledMatchesCurrentEffort = input.bundledEffort === latest.current.effort && steps.some((step) => input.bundledModel === step.current.model && input.bundledEffort === step.current.effort);
+  if (!bundledMatchesCurrentEffort)
     return input.preserved.effort;
-  }
   const preservedMatchesAnyStep = steps.some((step) => input.preserved.model === step.previous.model && input.preserved.effort === step.previous.effort);
   return preservedMatchesAnyStep ? latest.current.effort : input.preserved.effort;
 }
@@ -12144,7 +12197,7 @@ function lastValue(values) {
   return values.length > 0 ? values[values.length - 1] ?? null : null;
 }
 function repairProjectLocalCodexConfigText(config) {
-  if (!isMultiAgentV2Enabled(config))
+  if (!isMultiAgentV2Enabled2(config))
     return { config, changed: false, removedKeys: [] };
   let nextConfig = config;
   const removedKeys = [];
@@ -12234,7 +12287,7 @@ async function collectProjectLocalArtifacts(projectRoots) {
   }
   return artifacts;
 }
-function isMultiAgentV2Enabled(config) {
+function isMultiAgentV2Enabled2(config) {
   const featuresSection = findTomlSection(config, "features");
   if (featuresSection !== null && settingIsBooleanTrue(featuresSection.text, "multi_agent_v2"))
     return true;
@@ -12657,30 +12710,13 @@ async function removeGitBashHooksOffWindows(input) {
 `);
 }
 
-// packages/omo-codex/src/install/omo-sot-migration.ts
-import { join as join29 } from "node:path";
-async function seedAndMigrateOmoSot(input) {
-  const commandEnv = { ...input.env };
-  const scriptPath = join29(input.repoRoot, "packages", "omo-codex", "plugin", "scripts", "migrate-omo-sot.mjs");
-  try {
-    await input.runCommand(process.execPath, [scriptPath, "--seed"], {
-      cwd: input.repoRoot,
-      env: commandEnv
-    });
-  } catch (error) {
-    if (!(error instanceof Error))
-      throw error;
-    input.log(`Warning: skipped OMO SOT seed/migration: ${error.message}`);
-  }
-}
-
 // packages/omo-codex/src/install/install-ast-grep-sg.ts
-import { join as join31 } from "node:path";
+import { join as join30 } from "node:path";
 
 // packages/utils/src/ast-grep/install-script.ts
 import { spawn as spawn2 } from "node:child_process";
 import { existsSync as existsSync3 } from "node:fs";
-import { join as join30 } from "node:path";
+import { join as join29 } from "node:path";
 
 // packages/utils/src/ast-grep/sg-manifest.ts
 function normalizeRuntimePlatform(platform = process.platform) {
@@ -12702,7 +12738,7 @@ var AST_GREP_BIN_DIR_ENV_KEY = "OMO_AST_GREP_BIN_DIR";
 var KILL_GRACE_MS = 1000;
 var AST_GREP_INSTALL_TIMEOUT_MS = 30000;
 function astGrepRuntimeDir(baseDir, platform = process.platform, arch = process.arch) {
-  return join30(baseDir, "runtime", "ast-grep", runtimeSlug(platform, arch));
+  return join29(baseDir, "runtime", "ast-grep", runtimeSlug(platform, arch));
 }
 function isMissingExecutable(error) {
   if (!("code" in error))
@@ -12740,7 +12776,7 @@ function defaultSpawnProcess(command, args, options) {
   };
 }
 function scriptPathForPlatform(skillDir, platform) {
-  return join30(skillDir, platform === "win32" ? "install.ps1" : "install.sh");
+  return join29(skillDir, platform === "win32" ? "install.ps1" : "install.sh");
 }
 function invocationsForPlatform(scriptPath, platform) {
   if (platform !== "win32")
@@ -12826,7 +12862,7 @@ async function installAstGrepForCodex(options) {
     return;
   const platform = options.platform ?? process.platform;
   const targetDir = astGrepRuntimeDir(options.codexHome, platform, options.arch ?? process.arch);
-  const skillDir = join31(plugin.path, "skills", "ast-grep");
+  const skillDir = join30(plugin.path, "skills", "ast-grep");
   const installer = options.installer ?? runAstGrepSkillInstall;
   try {
     const result = await installer({ platform, skillDir, targetDir });
@@ -12859,7 +12895,7 @@ async function runCodexInstaller(options = {}) {
   const env2 = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
   const repoRoot = resolve9(options.repoRoot ?? findRepoRoot({ importerDir: import.meta.dir, env: env2 }));
-  const codexHome = resolve9(options.codexHome ?? env2.CODEX_HOME ?? join34(homedir2(), ".codex"));
+  const codexHome = resolve9(options.codexHome ?? env2.CODEX_HOME ?? join33(homedir2(), ".codex"));
   const projectDirectory = resolve9(options.projectDirectory ?? env2.OMO_CODEX_PROJECT ?? process.cwd());
   const binDir = resolveCodexInstallerBinDir({ binDir: options.binDir, codexHome, env: env2 });
   const runCommand = options.runCommand ?? defaultRunCommand;
@@ -12876,9 +12912,9 @@ async function runCodexInstaller(options = {}) {
   if (!gitBashResolution.found) {
     throw new Error(gitBashResolution.installHint);
   }
-  const codexPackageRoot = join34(repoRoot, "packages", "omo-codex");
+  const codexPackageRoot = join33(repoRoot, "packages", "omo-codex");
   const marketplace = await readMarketplace(repoRoot, {
-    marketplacePath: join34(codexPackageRoot, "marketplace.json")
+    marketplacePath: join33(codexPackageRoot, "marketplace.json")
   });
   const distributionManifest = await readDistributionManifest(repoRoot);
   const installed = [];
@@ -12924,7 +12960,7 @@ async function runCodexInstaller(options = {}) {
       if (runtimeLink !== null)
         log(`Linked ${runtimeLink.name} -> ${runtimeLink.target}`);
       else
-        log(`Warning: skipped the omo-agent-toolkit runtime wrapper because ${join34(repoRoot, "dist", "cli", "index.js")} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
+        log(`Warning: skipped the omo-agent-toolkit runtime wrapper because ${join33(repoRoot, "dist", "cli", "index.js")} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
     }
     pluginSources.push({ name: entry.name, sourcePath });
     installed.push(plugin);
@@ -12987,13 +13023,13 @@ async function runCodexInstaller(options = {}) {
       continue;
     log(`Warning: deferred legacy Codex LSP daemon cleanup for v${cleanup.version}: ${cleanup.reason}`);
   }
-  const marketplaceRoot = join34(codexHome, "plugins", "cache", marketplace.name);
+  const marketplaceRoot = join33(codexHome, "plugins", "cache", marketplace.name);
   await writeCachedMarketplaceManifest({
     marketplaceName: marketplace.name,
     marketplaceRoot,
     plugins: installed
   });
-  const configPath = join34(codexHome, "config.toml");
+  const configPath = join33(codexHome, "config.toml");
   await updateCodexConfig({
     configPath,
     repoRoot: codexPackageRoot,
@@ -13007,7 +13043,6 @@ async function runCodexInstaller(options = {}) {
     autonomousPermissions: options.autonomousPermissions !== false,
     ...options.reasoning === undefined ? {} : { reasoning: options.reasoning }
   });
-  await seedAndMigrateOmoSot({ env: env2, log, repoRoot, runCommand });
   const projectCleanup = await repairProjectLocalCodexArtifactsBestEffort({
     startDirectory: projectDirectory,
     codexHome,
@@ -13053,7 +13088,7 @@ function findRepoRootFromImporter(importerDir) {
   for (let depth = 0;depth <= 7; depth += 1) {
     if (isRepoRootWithCodexPlugin(current))
       return current;
-    for (const wrapperPackageRoot of [join34(current, "node_modules", "oh-my-openagent"), join34(current, "oh-my-openagent")]) {
+    for (const wrapperPackageRoot of [join33(current, "node_modules", "oh-my-openagent"), join33(current, "oh-my-openagent")]) {
       if (isRepoRootWithCodexPlugin(wrapperPackageRoot))
         return wrapperPackageRoot;
     }
@@ -13071,7 +13106,7 @@ function findRepoRoot(input) {
   return findRepoRootFromImporter(input.importerDir);
 }
 function isRepoRootWithCodexPlugin(repoRoot) {
-  return existsSync6(join34(repoRoot, "packages", "omo-codex", "plugin", ".codex-plugin", "plugin.json"));
+  return existsSync6(join33(repoRoot, "packages", "omo-codex", "plugin", ".codex-plugin", "plugin.json"));
 }
 function codexMarketplaceSource(marketplaceRoot) {
   return { sourceType: "local", source: marketplaceRoot };
@@ -13384,12 +13419,12 @@ function shellQuote(value) {
 // packages/omo-codex/src/install/lazycodex-manual-update.ts
 import { spawn as spawn3, spawnSync as spawnSync2 } from "node:child_process";
 import { readFileSync as readFileSync4 } from "node:fs";
-import { dirname as dirname11, join as join36 } from "node:path";
+import { dirname as dirname11, join as join35 } from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 // packages/omo-codex/src/install/lazycodex-bun-global-paths.ts
-import { join as join35 } from "node:path";
+import { join as join34 } from "node:path";
 function isBunGlobalEntrypointPath(invokedPath, env2) {
   if (typeof invokedPath !== "string" || invokedPath.trim().length === 0)
     return false;
@@ -13400,8 +13435,8 @@ function resolveBunGlobalRoots(env2) {
   const bunInstallRoot = env2.BUN_INSTALL?.trim();
   const homeRoot = env2.HOME?.trim();
   return [
-    ...bunInstallRoot ? [join35(bunInstallRoot, "bin"), join35(bunInstallRoot, "install", "global", "node_modules")] : [],
-    ...homeRoot ? [join35(homeRoot, ".bun", "bin"), join35(homeRoot, ".bun", "install", "global", "node_modules")] : []
+    ...bunInstallRoot ? [join34(bunInstallRoot, "bin"), join34(bunInstallRoot, "install", "global", "node_modules")] : [],
+    ...homeRoot ? [join34(homeRoot, ".bun", "bin"), join34(homeRoot, ".bun", "install", "global", "node_modules")] : []
   ].map(normalizePathForPrefix);
 }
 function normalizePathForPrefix(path2) {
@@ -13494,7 +13529,7 @@ function resolveCurrentVersion(env2) {
   if (env2.LAZYCODEX_CURRENT_VERSION?.trim())
     return env2.LAZYCODEX_CURRENT_VERSION.trim();
   const pluginRoot = dirname11(dirname11(fileURLToPath(import.meta.url)));
-  return readVersionManifest(resolveInstalledVersionPath(env2, pluginRoot)) ?? readVersionManifest(join36(pluginRoot, "..", "..", "..", "package.json")) ?? readVersionManifest(join36(pluginRoot, ".codex-plugin", "plugin.json"));
+  return readVersionManifest(resolveInstalledVersionPath(env2, pluginRoot)) ?? readVersionManifest(join35(pluginRoot, "..", "..", "..", "package.json")) ?? readVersionManifest(join35(pluginRoot, ".codex-plugin", "plugin.json"));
 }
 function resolveLatestVersion(env2) {
   if (env2.LAZYCODEX_LATEST_VERSION?.trim())
@@ -13610,7 +13645,7 @@ function compareVersions(left, right) {
 function resolveInstalledVersionPath(env2, pluginRoot) {
   if (env2.LAZYCODEX_INSTALLED_VERSION_FILE?.trim())
     return env2.LAZYCODEX_INSTALLED_VERSION_FILE.trim();
-  return join36(pluginRoot, INSTALLED_VERSION_FILE);
+  return join35(pluginRoot, INSTALLED_VERSION_FILE);
 }
 function readVersionManifest(path2) {
   try {
@@ -13627,10 +13662,10 @@ function readVersionManifest(path2) {
 }
 // packages/omo-codex/src/install/codex-git-bash-mcp-env.ts
 import { readFile as readFile22, writeFile as writeFile13 } from "node:fs/promises";
-import { join as join37 } from "node:path";
+import { join as join36 } from "node:path";
 var GIT_BASH_ENV_KEY2 = "OMO_CODEX_GIT_BASH_PATH";
 async function stampGitBashMcpEnv(input) {
-  const manifestPath = join37(input.pluginRoot, ".mcp.json");
+  const manifestPath = join36(input.pluginRoot, ".mcp.json");
   if (!await fileExistsStrict(manifestPath))
     return false;
   const parsed = JSON.parse(await readFile22(manifestPath, "utf8"));
@@ -13677,7 +13712,7 @@ async function runLazyCodexInstallLocalCli(input) {
     return 0;
   }
   if (parsed.kind === "version") {
-    const packageJson = JSON.parse(await readFile23(join38(input.defaultRepoRoot, "package.json"), "utf8"));
+    const packageJson = JSON.parse(await readFile23(join37(input.defaultRepoRoot, "package.json"), "utf8"));
     const version2 = typeof packageJson.version === "string" ? packageJson.version : "unknown";
     input.log(`lazycodex-ai ${version2}`);
     return 0;

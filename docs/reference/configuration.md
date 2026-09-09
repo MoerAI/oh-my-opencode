@@ -277,6 +277,7 @@ Control what tools an agent can use:
 | `edit`               | `ask` / `allow` / `deny`                                                    |
 | `bash`               | `ask` / `allow` / `deny` or per-command: `{ "git": "allow", "rm": "deny" }` |
 | `webfetch`           | `ask` / `allow` / `deny`                                                    |
+| `task`               | `ask` / `allow` / `deny`                                                    |
 | `doom_loop`          | `ask` / `allow` / `deny`                                                    |
 | `external_directory` | `ask` / `allow` / `deny`                                                    |
 
@@ -352,11 +353,11 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 | `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Visual design, UI/UX, frontend, styling, animation, design systems |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture. Falls back to `gpt-5.6-sol` (max). |
 | `deep`               | `openai/gpt-6-astra` (high)     | 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, and complex research. Falls back to `gpt-5.6-sol` (medium). |
-| `artistry`           | `anthropic/claude-fable-5` (xhigh) | Creative/unconventional approaches             |
+| `artistry`           | `anthropic/claude-fable-5-1` (max) | Creative/unconventional approaches             |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | General tasks, low effort                      |
 | `unspecified-high`   | `openai/gpt-6-astra` (high) | General tasks, high effort                     |
-| `writing`            | `kimi-for-coding/k3` (low)  | Documentation, prose, technical writing        |
+| `writing`            | `anthropic/claude-fable-5-1` (medium)  | Documentation, prose, technical writing        |
 
 > **Note**: Built-in category defaults are available automatically. User-defined category config merges over the built-in defaults or adds custom categories.
 
@@ -434,7 +435,7 @@ Capability data comes from provider runtime metadata first. OmO also ships bundl
 | **Librarian** | `gpt-5.6-luna-fast` | `openai\|openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|openai-codex/gpt-5.4-nano`
 | **Explore** | `gpt-5.6-luna-fast` | `openai\|openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|openai-codex/gpt-5.4-nano`
 | **Multimodal Looker** | `gpt-5.6-sol` | `openai\|openai-codex\|opencode/gpt-5.6-sol (low)` → `opencode-go/kimi-k3` → `zai-coding-plan/glm-4.6v` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5-nano`
-| **Prometheus** | `claude-fable-5` | `anthropic\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
+| **Prometheus** | `claude-fable-5-1` | `anthropic\|github-copilot\|opencode/claude-fable-5-1 (xhigh)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
 | **Metis** | `claude-opus-5` | `anthropic\|github-copilot\|opencode/claude-opus-5 (high)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (low)`
 | **Momus** | `gpt-6-astra` | `openai\|openai-codex/gpt-6-astra (xhigh)` → `github-copilot/gpt-6-astra (high)` → `openai\|openai-codex\|opencode/gpt-6-astra (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
 | **Atlas** | `claude-sonnet-5` | `anthropic\|github-copilot\|opencode/claude-sonnet-5` → `opencode-go/kimi-k3` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7`
@@ -446,10 +447,10 @@ This table mirrors the authoritative hardcoded category fallback chains: the cha
 
 | Category | Provider Chain Primary | Provider Priority |
 | --- | --- | --- |
-| **Visual Engineering** | `claude-opus-5` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `zai-coding-plan\|opencode-go/glm-5.2 (max)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
+| **Visual Engineering** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
 | **Ultrabrain** | `gpt-6-astra` | `openai\|openai-codex/gpt-6-astra (max)` → `github-copilot/gpt-6-astra (max)` → `openai\|openai-codex\|opencode/gpt-6-astra (max)` → `openai\|openai-codex/gpt-5.6-sol (max)` → `github-copilot/gpt-5.6-sol (max)` → `openai\|openai-codex\|opencode/gpt-5.6-sol (max)` |
 | **Deep** | `gpt-6-astra` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
-| **Artistry** | `claude-fable-5` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
+| **Artistry** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
 | **Quick** | `kimi-for-coding-highspeed` | `kimi-for-coding/kimi-for-coding-highspeed` → `openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (off)` → `qwen-token-plan\|alibaba-token-plan\|bailian-coding-plan/qwen3.6-flash (low)` → `opencode-go/minimax-m3 (max)` → `opencode-go/minimax-m2.7 (max)` → `xai/grok-4.20-0309-non-reasoning` → `anthropic\|anthropic-api\|github-copilot/claude-haiku-4-5 (off)` |
 | **Unspecified Low** | `grok-4.6` | `xai\|github-copilot\|opencode/grok-4.6 (xhigh)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-terra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-sonnet-5 (low)` → `qwen-token-plan\|alibaba-token-plan\|qwen-token-plan-cn\|alibaba-token-plan-cn/qwen3.8-max-preview (max)` → `deepseek\|opencode-go/deepseek-v4-pro (max)` → `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
 | **Unspecified High** | `gpt-6-astra` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` → `zai-coding-plan\|opencode-go/glm-5.3 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
@@ -597,8 +598,9 @@ Disable built-in skills: `{ "disabled_skills": ["playwright"] }`
 ### Memory
 
 Persistent, per-agent memory stored as a git repository. Memory is on by default and learns
-actively: it reflects on its own, nudges when durable facts go unsaved, extracts facts in the
-background, consolidates during a dream pass, and keeps records about people.
+actively: it reflects on its own, nudges when durable facts go unsaved, recalls a stored memory
+mid-session when it would change the next step, extracts facts in the background, consolidates
+during a dream pass, and keeps records about people.
 
 Configured under `memory` in `omo.json`, with per-agent overrides under `memory.agents.<name>`.
 
@@ -646,6 +648,26 @@ Reminds the agent to save when durable facts have gone unwritten.
 | ------------------------- | ------- | ---------------------------------------------------- |
 | `nudge.enabled`           | `true`  | Emit the nudge line in the memory metadata block      |
 | `nudge.every_user_turns`  | `10`    | Nudge after this many user turns without a save       |
+
+#### Recall (recollections)
+
+The nudge above asks the agent to write. Recall is the other direction: a read-only judge called
+Kibitzer watches each turn, checks stored memory against what the agent is doing, and hands back
+a hint only when that memory would change the next step (a constraint being ignored, a past
+failure of the same approach, an answer about to be re-derived). Silence is the default. Most
+turns produce nothing, and a judge that finds nothing leaves no trace.
+
+When it does fire, you see a recollection in the transcript identified as Kibitzer advice: a
+single fixed `Kibitzer` title, then `recalled memory: <hint>`,
+with the memory path beneath it. It's a transcript entry, not a
+toast. The hint is one sentence of at most 200 characters, and the same memory surfaces at most
+once per session. Treat it as a hint, not current state: the agent is told to verify before
+relying on it, and expanding the entry shows that caveat.
+
+| Option              | Default | Description                                                     |
+| ------------------- | ------- | --------------------------------------------------------------- |
+| `recall.enabled`    | `true`  | Run the Kibitzer judge and surface recollections                |
+| `recall.max_items`  | `2`     | Most memories one judge run may surface (1-5)                   |
 
 #### Facts
 
@@ -1258,18 +1280,14 @@ Install [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-anti
 
 ##### Split Claude Routing
 
-Provider path affects the effective Claude context limit. Antigravity Claude
-models are the stable 200k lane. Direct Anthropic Claude models are the 1M lane
-for accounts and model IDs that support long context.
+Provider path can change Claude context limits. Confirm the active model's context window with `bunx oh-my-openagent doctor --verbose` rather than assuming 200k vs 1M.
 
-Use Antigravity for cheaper or quota-balanced work where 200k context is enough.
-Use direct Anthropic for long-context planning, review, and research sessions
-where early compaction would lose important context.
+Use Antigravity for cheaper or quota-balanced work. Use direct Anthropic for long-context planning, review, and research sessions when the account, model, and required beta/header setup support a larger window.
 
 ```jsonc
 {
   "agents": {
-    // 200k lane: Google Antigravity Claude.
+    // Google Antigravity Claude.
     "explore": {
       "model": "google/antigravity-claude-sonnet-4-6"
     },
@@ -1277,7 +1295,7 @@ where early compaction would lose important context.
       "model": "google/antigravity-claude-sonnet-4-6"
     },
 
-    // 1M lane: direct Anthropic, only for eligible long-context accounts/models.
+    // Direct Anthropic, only for eligible long-context accounts/models.
     "sisyphus": {
       "model": "anthropic/claude-opus-5",
       "reasoning": "max"
@@ -1292,8 +1310,8 @@ where early compaction would lose important context.
 If you see an error like `prompt is too long ... > 200000`, check whether the
 agent is routed through `google/antigravity-*`. Move that agent to a direct
 `anthropic/*` model only when the account, model, and required beta/header setup
-support 1M context. Keep the Antigravity lane explicit when you want predictable
-200k behavior.
+support a larger context window. Keep the Antigravity path explicit when you want
+that provider's quota and routing behavior.
 
 #### Ollama
 
