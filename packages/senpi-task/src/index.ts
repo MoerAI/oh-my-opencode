@@ -115,6 +115,7 @@ export {
   mergeChildCustomTools,
 } from "./runners"
 export type {
+  ChildCompletionPolicy,
   ChildHandle,
   ChildSession,
   ChildSessionEvent,
@@ -139,6 +140,7 @@ export {
   classifyChildExit,
   createRpcChildHandle,
   detectBunBinary,
+  detectCompiledEngine,
   mapExitOutcomeToError,
   parseExtensionEntries,
   resolveChildSessionDir,
@@ -276,6 +278,7 @@ export type {
   ParentNotifier,
   ParentNotifierMessage,
   ParentState,
+  RecordDeliveryFailureInput,
   RoutingDecision,
   SkipReason,
   TransitionReason,

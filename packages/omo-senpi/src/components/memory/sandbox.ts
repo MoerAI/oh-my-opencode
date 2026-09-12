@@ -1,7 +1,6 @@
 import { join } from "node:path"
 
-import { resolveAgentHome } from "../agent-home/resolve-agent-home"
-import type { FactsSandbox, FactsSpawnArgs, MemorianSandbox, MemorianSpawnArgs } from "./worker/spawn"
+import type { ReflectionSpawnArgs } from "./worker/spawn"
 import {
   SandboxUnavailableError,
   type SandboxPolicy,
@@ -16,11 +15,6 @@ export {
 } from "./sandbox-contracts"
 export type { SandboxUsability } from "./sandbox-platform"
 
-export const SENPI_AGENT_LOCK_FILES = ["settings.json.lock", "auth.json.lock", "hooks-state.json.lock"] as const
-
-export function senpiAgentLockPaths(agentDir: string): string[] {
-  return SENPI_AGENT_LOCK_FILES.map((file) => join(agentDir, file))
-}
 
 export function buildSandboxTransform(input: {
   readonly policy: SandboxPolicy
@@ -58,75 +52,4 @@ export function buildSandboxTransform(input: {
     which: input.which,
     probe: input.probe,
   })
-}
-
-/**
- * The memorian gate child gets the facts child's confinement: its run dir is the only writable
- * tree, senpi's own settings/auth/hooks-state locks stay takeable, and the read-only payload files are granted
- * explicitly. Same `memory.reflection.sandbox` policy - the gate adds no knob of its own.
- */
-export function buildMemorianSandboxTransform(input: {
-  readonly policy: SandboxPolicy
-  readonly foreignRoots?: readonly string[]
-  readonly onWarning?: (warning: string, spawnArgs: MemorianSpawnArgs) => void
-  readonly errorRethrow?: (error: SandboxUnavailableError) => never
-  readonly platform?: NodeJS.Platform
-  readonly which?: (command: string) => string | undefined
-  readonly probe?: (executable: string) => SandboxUsability
-}): MemorianSandbox {
-  return (spawnArgs) => {
-    const agentDir = resolveAgentHome({ env: spawnArgs.env })
-    const transform = buildPathSandboxTransform<MemorianSpawnArgs>({
-      surface: "memorian",
-      policy: input.policy,
-      writableDirs: [spawnArgs.paths.runDir],
-      // Grant only senpi's lock directories; the agent directory itself remains read-only.
-      lockPaths: senpiAgentLockPaths(agentDir),
-      payloadPaths: [spawnArgs.paths.candidates, spawnArgs.paths.transcript],
-      fallbackDir: spawnArgs.paths.runDir,
-      foreignRoots: input.foreignRoots,
-      command: spawnArgs.command,
-      env: spawnArgs.env,
-      errorRethrow: input.errorRethrow,
-      platform: input.platform,
-      which: input.which,
-      probe: input.probe,
-    })
-    if (transform.warning !== undefined) input.onWarning?.(transform.warning, spawnArgs)
-    return transform(spawnArgs)
-  }
-}
-
-export function buildFactsSandboxTransform(input: {
-  readonly policy: SandboxPolicy
-  readonly foreignRoots?: readonly string[]
-  readonly onWarning?: (warning: string, spawnArgs: FactsSpawnArgs) => void
-  readonly errorRethrow?: (error: SandboxUnavailableError) => never
-  readonly platform?: NodeJS.Platform
-  readonly which?: (command: string) => string | undefined
-  readonly probe?: (executable: string) => SandboxUsability
-}): FactsSandbox {
-  return (spawnArgs) => {
-    // The child only needs senpi's settings/auth/hooks-state locks; the agent dir itself stays
-    // read-only so auth.json and settings.json cannot be rewritten by a misbehaving child.
-    const agentDir = resolveAgentHome({ env: spawnArgs.env })
-    const transform = buildPathSandboxTransform<FactsSpawnArgs>({
-      surface: "facts",
-      policy: input.policy,
-      writableDirs: [spawnArgs.paths.runDir],
-      // Grant only senpi's lock directories; the agent directory itself remains read-only.
-      lockPaths: senpiAgentLockPaths(agentDir),
-      payloadPaths: [spawnArgs.paths.payload],
-      fallbackDir: spawnArgs.paths.runDir,
-      foreignRoots: input.foreignRoots,
-      command: spawnArgs.command,
-      env: spawnArgs.env,
-      errorRethrow: input.errorRethrow,
-      platform: input.platform,
-      which: input.which,
-      probe: input.probe,
-    })
-    if (transform.warning !== undefined) input.onWarning?.(transform.warning, spawnArgs)
-    return transform(spawnArgs)
-  }
 }

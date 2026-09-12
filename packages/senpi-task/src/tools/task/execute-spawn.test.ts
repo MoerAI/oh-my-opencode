@@ -179,7 +179,7 @@ describe("buildTaskExecute spawn", () => {
       }),
     )
 
-    const result = await execute("c", { prompt: "p", subagent_type: "momus" }, undefined, undefined, CTX)
+    const result = await execute("c", { prompt: "p", subagent_type: "plan-reviewer" }, undefined, undefined, CTX)
 
     expect(waitForId).toBe("st_00000004")
     const text = result.content[0]?.type === "text" ? result.content[0].text : ""

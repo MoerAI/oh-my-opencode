@@ -10,8 +10,8 @@ describe("toContinueResult", () => {
     const outcome = {
       kind: "one_shot_agent",
       task_id: "st_00000001",
-      agent: "momus",
-      message: AGENT_INTERACTION_POLICIES.momus.sendDenialReminder,
+      agent: "plan-reviewer",
+      message: AGENT_INTERACTION_POLICIES["plan-reviewer"].sendDenialReminder,
     } as const
 
     // when
@@ -21,7 +21,7 @@ describe("toContinueResult", () => {
     expect(result).toEqual({
       kind: "not_continuable",
       task_id: "st_00000001",
-      reason: AGENT_INTERACTION_POLICIES.momus.sendDenialReminder,
+      reason: AGENT_INTERACTION_POLICIES["plan-reviewer"].sendDenialReminder,
       suggestion: CONTINUE_SUGGESTION,
     })
   })

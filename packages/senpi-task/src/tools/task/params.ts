@@ -18,13 +18,13 @@ export const TaskToolParams = Type.Object({
     Type.String({ description: "Short human label for this task, shown in status views." }),
   ),
   category: Type.Optional(
-    Type.String({ description: "Category name to route through Sisyphus-Junior. Mutually exclusive with subagent_type; required unless subagent_type is given." }),
+    Type.String({ description: "Category name routed to the category worker (a fresh worker session configured by the category's model and skills). Mutually exclusive with subagent_type; required unless category is given." }),
   ),
   subagent_type: Type.Optional(
-    Type.String({ description: "Agent name to invoke directly (e.g. momus). Mutually exclusive with category; required unless category is given." }),
+    Type.String({ description: "Agent name to invoke directly (e.g. plan-reviewer). Mutually exclusive with category; required unless category is given." }),
   ),
   run_in_background: Type.Optional(
-    Type.Boolean({ description: "true returns a child task id immediately; false (default) waits and returns the final response." }),
+    Type.Boolean({ description: "true (the standard spawn) returns the task id now and delivers the child's result later as a message; false blocks this turn until the child finishes. Omitted counts as false." }),
   ),
   name: Type.Optional(Type.String({ description: "Optional stable name for this task within the current session; must be unique within the session." })),
   model: Type.Optional(Type.String({ description: "Explicit model override, e.g. anthropic/claude-opus-4. Only valid with subagent_type; mutually exclusive with category — category-routed tasks take their model from omo.json (categories.<name>.models)." })),
