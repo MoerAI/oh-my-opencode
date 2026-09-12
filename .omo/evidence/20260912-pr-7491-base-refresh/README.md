@@ -45,6 +45,27 @@ passed instead. Historical evidence whitespace warnings remain unchanged.
 Initial validation used an older Bun accidentally; the accepted results
 above are from the subsequent single complete Bun 1.4.0 run.
 
-Detailed logs and the replay driver are retained locally. Machine-specific
-paths, host hashes, private configuration and raw environment values are
-omitted from this public summary.
+## Captures and replay
+
+- [Launcher captures](launcher-captures.json): all 22 original commands,
+  stdout/stderr, exits, expected/observed diagnostics, and isolation receipt.
+- [Validation output](validation-output.txt): captured toolchain, compiler,
+  complete native test output, and build output.
+- [Isolation receipt](isolation.json): before/after configuration digests
+  and protected-worktree checks.
+- [Replay driver](replay.py): runs the actual launcher with synthetic stores,
+  no inherited credentials, and bounded child completion.
+
+From the repository root, with Node 24 and Bun 1.4.0 on PATH:
+
+```bash
+bun install --frozen-lockfile --ignore-scripts
+bun run build:omo-native
+python3 .omo/evidence/20260912-pr-7491-base-refresh/replay.py
+```
+
+`QA_NODE` and `QA_BUN` may select explicit executables. Replay writes its
+receipt and per-case output alongside the driver and preserves synthetic
+sandboxes. It does not modify the committed original capture file.
+Machine-specific path prefixes are replaced with placeholders; configuration
+contents, credentials and raw inherited environment values are not published.
