@@ -6,7 +6,7 @@ Use GPT-5.x style: outcome-first, evidence-bound, atomic decisions, no nested br
 Deliver every goal in `.omo/ulw-loop/goals.json` end-to-end.
 Prove EVERY success criterion with captured observable evidence from a real-usage scenario you ran (HTTP / tmux / browser / computer-use below).
 TESTS ALONE NEVER PROVE DONE. A green test suite is supporting evidence, not completion proof.
-Audit each pass, fail, block, steering change, and checkpoint in `.omo/ulw-loop/ledger.jsonl`.
+Audit each pass, fail, block, steering change, and checkpoint in `.omo/ulw-loop/<session-id>/ledger.jsonl`.
 
 ## Manual-QA channels
 Run each criterion's real-surface proof yourself through the channel that faithfully exercises it; capture the artifact before recording PASS.
@@ -23,7 +23,7 @@ stream) and record `terminal.png`, `terminal.txt`, and `metadata.json`.
 
 Auxiliary surfaces (CLI stdout / DB state diff / parsed config dump) are first-class evidence for CLI- or data-shaped criteria; use a channel scenario when the behavior is user-facing. `--dry-run`, printing the command, "should respond", and "looks correct" never count.
 
-## Delegation model (ATLAS-STYLE — YOU CONDUCT, WORKERS PLAY)
+## Delegation model (CONDUCTOR-STYLE — YOU CONDUCT, WORKERS PLAY)
 
 Size each worker to the task. Put the intended role, rigor level, and specialty inside the worker `prompt`.
 
@@ -64,17 +64,20 @@ Resolve the CLI from the ulw-loop skill-pointer message: it carries the resolved
 
 Run one form:
 ```sh
-omo-agent-toolkit ulw-loop create-goals --brief "<brief>" [--validation-batch-json <json-or-path>] --json
-omo-agent-toolkit ulw-loop create-goals --brief-file <path> [--validation-batch-json <json-or-path>] --json
-cat <brief> | omo-agent-toolkit ulw-loop create-goals --from-stdin [--validation-batch-json <json-or-path>] --json
+omo-agent-toolkit ulw-loop create-goals --session-id <id> --brief "<brief>" [--validation-batch-json <json-or-path>] --json
+omo-agent-toolkit ulw-loop create-goals --session-id <id> --brief-file <path> [--validation-batch-json <json-or-path>] --json
+cat <brief> | omo-agent-toolkit ulw-loop create-goals --session-id <id> --from-stdin [--validation-batch-json <json-or-path>] --json
 ```
-If the existing aggregate is already complete, do not steer or force the
-completed default state for unrelated new work. Start a fresh run with
-`omo-agent-toolkit ulw-loop create-goals --session-id <new-id> ...`; use `--force`
+Every state subcommand runs against exactly one session scope: pass `--session-id <id>` on every call (the ulw-loop skill-pointer message carries this session's id next to the CLI path; `PI_SESSION_ID`, `CODEX_THREAD_ID`, `CODEX_SESSION_ID`, or `OMO_ULW_LOOP_SESSION_ID` in the environment also resolve it). The CLI refuses with `ULW_LOOP_SESSION_SCOPE_REQUIRED` when neither is present instead of touching the shared `.omo/ulw-loop` root, because eval kernels, subprocesses, and hooks do not inherit the session env and every session in the directory would otherwise read and overwrite the same plan. Mutations are serialized across processes by `.omo/ulw-loop/<id>/.state.lock`, so parallel `record-evidence` calls from several workers are safe; `ULW_LOOP_LOCK_TIMEOUT` means another live process held the state for more than 10s — retry, never delete the lock while that process is alive.
+If this session's aggregate is already complete, do not steer or force the
+completed state for unrelated new work. Start a fresh run with
+`omo-agent-toolkit ulw-loop create-goals --session-id <new-id> ...` and keep passing
+that id on every later call; the host's automatic continuation follows only the
+session's own id, so a run under a custom id is resumed by hand. Use `--force`
 only when deliberately overwriting completed evidence.
 Write state through the CLI path. Do not hand-edit state files.
 
-### 2. Refine success criteria + a Prometheus-grade QA and parallelism plan per goal
+### 2. Refine success criteria + a plan-quality QA and parallelism plan per goal
 Shape every goal's objective and `successCriteria` by `references/define-goal.md`: its quality bar, objective anatomy, and criterion construction govern this step. Where the brief is silent on a constraint the work forks on, derive the default per that reference, record it via `annotate_ledger` (`--evidence` naming the repo fact, `--rationale` the default plus reversibility), and surface the assumed list in the first user-visible report so a wrong default is a one-line veto, not a finished run.
 Gather context BEFORE planning with parallel `explorer` / `librarian` workers plus your own read-only tools.
 First survey available skills: read every loosely-relevant skill's description, deliberately choose which this work uses, and prefer applying genuinely-relevant skills over working raw.
@@ -90,7 +93,7 @@ Use channel-table evidence verbs — not vibes.
 Revise any criterion that lacks observable `expectedEvidence` or a named channel before execution.
 
 ### 3. Inspect state
-Run `omo-agent-toolkit ulw-loop status --json`.
+Run `omo-agent-toolkit ulw-loop status --session-id <id> --json`.
 Read pending goals, criteria IDs, current ledger head, blockers, and aggregate omo-senpi objective.
 
 ## Execution Loop

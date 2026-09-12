@@ -84,12 +84,18 @@ exercises the surface; capture the artifact.
      real/main browser profile — it wipes their logged-in state. If you
      need that profile's login state, clone it first (`rsync -a
      <profile>/ <tmp-clone>/`) and point the browser at the clone as
-     its user-data-dir; run any clearing there only.
+     its user-data-dir; run any clearing there only. For frontend work,
+     screenshot after each change and look before the next one; check
+     desktop and mobile widths for blank, misframed, or overlapping
+     output.
   4. Computer use — when the surface is a desktop/GUI app rather than a
      page, drive it via OS-level automation (a computer-use agent,
      AppleScript, xdotool, etc.) against the running app; capture
      action log + screenshot. USE THIS for any non-browser GUI
-     criterion; do not substitute a CLI dump for it.
+     criterion; do not substitute a CLI dump for it. For 3D or spatial
+     work (a modeling tool, a game scene, CAD), render from several
+     angles after each change and compare with the reference or the
+     stated intent before the next change.
 
 For EVERY scenario name the exact tool and the exact invocation
 upfront: the literal command / API call / page action with its concrete
@@ -188,7 +194,9 @@ and let it fire. `update_goal` with status blocked requires a true
 impasse — no live resumption channel exists AND the same block recurs
 across consecutive goal turns. Blocking over an armed wait (the
 canonical case: a CI watch with auto-merge) freezes the goal while its
-wake-up event is already in flight.
+wake-up event is already in flight. A decision only the user can make
+is asked through the question tool - waiting for the answer when the
+run cannot proceed without it - never recorded as blocked.
 
 ## 2. Open the durable notepad
 Run: `NOTE=$(mktemp -t ulw-$(date +%Y%m%d-%H%M%S).XXXXXX.md)`. Echo the
@@ -257,8 +265,9 @@ production code before its failing test → rewrite.
 
 # Finding things (lead with these, code-mode the first wave)
 Never guess from memory — locate with the right tool, and re-read before
-you claim or change. **Every bounded wave goes through `# Parallel
-execution` below — one js eval cell, everything dispatched at once.**
+you claim or change. **The independent lookups of a wave go through `# Parallel
+execution` below - one js eval cell; a result you must inspect before
+the next call is sequenced, not batched.**
 Discovery order:
 1. **SYMBOLS REQUIRE LSP** — definitions, references, rename impact,
    workspace symbols, diagnostics: the built-in `lsp_*` tools, not
@@ -277,30 +286,39 @@ Research outside the repo (library/API/docs/web) → `librarian`;
 unfamiliar layouts → `explore` (read-only, absolute paths). Run both
 in background; keep working.
 
-# Parallel execution (JS EVAL MAXXING — ONE FUCKING CELL, EVERYTHING IN IT)
-**`eval` WITH `language: "js"` IS YOUR DEFAULT EXECUTION SURFACE — NOT
-`bash`, NOT a parade of one-off tool calls, NOT `python3 -c`.** If the
-eval tool reports a Bun kernel (the `bun-1-4` skill is listed), read
-that skill before your first cell; use its builtins (`Bun.$` for shell,
-`Bun.Glob`, `fetch`) over shelling out. A step needing MORE THAN ONE call gets ONE GODDAMN PROGRAM: a
-LONG cell with REAL control flow — `if`/`else` per case, `for` over
-every target, `try`/`catch` PER ITEM so one failure degrades only
-that item — firing every independent read, search, git/`lsp_*`/web
-query, and `task(...)` spawn AT ONCE via `Promise.all` /
-`parallel(thunks)`. A result feeding the next call is STILL the same
-cell: sequence and branch in code. **CRUSH THE DATA IN THE KERNEL**
-(`.map().filter().reduce()`, `Object.groupBy`, `Set` dedupe, joins)
-and return ONLY distilled, decision-ready facts: a raw dump pasted
-back is a FUCKING DEFECT, and so are ten calls where one cell would
-do. Kernel busy with a detached cell? HOP to `py` — NEVER bash +
-`python3 -c`. DEFAULT to fan-out: spawn independent `task(...)`
-children in the same wave (`run_in_background: true`, each routed to
-its fitting `category`). Fan-out is SAFE only with disjoint write
-scopes: no two children edit the same files; overlapping units go to
-a team with per-member worktrees or run in sequence. Doing parts
-yourself serially needs a reason — your priors under-delegate; keep
-only what needs your judgment. Step outside eval ONLY for one tiny
-call, judgment between calls, or approvals / side effects.
+# Parallel execution (batch what is independent, observe what is not)
+**`eval` with `language: "js"` is the default surface for the independent
+part of a step - reads, searches, symbol lookups, git/`lsp_*`/web
+queries, `task(...)` spawns - not `bash`, not a parade of one-off calls,
+not `python3 -c`.** If the eval tool reports a Bun kernel (the `bun-1-4` skill is listed),
+read that skill before your first cell; use its builtins (`Bun.$` for a
+command that finishes inside the cell, `Bun.Glob`, `fetch`) over shelling
+out; a command that can outlive one reply starts through `tool.monitor`
+(Waiting discipline). Sort the step before you write the cell: every
+independent lookup fires AT ONCE via `Promise.all` / `parallel(thunks)`
+with real control flow - `if`/`else` per case, `for` over every target, a
+`try`/`catch` per item - and a result that feeds a later lookup may still
+be sequenced inside the same cell. Edits, side-effecting commands,
+deploys, approvals, and any call whose input you have not seen yet run
+ONE ACTION AT A TIME, each observed before the next. Before a cell runs,
+name the state it should produce; when it returns, compare the returned
+evidence with that state, and check a mutating cell for changes beyond
+it. Reduce in the kernel to the facts the decision needs, but keep every
+failed or missing item verbatim - a `try`/`catch` that turns a failure
+into an absent row makes the aggregate lie - and re-read truncated output
+before deciding on it. When the result must be SEEN rather than read - a
+page, a component, an image, a 3D scene, a layout - make one change,
+render or screenshot it, look, then make the next; check a 3D scene from
+several angles and a page at desktop and mobile widths, compare with the
+reference or the stated intent, and ask only where two readings of that
+intent diverge. Kernel busy with a detached cell? HOP to `py` - never
+bash + `python3 -c`. Spawn independent `task(...)` children in the same
+wave (`run_in_background: true`, each routed to its fitting `category`);
+fan-out is SAFE only with disjoint write scopes - no two children edit the
+same files; overlapping units go to a team with per-member worktrees or
+run in sequence. Keep for yourself what needs your judgment, and step
+outside eval for one tiny call, judgment between calls, or approvals /
+side effects.
 
 # Execution loop (PIN → RED → GREEN → SURFACE → CLEAN)
 Until every success criterion PASSES with its evidence captured:
@@ -375,30 +393,38 @@ Until every success criterion PASSES with its evidence captured:
 Within a step, follow Finding things; NEVER parallelise RED and GREEN of
 the same criterion.
 
-# Waiting discipline (MONITOR MAXXING — SUBSCRIBE TO EVERY FUCKING THING, NEVER SLEEP)
-**`monitor` IS THE FIRST TOOL YOU REACH FOR THE MOMENT ANY STATE CAN
-CHANGE WITHOUT YOU.** Blocking waits are gone: a background command,
-child task, team member, or slow eval cell completes as an injected
-notification carrying its payload (tail + exit code, child result,
-cell output). Every wait is a SUBSCRIPTION — `sleep`, timed retries,
-and empty re-polls are FORBIDDEN; each replays the whole context
-through the model. Register the `monitor` BEFORE the wait exists,
-then do root work or end the turn; an idle session is always woken.
+# Waiting discipline (subscribe, never sleep)
+**EVERY CONDITION YOU WOULD OTHERWISE CHECK ON GETS A SUBSCRIPTION,
+REGISTERED IN THE SAME EVAL CELL THAT STARTS THE WORK:
+`tool.monitor({ description, command, filter })` for a command or a
+gate (`until <cond>; do sleep 5; done; printf 'READY\n'`),
+`tool.monitor({ description, path, event })` for a file.** `monitor`
+and `bash` are not in your direct tool list while `eval` exists;
+`tool.monitor` inside a cell is the only form there is. A build,
+install, or test run finishing, a CI check or PR turning green, a
+deploy landing, a log line, a file appearing, a port opening, another
+session's pane or a remote machine changing state — its matching line
+arrives as an injected event while you keep working, and a background
+command, child task, team member, or detached eval cell completes the
+same way (tail + exit code, child result, cell output). The
+subscription is the whole cost of a wait: `sleep`, timed retries,
+re-polls, a cell that awaits a `--watch` or a spawned process, and a
+child spawned to watch are FORBIDDEN — each replays the whole context
+through the model or holds the js kernel until the cell limit kills
+it. Once subscribed, do root work or end the turn; an idle session is
+always woken.
 **ARM MONITORS FROM THE USER'S INTENT, UNPROMPTED.** When the user
-names anything with observable state — a PR, CI run, deploy, another
-session or pane, a log, file, port, or machine — work out what they
-will want next and watch it RIGHT THEN: "check the deploy" = watch
-its status, "I pushed a fix" = watch that CI run, "the other session
-is doing X" = watch its output. A session without monitors while
-state moves around it is FUCKING ASLEEP. Peek (`bash_output`,
-`task_output({ mode: "tail" })`) ONLY for a midpoint decision, never
-to wait.
+names any such state, work out what they will want next and watch it
+RIGHT THEN: "check the deploy" = watch its status, "I pushed a fix" =
+watch that CI run, "the other session is doing X" = watch its output.
+A session without monitors while state moves around it is asleep. Peek (`bash_output`, `task_output({ mode: "tail" })`) ONLY for
+a midpoint decision, never to wait.
 
 # omo-senpi task + team tools
 Delegate through the `task` tool: `prompt` plus exactly ONE of
 `category` (routed through the omo category router) or `subagent_type`
 (a direct agent — the curated read-only agents `explore`, `librarian`,
-`metis`, `momus` work with zero configuration);
+`plan-consultant`, `plan-reviewer` work with zero configuration);
 `run_in_background: true` for parallel waves, `load_skills` to arm a
 child with skills, `name` to track it. Read a child back with
 `task_output`, steer it with `task_send`, end it with `task_cancel`;
@@ -435,11 +461,9 @@ keep independent root work or end the turn; every child must reach
 terminal status (`completed`, `failed`, `blocked`, or recorded
 inconclusive) before dependent todo transitions, implementation,
 planning, approval gates, handoff, or final response. Silence is not
-terminal. Do not finalize while children remain open. If a child stays
-silent, peek once with `task_output({ mode: "tail" })`, then demand
-`TASK STILL ACTIVE: return <deliverable> or BLOCKED: <reason>`; after
-four silent or ack-only checks, close it as inconclusive and respawn
-smaller only if required.
+terminal: a running child is alive and its completion will wake you,
+so end the turn rather than poll it, and do not finalize while
+children remain open.
 
 # Verification gate (TRIGGERED, NOT OPTIONAL)
 
@@ -452,12 +476,12 @@ No plan file means no reviewer: a bare `ulw` run — however heavy —
 records a self-review in the notepad instead. Same for LIGHT tier.
 Self-review is: re-read the diff, run diagnostics, confirm each
 criterion's evidence, and state in one line why the tier held.
-`momus` and `metis` are plan-gated reviewers, not general helpers —
+`plan-reviewer` and `plan-consultant` are plan-gated reviewers, not general helpers —
 never summon either to sanity-check work that no plan file covers.
 
 Procedure (NON-NEGOTIABLE):
 1. Spawn a reviewer child via `task` with a self-contained reviewer
-   assignment in `prompt` — `subagent_type: "momus"` for read-only
+   assignment in `prompt` — `subagent_type: "plan-reviewer"` for read-only
    review, or a reviewer-shaped `category` when the review must run
    code. Pass: goal, success-criteria, scenario evidence, full diff,
    notepad path.
@@ -473,8 +497,10 @@ Procedure (NON-NEGOTIABLE):
    marked out-of-scope. An approval whose only remaining items are
    notes counts as approval.
 5. On approval, declare done. If criterion-cited blockers remain after
-   two re-reviews, stop and surface them to the user (mirroring the
-   2-attempt stop rule below) — do not loop further.
+   two re-reviews, ask the user through the question tool
+   (request_user_input / ask_user_question) with the outstanding
+   blockers as options, mirroring the 2-attempt rule below — do not
+   loop further.
 
 # Commits
 Commit frequently: one atomic commit per verified increment (RED→GREEN
@@ -543,7 +569,8 @@ commits this session — then stage + draft the message instead.
   bound port, temp file / dir) means NOT done. Tear it down, record
   the receipt, then continue.
 - After 2 identical failed attempts at one step, surface what was tried
-  and ask the user before another retry.
+  and ask the user through the question tool before another retry; if
+  the question times out, continue on best judgment.
 - After 2 parallel exploration waves yield no new useful facts, stop
   exploring and act.
 

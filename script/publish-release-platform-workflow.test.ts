@@ -33,7 +33,7 @@ describe("release and platform publish workflows", () => {
     const mainWaitsForPlatform = workflow.includes(
       "needs: [gate-reuse, preflight-trust, release-metadata, prepare-release-state, publish-platform]",
     ) &&
-      workflow.includes("inputs.skip_platform == true || needs.publish-platform.result == 'success'")
+      workflow.includes("inputs.skip_platform == true || inputs.lazycodex_only == true || needs.publish-platform.result == 'success'")
     const releaseUsesMetadata = workflow.includes("VERSION: ${{ needs.release-metadata.outputs.version }}")
     const wrappersVerifyPlatformPackages = workflow.includes("name: Verify platform packages are published") &&
       workflow.includes("Missing platform package(s); refusing to publish wrappers.")
@@ -149,11 +149,12 @@ describe("release and platform publish workflows", () => {
 
     // #when
     const checksExistingTagTarget =
-      dispatchJob.includes('if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then') &&
-      dispatchJob.includes('TAG_SHA="$(git rev-list --max-count=1 "v${VERSION}")"') &&
+      dispatchJob.includes('RELEASE_TAG="v${VERSION}"') &&
+      dispatchJob.includes('if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then') &&
+      dispatchJob.includes('TAG_SHA="$(git rev-list --max-count=1 "${RELEASE_TAG}")"') &&
       dispatchJob.includes('"$TAG_SHA" != "$RELEASE_SHA"')
-    const createsMissingTagAtPreparedSource = dispatchJob.includes('git tag "v${VERSION}" "$RELEASE_SHA"')
-    const redispatchesTag = dispatchJob.includes('gh workflow run publish.yml --ref "v${VERSION}"')
+    const createsMissingTagAtPreparedSource = dispatchJob.includes('git tag "${RELEASE_TAG}" "$RELEASE_SHA"')
+    const redispatchesTag = dispatchJob.includes('gh workflow run publish.yml --ref "${RELEASE_TAG}"')
     const marketplacePushSkipsWhenClean = workflow.includes("LazyCodex marketplace already up to date")
 
     // #then
@@ -266,7 +267,7 @@ describe("release binary asset lane in the platform publish workflow", () => {
       buildBinaryStep.includes('--omo-version "$OMO_VERSION"') &&
       buildBinaryStep.includes('--omo-ai-version "$OMO_AI_VERSION"')
     const bunPins = [...workflow.matchAll(/bun-version:\s*"([^"]+)"/g)].map((match) => match[1])
-    const bunPinnedEverywhere = bunPins.length > 0 && bunPins.every((pin) => pin === "1.4.0")
+    const bunPinnedEverywhere = bunPins.length > 0 && bunPins.every((pin) => pin === "1.4.2")
 
     // #then
     expect(declaresInput, "omo_ai_version must be a workflow_call and workflow_dispatch input").toBe(true)
@@ -275,7 +276,7 @@ describe("release binary asset lane in the platform publish workflow", () => {
       buildCommand,
       "the build step must invoke build-omo-binary.ts for the matrix leg with both version inputs",
     ).toBe(true)
-    expect(bunPinnedEverywhere, "every setup-bun step (existing and new) must pin bun 1.4.0").toBe(true)
+    expect(bunPinnedEverywhere, "every setup-bun step (existing and new) must pin bun 1.4.2").toBe(true)
   })
 
   test("gates release-binary steps on a release-asset probe, not the npm publish skip", () => {

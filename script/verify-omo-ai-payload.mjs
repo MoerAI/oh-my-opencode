@@ -5,6 +5,8 @@ import { existsSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { npmSpawnOptions } from "./npm-invocation.mjs"
+
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..")
 const pkgDir = resolve(repoRoot, "packages", "omo-native")
@@ -13,6 +15,7 @@ const REQUIRED_ARTIFACTS = [
   "bin/omo.js",
   "bin/omo-agent-toolkit.js",
   "plugin/package.json",
+  "plugin/CHANGELOG.md",
   "plugin/extensions/omo.js",
   // Credential-gated skill: not under plugin/skills (never eager-loaded) but the bundled x-search
   // component resolves ../skills-conditional/x-search/SKILL.md, so the payload must ship it.
@@ -46,6 +49,7 @@ function packedPaths() {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     stdio: ["ignore", "pipe", "inherit"],
+    ...npmSpawnOptions(),
   })
   const [result] = JSON.parse(raw)
   if (!result) return { paths: [], unpackedSize: 0 }
