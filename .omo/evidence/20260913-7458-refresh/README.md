@@ -8,7 +8,7 @@ Branch: `maintenance/7458-refresh-20260913-st01a09b5e`.
 
 Command: `git merge origin/dev --no-commit --no-ff`, with command-scoped identity and no commit created.
 Observed: `Automatic merge went well; stopped before committing as requested`.
-No commits, pushes, PR updates, or user identity configuration changes.
+At the initial handoff, no commits, pushes, PR updates, or user identity configuration changes had been made.
 
 The PR-specific source diff remains three production files plus one regression test (27 additions, 3 deletions): normalize tuple entries through getPluginEntryName in plugin-entry.ts/local-dev-path.ts, type config entries as PluginEntry[], and verify a preceding unrelated tuple does not hide the pinned package. No production edits were needed during refresh. Upstream has no changes to these three production files since e0746bcbc.
 
@@ -26,7 +26,7 @@ Bun was the explicitly selected 1.4.0 binary (34cbb9a40), not host Bun. Node was
 | `bun install --frozen-lockfile` | dependencies installed, implicit prepare/full build failed at frontend submodule materialization | full-build-blocker.txt |
 | `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always bun run build` | exit 0 on Bun 1.4.0 and Node 24; complete root build passed | full-build-fixed.txt |
 
-LSP requests for all four PR source/test files were rejected because this child tool restricts paths to its original working directory. The actual adapter compiler above provides the diagnostic check instead. An initial compiler invocation guessed a nonexistent tsgo.js entry; it was corrected to the installed .bin/tsgo executable, which passed. No failing tests were retried, skipped, or changed.
+LSP requests for all four PR source/test files were rejected because this child tool restricts paths to its original working directory. The actual adapter compiler above provides the diagnostic check instead. An initial compiler invocation guessed a nonexistent tsgo.js entry; it was corrected to the installed .bin/tsgo executable, which passed. The initial refresh suite passed without test changes; the later P1 validation is recorded below.
 
 ## Real OpenCode QA and isolation
 
@@ -58,3 +58,24 @@ Use a fresh private output directory. The driver preserves raw captures and its 
 The initial root build failed on inherited local-file submodule URLs. A subsequent full build passed with a command-scoped file-transport setting, without changing common Git configuration. Adapter compiler and bundle also passed independently. No whole-repository test matrix, model prompt, TUI, npm upgrade download, or full-plugin update orchestration was exercised locally. Unrelated generated artifacts from the full build remain unstaged.
 
 `git diff --cached --check` reports inherited upstream evidence whitespace; comparison against origin/dev also reports whitespace in the PR's historical committed captures. These were not introduced or rewritten here. New artifacts are separately audited. No unrelated tracked generated drift was present after the scoped validators; generated untracked/private output is not staged.
+
+## P1 shared-barrel follow-up
+
+The three added helper/type imports now use the shared barrel as requested.
+The first isolated run returned 40 pass / 1 fail because the existing profile
+path assertion only normalized `/private/var`, not the equivalent `/tmp` and
+`/private/tmp` spellings. The helper now canonicalizes both compared existing
+paths with `realpathSync`. The original input remains unchanged and the test
+still requires the exact configured file; no test or assertion was removed.
+
+After that correction, one complete checker run passed all 41 tests.
+Adapter compilation, bundle build and the same real OpenCode replay passed.
+The host session count remained unchanged and the pinned/local tuple decisions
+were correct.
+
+- [Initial failure](p1-validation-failed.txt)
+- [Successful test, compiler, build and replay output](p1-validation-passed.txt)
+- [Actual checker decisions, SSE and isolation receipt](p1-captures.json)
+
+The published failure capture normalizes trailing console whitespace.
+The original capture remains local; failure text and assertions are preserved.

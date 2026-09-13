@@ -4,7 +4,7 @@ import { PACKAGE_NAME } from "../constants"
 import { getConfigPaths } from "./config-paths"
 import { stripJsonComments } from "./jsonc-strip"
 import { LEGACY_PLUGIN_NAME, PLUGIN_NAME } from "../../../shared/plugin-identity"
-import { getPluginEntryName } from "../../../shared/plugin-entry-shape"
+import { getPluginEntryName } from "../../../shared"
 
 export interface PluginEntryInfo {
   entry: string

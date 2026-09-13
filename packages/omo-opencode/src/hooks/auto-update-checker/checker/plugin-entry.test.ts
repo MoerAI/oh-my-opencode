@@ -16,7 +16,7 @@ type PluginEntryResult = {
 } | null
 
 function normalizePathForAssertion(filePath: string): string {
-  return filePath.replaceAll("\\", "/").replaceAll("/private/var/", "/var/")
+  return fs.realpathSync(filePath).replaceAll("\\", "/")
 }
 
 function runFindPluginEntry(

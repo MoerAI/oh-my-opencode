@@ -1,4 +1,4 @@
-import type { PluginEntry } from "../../shared/plugin-entry-shape"
+import type { PluginEntry } from "../../shared"
 import type { ModelCapabilitiesConfig } from "../../config/schema/model-capabilities"
 
 export interface NpmDistTags {

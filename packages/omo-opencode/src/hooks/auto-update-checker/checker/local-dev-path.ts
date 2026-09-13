@@ -4,7 +4,7 @@ import type { OpencodeConfig } from "../types"
 import { ACCEPTED_PACKAGE_NAMES } from "../constants"
 import { getConfigPaths } from "./config-paths"
 import { stripJsonComments } from "./jsonc-strip"
-import { getPluginEntryName } from "../../../shared/plugin-entry-shape"
+import { getPluginEntryName } from "../../../shared"
 
 export function isLocalDevMode(directory: string): boolean {
   return getLocalDevPath(directory) !== null
