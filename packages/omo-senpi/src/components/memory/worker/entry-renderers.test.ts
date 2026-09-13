@@ -118,6 +118,24 @@ function noticeContent(lines: readonly string[]): string[] {
 }
 
 describe("memory reflection entry rendering", () => {
+  test("#given a persisted enriched entry #when expanded #then multiline report and historical attribution render within the terminal", () => {
+    const data = { ...completion(), recap: {
+      schemaVersion: 1, key: "synthetic", identity: "project-a1b2c3d4", runId: "reflection-run-2",
+      startedAt: "2026-08-13T09:00:00.000Z", finishedAt: "2026-08-13T09:01:12.000Z",
+      conversationIds: ["conversation-a", "conversation-b"], mergedCommitSha: "a".repeat(40),
+      filesChanged: 1, changedPaths: ["reference/synthetic.md"],
+      report: { status: "available", text: "# RECAP_SENTINEL\n한국어\n- detail\nEXPANDED_ONLY\n", preview: "# RECAP_SENTINEL\n한국어\n- detail", sourceTruncated: true },
+    } }
+    const compact = render(renderReflectionCompletionEntry, data).join("\n")
+    expect(compact).toContain("RECAP_SENTINEL")
+    expect(compact).not.toContain("EXPANDED_ONLY")
+    const expanded = render(renderReflectionCompletionEntry, data, { expanded: true, width: 60 })
+    expect(expanded.join("\n")).toContain("EXPANDED_ONLY")
+    expect(expanded.join("\n")).toContain("reference/synthetic.md")
+    expect(expanded.join("\n")).toContain("conversation-b")
+    for (const line of expanded) expect(visibleWidth(line)).toBeLessThanOrEqual(60)
+    expect(render(renderReflectionCompletionEntry, { ...data, outcome: "failed" }).join("\n")).not.toContain("RECAP_SENTINEL")
+  })
   test("#given every registered memory notice renderer #when rendered #then each emits a custom-message background block", () => {
     const cases = [
       renderReflectionLaunchedEntry({ data: launched() } as never, { expanded: false }, BACKGROUND_THEME as never),
@@ -268,6 +286,32 @@ describe("memory reflection entry rendering", () => {
 
       // then
       expect(lines[2]).toBe("took 4.3s · reason child_exit · merge refused")
+    })
+
+    test("#when the child died inside a Bun code frame #then the payoff line carries the cause, not the source that raised it", () => {
+      // given: the stored detail is the raw child stderr tail of a crashed Bun child
+      const detail = [
+        '345 |             dark: JSON.parse(fs.readFileSync(darkPath, "utf-8")),',
+        "                                      ^",
+        "ENOENT: no such file or directory, open '/opt/omo-runtime/dist/modes/interactive/theme/dark.json'",
+        '  syscall: "open",',
+        "      at getBuiltinThemes (/global/senpi/dist/modes/interactive/theme/theme.js:345:33)",
+        "",
+        "Bun v1.4.2 (macOS arm64)",
+      ].join("\n")
+
+      // when
+      const lines = render(
+        renderReflectionCompletionEntry,
+        completion({ outcome: "failed", reason: "child_exit", detail }),
+      )
+
+      // then
+      const payoff = lines[2] ?? ""
+      expect(payoff).not.toMatch(/\d+\s\|\s/)
+      expect(payoff).not.toContain("JSON.parse")
+      expect(payoff).not.toContain("at getBuiltinThemes")
+      expect(payoff).toContain("reason child_exit · ENOENT: no such file or directory")
     })
 
     test("#when a failure carries a reason and detail and is expanded #then the detail row carries identity", () => {

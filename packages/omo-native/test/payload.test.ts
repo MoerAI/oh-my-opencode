@@ -85,12 +85,8 @@ describe("build:omo-native staged payload", () => {
             join("extensions", "reflection-persona.md"),
             join("extensions", "dream-persona.md"),
             join("extensions", "facts-persona.md"),
+            join("extensions", "kibitzer-persona.md"),
             join("runtime", "ast-grep-mcp", "cli.js"),
-            join("runtime", "agent-toolkit", "cli.js"),
-            join("runtime", "agent-toolkit", "ulw-loop", "cli.js"),
-            join("runtime", "agent-toolkit", "omo-agent-toolkit"),
-            join("runtime", "agent-toolkit", "omo-agent-toolkit.cmd"),
-            join("runtime", "agent-toolkit", "directive.md"),
             join("runtime", "lsp-daemon", "dist", "cli.js"),
             join("scripts", "install.mjs"),
             "package.json",
@@ -104,16 +100,9 @@ describe("build:omo-native staged payload", () => {
           }
           expect(manifest.name).toBe("@code-yeongyu/omo-senpi")
 
-          const posixShim = join(outputDir, "runtime", "agent-toolkit", "omo-agent-toolkit")
-          const windowsShim = join(outputDir, "runtime", "agent-toolkit", "omo-agent-toolkit.cmd")
-          if (process.platform === "win32") {
-            expect(existsSync(windowsShim)).toBe(true)
-            expect(statSync(windowsShim).mode & 0o400).toBe(0o400)
-            expect(isWindowsAgentToolkitLauncher(readFileSync(windowsShim, "utf8"))).toBe(true)
-          } else {
-            const shimMode = statSync(posixShim).mode & 0o777
-            expect(isLaunchablePosixShim(shimMode)).toBe(true)
-          }
+          // The toolkit CLI is deliberately absent from the Native payload: the loop runs in-process
+          // behind the omo_agent_toolkit tool, and Codex keeps its own staged copy.
+          expect(existsSync(join(outputDir, "runtime", "agent-toolkit"))).toBe(false)
 
           const skillCount = readdirSync(join(outputDir, "skills"), {
             withFileTypes: true,
@@ -136,6 +125,13 @@ describe("build:omo-native staged payload", () => {
               "\n",
             ),
           ).toBe("/plugin/\n")
+
+          rmSync(join(outputDir, "extensions", "kibitzer-persona.md"))
+          const missingGatePersona = runBuild(["--output", outputDir, "--check-only"])
+          expect(missingGatePersona.exitCode).toBe(1)
+          expect(missingGatePersona.output).toContain(
+            `missing required artifact: ${join("extensions", "kibitzer-persona.md")}`,
+          )
 
           rmSync(join(outputDir, "extensions", "dream-persona.md"))
           const missingPersona = runBuild(["--output", outputDir, "--check-only"])

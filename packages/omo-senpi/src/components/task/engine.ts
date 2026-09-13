@@ -154,7 +154,16 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
   const agents = resolveTaskAgents(deps.omoConfig)
 
-  const parentNotifier = createParentNotifier(deps.pi, deps.coordinator, () => runtime.parentState().kind === "streaming")
+  // The coordinator's async receipt closes the loop on batched delivery: a completion the coordinator
+  // accepted but never delivered (failed flush, or a batch window dropped when /reload retires it)
+  // rolls notified_epoch back and stamps the failure, so the post-reload session_start reconcile
+  // redelivers it instead of skipping the record forever.
+  const parentNotifier = createParentNotifier(
+    deps.pi,
+    deps.coordinator,
+    () => runtime.parentState().kind === "streaming",
+    (taskIds, error) => notifier.recordDeliveryFailure({ taskIds, error }),
+  )
   const notifier = createCompletionNotifier({
     notifier: parentNotifier,
     store: baseStore,
@@ -195,13 +204,25 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
 
   const registry = createManagerResidencyRegistry(getManager)
-  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings })
+  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings,
+    revivePolicy: {
+      currentGeneration: () => {
+        const modelRegistry = runtime.modelRegistry()
+        return modelRegistry === undefined ? categoryConfigGenerations.current()?.generation
+          : categoryConfigGenerations.observe({ omoConfig: deps.omoConfig, registry: modelRegistry }).generation
+      },
+      warn: (warning) => {
+        baseStore.appendEvent(warning.task_id, { type: "config_generation_mismatch", payload: warning })
+        deps.pi.sendMessage({ customType: "senpi-task.config-generation-mismatch", content: "Resuming the recorded task configuration.", display: true, details: warning }, {})
+      },
+    },
+  })
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
   const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings }
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
   const basePlanner = createGenerationObservingPlanner({
-    planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry),
+    planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
     omoConfig: deps.omoConfig,
     resolveRegistry,
     generations: categoryConfigGenerations,

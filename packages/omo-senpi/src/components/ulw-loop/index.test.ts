@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test"
 import { execFileSync } from "node:child_process"
 import { join } from "node:path"
 
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { dispatchRunEnd, FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { ULW_LOOP_FOOTER_FRAMES } from "./footer-status"
 import { createUlwLoopComponent } from "./index"
 import { toSpawnTarget } from "./omo-command"
@@ -53,25 +53,24 @@ describe("omo-senpi ulw-loop continuation session isolation", () => {
 })
 
 describe("omo-senpi ulw-loop continuation", () => {
-  it("#given no omo binary #when input and agent_end fire #then the component stays inert for the session", async () => {
+  it("#given no toolkit CLI on this host #when input and agent_end fire #then the component still runs and never reports itself inactive", async () => {
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
 
+    // Task 6 removed the Native toolkit CLI: a missing binary must no longer disable the component,
+    // because the control plane and the registered tool both run in-process now.
     await createUlwLoopComponent({ resolveOmoBin: () => null }).register(pi, {
       logger,
       config: { getFlag: () => false },
     })
     const inputResults = await pi.dispatch("input", { type: "input", text: "hello", source: "user" }, sessionEventCtx("/repo"))
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
+    // No plan exists under /repo, so the hook stays out of the way without any CLI probe.
     expect(inputResults).toEqual([{ action: "continue" }])
     expect(pi.userMessages).toEqual([])
-    expect(logger.entries).toEqual([
-      {
-        level: "info",
-        message: "omo-senpi ulw-loop inactive; omo binary not found",
-      },
-    ])
+    expect(logger.entries.map((entry) => entry.message)).not.toContain("omo-senpi ulw-loop inactive; omo binary not found")
+    expect(pi.tools.map((tool) => tool.name)).toContain("omo_agent_toolkit")
   })
 
   it("#given active incomplete ulw-loop status #when queued user input arrives #then steering reminder is injected", async () => {
@@ -90,7 +89,7 @@ describe("omo-senpi ulw-loop continuation", () => {
     if (!isTransformResult(transformed)) throw new Error("expected transform result")
     expect(transformed.text).toContain("continue")
     expect(transformed.text).toContain("<omo-senpi-ulw-loop>")
-    expect(transformed.text).toContain("omo-agent-toolkit ulw-loop status --json")
+    expect(transformed.text).toContain('tool.omo_agent_toolkit({ operation: "status" })')
   })
 
   it("#given active incomplete ulw-loop status #when idle user input arrives #then typed text is unchanged", async () => {
@@ -108,14 +107,14 @@ describe("omo-senpi ulw-loop continuation", () => {
   it("#given incomplete goals #when continuation agent_end fires #then sends exactly one hidden followUp", async () => {
     const { pi } = await registerWithRunner([activeStatus()])
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(pi.userMessages).toEqual([])
     expect(pi.messages).toEqual([
       {
         message: {
           customType: "omo-senpi:ulw-continuation",
-          content: expect.stringContaining("Continue the active omo-agent-toolkit ulw-loop run"),
+          content: expect.stringContaining("Continue the active ulw-loop run"),
           display: false,
         },
         options: { triggerTurn: true, deliverAs: "followUp" },
@@ -127,7 +126,7 @@ describe("omo-senpi ulw-loop continuation", () => {
     const { pi, logger } = await registerWithRunner(changingActiveStatuses(9))
 
     for (let index = 0; index < 9; index += 1) {
-      await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+      await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
     }
 
     expect(pi.messages).toHaveLength(8)
@@ -143,10 +142,10 @@ describe("omo-senpi ulw-loop continuation", () => {
     const { pi } = await registerWithRunner(changingActiveStatuses(10))
 
     for (let index = 0; index < 8; index += 1) {
-      await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+      await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
     }
     await pi.dispatch("input", { type: "input", text: "still working", source: "interactive" }, sessionEventCtx("/repo"))
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(pi.messages).toHaveLength(9)
   })
@@ -155,9 +154,9 @@ describe("omo-senpi ulw-loop continuation", () => {
     const status = activeStatus("G001")
     const { pi, calls } = await registerWithRunner([status, status, status])
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
     await pi.dispatch("input", { type: "input", text: "resume after user input", source: "interactive" }, sessionEventCtx("/repo"))
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(calls).toHaveLength(2)
     expect(pi.messages).toHaveLength(2)
@@ -168,8 +167,8 @@ describe("omo-senpi ulw-loop continuation", () => {
     const status = activeStatus("G001")
     const { pi, logger } = await registerWithRunner([status, status])
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(pi.messages).toHaveLength(1)
     expect(logger.entries).toContainEqual({
@@ -201,10 +200,10 @@ describe("omo-senpi ulw-loop continuation", () => {
     const { pi, calls } = await registerWithRunner(changingActiveStatuses(9))
 
     for (let index = 0; index < 8; index += 1) {
-      await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+      await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
     }
     await pi.dispatch("input", { type: "input", text: "ulw-loop", source: "extension" }, sessionEventCtx("/repo"))
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(calls).toHaveLength(8)
     expect(pi.messages).toHaveLength(8)
@@ -213,13 +212,13 @@ describe("omo-senpi ulw-loop continuation", () => {
   it("#given status reports all complete #when continuation fires #then no followUp is sent", async () => {
     const { pi } = await registerWithRunner([completeStatus()])
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(pi.userMessages).toEqual([])
   })
 
   it("#given goal active before ulw-loop #when a shell tool result activates the run #then the footer starts immediately", async () => {
-    for (const toolName of ["bash", "interactive_bash"]) {
+    for (const toolName of ["bash", "interactive_bash", "eval"]) {
       const pi = new FakeExtensionAPI()
       const outputs = [completeStatus(), activeStatus()]
       const calls: Array<{ bin: string; args: readonly string[]; cwd: string }> = []

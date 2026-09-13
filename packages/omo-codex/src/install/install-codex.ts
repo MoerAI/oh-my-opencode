@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path"
+import { readDefaultRoleConfig } from "./codex-default-role-config"
 import { existsSync } from "node:fs"
 import { homedir } from "node:os"
 import { installCachedPlugin, linkCachedPluginBins, linkRootRuntimeBin, pruneMarketplaceCache, pruneMarketplacePluginCaches } from "./codex-cache"
@@ -17,7 +18,6 @@ import { reapLspDaemons } from "./lsp-daemon-reaper"
 import { resolveCodexInstallerBinDir } from "./codex-installer-bin-dir"
 import { writeInstalledCodexBinDir } from "./codex-installed-bin-dir"
 import { removeGitBashHooksOffWindows } from "./codex-git-bash-hooks"
-import { seedAndMigrateOmoSot } from "./omo-sot-migration"
 import { installAstGrepForCodex } from "./install-ast-grep-sg"
 import { trackCodexInstallTelemetry } from "./codex-install-telemetry"
 import type { CodexInstallOptions, CodexInstallResult, CodexMarketplaceSource, InstalledPlugin, MarketplaceManifest } from "./types"
@@ -126,6 +126,8 @@ export async function runCodexInstaller(options: CodexInstallOptions = {}): Prom
     installed,
     pluginSources,
   })
+  const omoConfig = readDefaultRoleConfig({ cwd: projectDirectory, env })
+  for (const warning of omoConfig.warnings) log(`Warning: ${warning}`)
   for (const plugin of installed) {
     const pluginRoot = agentSourceRoots.get(plugin.name) ?? plugin.path
     const agentLinks = await linkCachedPluginAgents({
@@ -134,6 +136,7 @@ export async function runCodexInstaller(options: CodexInstallOptions = {}): Prom
       platform,
       preservedReasoning,
       preservedServiceTier,
+      defaultRoleEnabled: omoConfig.enabled,
     })
     for (const link of agentLinks) {
       log(`Linked agent ${link.name} -> ${link.target}`)
@@ -199,7 +202,6 @@ export async function runCodexInstaller(options: CodexInstallOptions = {}): Prom
     autonomousPermissions: options.autonomousPermissions !== false,
     ...(options.reasoning === undefined ? {} : { reasoning: options.reasoning }),
   })
-  await seedAndMigrateOmoSot({ env, log, repoRoot, runCommand })
 
   const projectCleanup = await repairProjectLocalCodexArtifactsBestEffort({
     startDirectory: projectDirectory,

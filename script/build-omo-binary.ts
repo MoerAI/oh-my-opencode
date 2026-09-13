@@ -25,6 +25,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import ptyFixture from "./release-binary-pty-fixture.json"
+import { senpiWorkerCompileArgs } from "./senpi-worker-compile"
 import { parseBuildInfo, type OmoBuildInfo } from "../packages/omo-native/build-info"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -349,7 +350,7 @@ function engineSidecarSources(): SidecarSource[] {
 
 // Mirrors PAYLOAD_DIRECTORIES / PAYLOAD_FILES in script/build-omo-native.ts (locked by build-omo-binary.test.ts).
 export const PLUGIN_PAYLOAD_DIRECTORIES = ["extensions", "skills", "skills-conditional", "runtime"] as const
-export const PLUGIN_PAYLOAD_FILES = ["package.json", "README.md", "NOTICE", "LICENSE"] as const
+export const PLUGIN_PAYLOAD_FILES = ["package.json", "CHANGELOG.md", "README.md", "NOTICE", "LICENSE"] as const
 
 const EXPORT_HTML_KEEP = new Set([
   "template.html",
@@ -634,11 +635,13 @@ export async function buildReleaseBinary(
           "build",
           "--compile",
           `--target=${target.bunTarget}`,
+          "--minify-whitespace",
           "--compile-autoload-package-json",
           "--no-compile-autoload-dotenv",
           "--no-compile-autoload-bunfig",
           `--asset=${stageDir}`,
           compileEntry,
+          ...senpiWorkerCompileArgs(repoRoot),
           "--outfile",
           binaryPath,
         ],

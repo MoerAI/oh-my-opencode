@@ -17,22 +17,19 @@ import { fileURLToPath } from "node:url"
  * payload under test.
  */
 const verifierSource = fileURLToPath(new URL("./verify-omo-ai-payload.mjs", import.meta.url))
+const npmInvocationSource = fileURLToPath(new URL("./npm-invocation.mjs", import.meta.url))
 const guardTimeoutMs = 120_000
 
 setDefaultTimeout(guardTimeoutMs)
 
 const PACKED_ARTIFACTS = [
   "bin/omo.js",
-  "bin/omo-agent-toolkit.js",
   "plugin/package.json",
+  "plugin/CHANGELOG.md",
   "plugin/extensions/omo.js",
   "plugin/skills-conditional/x-search/SKILL.md",
   "plugin/runtime/lsp-daemon/dist/cli.js",
   "plugin/runtime/ast-grep-mcp/cli.js",
-  "plugin/runtime/agent-toolkit/cli.js",
-  "plugin/runtime/agent-toolkit/ulw-loop/cli.js",
-  "plugin/runtime/agent-toolkit/omo-agent-toolkit",
-  "plugin/runtime/agent-toolkit/omo-agent-toolkit.cmd",
   "plugin/runtime/dag/sdk.js",
 ] as const
 
@@ -54,6 +51,7 @@ function runVerifierOnPayload(payloadPaths: readonly string[]): VerifierRun {
   try {
     mkdirSync(join(fakeRepoRoot, "script"), { recursive: true })
     copyFileSync(verifierSource, join(fakeRepoRoot, "script", "verify-omo-ai-payload.mjs"))
+    copyFileSync(npmInvocationSource, join(fakeRepoRoot, "script", "npm-invocation.mjs"))
 
     const packageDir = join(fakeRepoRoot, "packages", "omo-native")
     mkdirSync(packageDir, { recursive: true })
