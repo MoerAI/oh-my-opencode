@@ -254,7 +254,7 @@ Your next move: <fill - e.g. approve, or run a high-accuracy review>. Full execu
 ## Verification strategy
 > Zero human intervention - all verification is agent-executed.
 - Test decision: <TDD | tests-after | none> + framework
-- Evidence: <attemptDir>/task-<N>-${slug}.<ext> (attemptDir = currentAttemptDir from 'omo-agent-toolkit ulw-loop status --json', .omo/evidence/ulw/<session>/<goalId>/a<attempt>; outside ulw-loop use .omo/evidence/)
+- Evidence: <attemptDir>/task-<N>-${slug}.<ext> (attemptDir = currentAttemptDir from the ulw-loop status operation - on Senpi the eval SDK import, const { agentToolkit } = await import(\`\${env("OMO_AGENT_TOOLKIT_SDK_ROOT")}/sdk.js\`) then agentToolkit.status(), on Codex the omo-agent-toolkit CLI, .omo/evidence/ulw/<session>/<goalId>/a<attempt>; outside ulw-loop use .omo/evidence/)
 
 ## Execution strategy
 ### Parallel execution waves

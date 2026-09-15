@@ -716,16 +716,16 @@ describe("BrowserAutomationProviderSchema", () => {
     expect(result.data).toBe("playwright")
   })
 
-  test("accepts 'agent-browser' as valid provider", () => {
+  test("accepts 'dev-browser' as valid provider", () => {
     // given
-    const input = "agent-browser"
+    const input = "dev-browser"
 
     // when
     const result = BrowserAutomationProviderSchema.safeParse(input)
 
     // then
     expect(result.success).toBe(true)
-    expect(result.data).toBe("agent-browser")
+    expect(result.data).toBe("dev-browser")
   })
 
   test("rejects invalid provider", () => {
@@ -764,15 +764,15 @@ describe("BrowserAutomationConfigSchema", () => {
     expect(result.provider).toBe("playwright")
   })
 
-  test("accepts agent-browser provider", () => {
+  test("accepts dev-browser provider", () => {
     // given
-    const input = { provider: "agent-browser" }
+    const input = { provider: "dev-browser" }
 
     // when
     const result = BrowserAutomationConfigSchema.parse(input)
 
     // then
-    expect(result.provider).toBe("agent-browser")
+    expect(result.provider).toBe("dev-browser")
   })
 
   test("accepts playwright-cli provider in config", () => {
@@ -817,7 +817,7 @@ describe("OhMyOpenCodeConfigSchema - browser_automation_engine", () => {
     // given
     const input = {
       browser_automation_engine: {
-        provider: "agent-browser",
+        provider: "dev-browser",
       },
     }
 
@@ -826,7 +826,7 @@ describe("OhMyOpenCodeConfigSchema - browser_automation_engine", () => {
 
     // then
     expect(result.success).toBe(true)
-    expect(result.data?.browser_automation_engine?.provider).toBe("agent-browser")
+    expect(result.data?.browser_automation_engine?.provider).toBe("dev-browser")
   })
 
   test("accepts config without browser_automation_engine", () => {

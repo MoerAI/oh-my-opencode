@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer"
 import {
   REFLECTION_SNAPSHOT_MAX_BYTES,
   countCompletedSteps,
@@ -59,6 +60,7 @@ export interface ReservationState {
 }
 
 export interface MachineState {
+  readonly now?: string
   readonly journal: JournalSnapshot
   readonly reservation: ReservationState
   readonly config: TriggerConfig
@@ -90,6 +92,12 @@ export interface CompleteTransition {
   readonly launch?: ReservedRun
 }
 
+// Bound the shared pending slot to 32 conversations and 4 MiB of UTF-8 JSON: roughly
+// 32 default 128 KiB capture windows, instead of an ever-growing multi-session backlog.
+// Eviction removes whole conversations in first-seen order; their journal cursors stay retryable.
+export const REFLECTION_PENDING_MAX_CONVERSATIONS = 32
+export const REFLECTION_PENDING_MAX_BYTES = 4 * 1024 * 1024
+
 const REFLECTION_PRIORITY: Record<Exclude<ReflectionTrigger, "dream">, number> = {
   "step-count": 1,
   compaction: 2,
@@ -118,6 +126,9 @@ export function evaluateTransitions(state: MachineState, event: ReflectionEvent)
     return { state, action: { kind: "reserve", request: makeRequest(state.journal, "manual", ids, event) } }
   }
   if (!event.success) return { state, action: { kind: "none" } }
+  const eligible = state.journal.state.next_eligible_at === undefined ||
+    (state.now !== undefined && state.now >= state.journal.state.next_eligible_at)
+  if (!eligible) return { state, action: { kind: "none" } }
 
   const compactionReady =
     state.config.onCompaction === true &&
@@ -159,7 +170,44 @@ export function reserveTransition(
   const pending = state.pending
     ? { runId: state.pending.runId, request: mergeRequests(state.pending.request, request) }
     : { runId, request }
-  return { state: { active: state.active, pending }, result: "pending" }
+  return { state: { active: state.active, pending: capPendingRun(pending) }, result: "pending" }
+}
+
+function capPendingRun(run: ReservedRun): ReservedRun {
+  const { request } = run
+  const weights = new Map<string, number>()
+  for (const id of request.conversationIds) {
+    weights.set(id, (weights.get(id) ?? 0) + Buffer.byteLength(JSON.stringify(id), "utf8") + 8)
+  }
+  for (const captured of request.snapshots) {
+    const json = JSON.stringify(captured, null, 2)
+    // Snapshots are nested six spaces into pending.json; include every physical JSON line,
+    // the comma and newline, not just transcript characters (escaping and UTF-8 both matter).
+    const bytes = Buffer.byteLength(json, "utf8") + 6 * json.split("\n").length + 2
+    weights.set(captured.conversationId, (weights.get(captured.conversationId) ?? 0) + bytes)
+  }
+  const empty = { ...run, request: { ...request, conversationIds: [], snapshots: [] } }
+  // Reserve array-opening/closing whitespace too. This conservatively overcounts by at
+  // most 16 bytes, and avoids repeatedly serializing a potentially huge merged payload.
+  let bytes = Buffer.byteLength(`${JSON.stringify(empty, null, 2)}\n`, "utf8") + 16
+  for (const weight of weights.values()) bytes += weight
+  let conversations = weights.size
+  const evicted = new Set<string>()
+  for (const [id, weight] of weights) {
+    if (conversations <= REFLECTION_PENDING_MAX_CONVERSATIONS && bytes <= REFLECTION_PENDING_MAX_BYTES) break
+    evicted.add(id)
+    conversations -= 1
+    bytes -= weight
+  }
+  if (evicted.size === 0) return run
+  return {
+    ...run,
+    request: {
+      ...request,
+      conversationIds: request.conversationIds.filter((id) => !evicted.has(id)),
+      snapshots: request.snapshots.filter((captured) => !evicted.has(captured.conversationId)),
+    },
+  }
 }
 
 export function completeTransition(
@@ -202,7 +250,7 @@ export function completeTransition(
       })
     }
   }
-  const pending = state.pending
+  const pending = state.pending === undefined ? undefined : capPendingRun(state.pending)
   if (!pending || !isStillTriggered(pending.request, effectiveJournals, config)) {
     return { state: {}, finalize, clearPendingCompaction }
   }

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { dispatchRunEnd, FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentLogger } from "../../extension/types"
 import { createUlwLoopComponent } from "./index"
+import { createGoalJsonCache } from "./footer-status"
 import { activeStatus, completeStatus, createLogger, sessionEventCtx } from "./ulw-loop.test-support"
 
 type StatusCall = {
@@ -57,9 +58,8 @@ async function registerFooterScenario(input: {
 }): Promise<FakeExtensionAPI> {
   const pi = new FakeExtensionAPI()
   await createUlwLoopComponent({
-    resolveOmoBin: () => "/tmp/omo",
     planExists: () => true,
-    runCommand: async () => ({ code: 0, stdout: input.outputs.shift() ?? activeStatus() }),
+    readStatus: async () => ({ code: 0, stdout: input.outputs.shift() ?? activeStatus() }),
     footerStatus: {
       isGoalActive: input.goalActive,
       timers: input.timers,
@@ -86,9 +86,8 @@ async function defaultFooterScenario(sessionId: string, outputs = [activeStatus(
   const ui = recordingUi()
   const pi = new FakeExtensionAPI()
   await createUlwLoopComponent({
-    resolveOmoBin: () => "/tmp/omo",
     planExists: () => true,
-    runCommand: async () => ({ code: 0, stdout: outputs.shift() ?? activeStatus() }),
+    readStatus: async () => ({ code: 0, stdout: outputs.shift() ?? activeStatus() }),
     footerStatus: { timers },
   }).register(pi, {
     logger: createLogger(),
@@ -150,7 +149,7 @@ describe("omo-senpi ulw-loop footer status", () => {
       expect(scenario.ui.calls.some((call) => call.key === "ulw-loop" && call.text !== undefined)).toBe(true)
 
       writeGoal(scenario.goalPath, "complete")
-      await scenario.pi.dispatch("agent_end", { type: "agent_end" }, scenario.context)
+      await dispatchRunEnd(scenario.pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, scenario.context)
 
       expect(scenario.ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
       expect(scenario.timers.activeCount()).toBe(0)
@@ -198,16 +197,48 @@ describe("omo-senpi ulw-loop footer status", () => {
     expect(ui.calls).toHaveLength(0)
 
     goalActive = true
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(timers.activeCount()).toBe(1)
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
     expect(timers.activeCount()).toBe(0)
 
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, sessionEventCtx("/repo", { ui }))
     expect(ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
     expect(timers.activeCount()).toBe(0)
+  })
+
+  it("#given an active footer #when the run ends on a blocked outcome #then the footer still syncs for the finished run", async () => {
+    const timers = fakeTimers()
+    const ui = recordingUi()
+    const logger = createLogger()
+    const pi = await registerFooterScenario({
+      goalActive: () => true,
+      outputs: [activeStatus(), completeStatus()],
+      timers,
+      logger,
+    })
+
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
+    expect(timers.activeCount()).toBe(1)
+
+    // Esc right after the last goal completed: no continuation, and no tool_result will arrive to
+    // refresh the footer either, so this run's own probe is the only thing that can clear it.
+    await dispatchRunEnd(
+      pi,
+      { type: "agent_end", aborted: true, abortSource: "user", messages: [{ role: "assistant", stopReason: "stop" }] },
+      sessionEventCtx("/repo", { ui }),
+    )
+
+    expect(pi.messages).toHaveLength(1)
+    expect(ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
+    expect(timers.activeCount()).toBe(0)
+    expect(logger.entries).toContainEqual({
+      level: "info",
+      message: "omo-senpi ulw-loop continuation skipped",
+      details: { reason: "terminal-outcome", blockedBy: "aborted", stopReason: "stop", aborted: true, willRetry: false },
+    })
   })
 
   it("keeps continuation and headless paths unchanged", async () => {
@@ -219,7 +250,7 @@ describe("omo-senpi ulw-loop footer status", () => {
       timers,
     })
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(pi.messages).toHaveLength(1)
     expect(pi.messages[0]?.message["customType"]).toBe("omo-senpi:ulw-continuation")
     expect(ui.calls.some((call) => call.key === "ulw-loop" && visibleFrame(call.text) === "⚡ ultraworking")).toBe(true)
@@ -230,8 +261,49 @@ describe("omo-senpi ulw-loop footer status", () => {
       outputs: [activeStatus()],
       timers: headlessTimers,
     })
-    await expect(headlessPi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))).resolves.toHaveLength(1)
+    await expect(dispatchRunEnd(headlessPi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))).resolves.toHaveLength(1)
     expect(headlessPi.messages).toHaveLength(1)
     expect(headlessTimers.activeCount()).toBe(0)
+  })
+
+  it("#given an unchanged goal file #when the cache is read repeatedly #then the file is parsed only once", () => {
+    const root = mkdtempSync(join(tmpdir(), "omo-goal-cache-"))
+    try {
+      const goalPath = join(root, "goal.json")
+      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
+      const cache = createGoalJsonCache()
+
+      const first = cache.read(goalPath)
+      const second = cache.read(goalPath)
+
+      expect(first).toBeDefined()
+      expect(second).toBe(first)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("#given the goal file changes #when the cache is read again #then it re-reads and returns the new content", () => {
+    const root = mkdtempSync(join(tmpdir(), "omo-goal-cache-"))
+    try {
+      const goalPath = join(root, "goal.json")
+      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
+      const cache = createGoalJsonCache()
+      const first = cache.read(goalPath)
+
+      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "complete" } })}\n`)
+      utimesSync(goalPath, new Date(), new Date(Date.now() + 5_000))
+      const second = cache.read(goalPath)
+
+      expect(second).not.toBe(first)
+      expect(JSON.stringify(second)).toContain('"status":"complete"')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("#given a missing goal file #when the cache is read #then it returns undefined without throwing", () => {
+    const cache = createGoalJsonCache()
+    expect(cache.read(join(tmpdir(), "omo-goal-cache-missing", "nope.json"))).toBeUndefined()
   })
 })

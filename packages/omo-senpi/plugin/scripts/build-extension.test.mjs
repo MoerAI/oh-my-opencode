@@ -4,12 +4,15 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { PERSONA_ASSET_FILES } from "@oh-my-opencode/memory-core/personas"
+
 import {
   buildExtension,
   checkExtensionCurrent,
   resolveBunExecutable,
   toPortableBuildPath,
 } from "./build-extension.mjs"
+import { runtimePersonaSources } from "./persona-artifacts.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = join(scriptDir, "..")
@@ -39,6 +42,7 @@ function outputPathsIn(root) {
     memberOutputPath: join(root, "omo-member.js"),
     supervisorOutputPath: join(root, "memory-run-supervisor.mjs"),
     advisorRuntimeOutputPath: join(root, "omo-init-deep-advisor.js"),
+    toolkitSdkOutputPath: join(root, "runtime", "agent-toolkit-sdk", "sdk.js"),
   }
 }
 
@@ -66,6 +70,20 @@ async function mutableOutputs() {
 }
 
 describe("checkExtensionCurrent", () => {
+  test("#given the eval SDK build #when inputs and exports are inspected #then the standalone entry has no dependencies", async () => {
+    const outputs = await sharedOutputs()
+    expect(outputs.toolkitSdkInputs.some(input => input.endsWith("src/extension/agent-toolkit-sdk.ts"))).toBe(true)
+    expect(outputs.toolkitSdkInputs.filter(input => input.includes("node_modules/"))).toEqual([])
+    const sdk = await import(outputs.toolkitSdkOutputPath)
+    expect(Object.keys(sdk).sort()).toEqual(["SDK_VERSION", "ULW_LOOP_MANIFEST", "ULW_LOOP_OPERATIONS", "agentToolkit", "createAgentToolkit", "toolkitContextFromEnv"].sort())
+  })
+
+  test("#given a missing SDK artifact #when freshness is checked #then it reports that output", async () => {
+    const outputs = await mutableOutputs()
+    await rm(outputs.toolkitSdkOutputPath)
+    expect(await checkExtensionCurrent(outputs)).toMatchObject({ ok: false, reason: "missing-output", output: outputs.toolkitSdkOutputPath })
+  })
+
   test("#given the host platform #when resolving the Bun executable #then Windows bypasses the command shell", () => {
     expect(resolveBunExecutable("win32")).toBe("bun.exe")
     expect(resolveBunExecutable("darwin")).toBe("bun")
@@ -101,15 +119,23 @@ describe("checkExtensionCurrent", () => {
       ["reflection-persona.md", join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")],
       ["dream-persona.md", join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "dream-persona.md")],
       ["facts-persona.md", join(repoRoot, "packages", "memory-core", "src", "facts", "assets", "facts-persona.md")],
-      // The memorian gate loads its persona from beside the BUNDLE, so an unstaged asset makes
+      // The kibitzer gate loads its persona from beside the BUNDLE, so an unstaged asset makes
       // every live gate launch fail with ENOENT while every source-reading unit test still passes.
-      ["memorian-persona.md", join(repoRoot, "packages", "memory-core", "src", "recall", "assets", "memorian-persona.md")],
+      ["kibitzer-persona.md", join(repoRoot, "packages", "memory-core", "src", "recall", "assets", "kibitzer-persona.md")],
     ]
 
     // then
     for (const [name, source] of personas) {
       expect(await readFile(join(dirname(outputs.outputPath), name), "utf8")).toBe(await readFile(source, "utf8"))
     }
+  })
+
+  test("#given the runtime persona manifest #when staging sources are listed #then the staged names match it", () => {
+    // given / when
+    const staged = runtimePersonaSources(repoRoot).map(([name]) => name)
+
+    // then
+    expect(staged).toEqual([...PERSONA_ASSET_FILES])
   })
 
   test("#given platform-specific source paths #when normalized #then build markers use portable separators", () => {
@@ -225,6 +251,11 @@ describe("checkExtensionCurrent", () => {
 
     expect(main).toContain('import("#omo-task-runtime")')
     expect(task).toMatch(/^\/\/ omo:[A-Za-z0-9_-]{43}:[A-Za-z0-9_-]{43}/)
-    expect(manifest.imports).toEqual({ "#omo-task-runtime": "./extensions/omo-task.js" })
+    expect(main).not.toContain('import("#omo-agent-toolkit-runtime")')
+    expect(manifest.imports).not.toHaveProperty("#omo-agent-toolkit-runtime")
+    expect(manifest.imports).toEqual({
+      "#omo-task-runtime": "./extensions/omo-task.js",
+      "#omo-agent-toolkit-sdk": "./runtime/agent-toolkit-sdk/sdk.js",
+    })
   })
 })

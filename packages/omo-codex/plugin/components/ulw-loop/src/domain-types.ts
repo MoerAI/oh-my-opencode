@@ -63,6 +63,9 @@ export interface UlwLoopValidationBatch {
 
 export interface UlwLoopPlan {
 	version: 1;
+	revision?: number;
+	brief?: string;
+	ledgerResetRevision?: number;
 	evidenceLayoutVersion?: 2;
 	createdAt: string;
 	updatedAt: string;
@@ -141,7 +144,7 @@ interface UlwLoopQualityGateCommon {
 
 export interface UlwLoopQualityGateLazycodex extends UlwLoopQualityGateCommon {
 	readonly surface: "lazycodex";
-	readonly codeReview: {
+	readonly codeReview?: {
 		readonly by: string;
 		readonly recommendation: "APPROVE";
 		readonly codeQualityStatus: "CLEAR" | "WATCH";
@@ -158,6 +161,8 @@ export interface UlwLoopQualityGateSenpi extends UlwLoopQualityGateCommon {
 export type UlwLoopQualityGate = UlwLoopQualityGateLazycodex | UlwLoopQualityGateSenpi;
 
 export interface UlwLoopLedgerEntry {
+	revision?: number;
+	id?: string;
 	at: string;
 	kind: UlwLoopLedgerEventKind;
 	goalId?: string;

@@ -1,7 +1,10 @@
 import type { AgentToolResult } from "@code-yeongyu/senpi"
 
+import type { ToolExecutionResult } from "./tool-result"
+
 import type { TaskManager } from "../../manager"
 import type { TaskStatus } from "../../state"
+import type { ColdRevivalFailureCode } from "../../lifecycle/port"
 import type { SenpiShutdownErrorCode } from "../../team"
 import type { TeamSendDetails } from "../team/messaging"
 
@@ -20,6 +23,7 @@ export type SendManager = Pick<TaskManager, "sendToTask" | "list">
 export type CancelManager = Pick<TaskManager, "cancelTask" | "get">
 
 export type SendResultDetails =
+  | { readonly kind: ColdRevivalFailureCode; readonly task_id: string; readonly reason: string }
   | { readonly kind: "steered"; readonly task_id: string; readonly status: TaskStatus; readonly delivered: "steer" }
   | { readonly kind: "revived"; readonly task_id: string; readonly run_epoch: number }
   | {
@@ -54,5 +58,5 @@ export type CancelResultDetails =
   | { readonly kind: "not_found"; readonly reason: string }
   | { readonly kind: "invalid_arguments"; readonly reason: string }
 
-export type SendToolResult = AgentToolResult<SendResultDetails>
+export type SendToolResult = ToolExecutionResult<SendResultDetails>
 export type CancelToolResult = AgentToolResult<CancelResultDetails>

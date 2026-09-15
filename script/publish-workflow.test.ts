@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process"
 const ciWorkflowPath = new URL("../.github/workflows/ci.yml", import.meta.url)
 const publishWorkflowPath = new URL("../.github/workflows/publish.yml", import.meta.url)
 const workflowsDir = new URL("../.github/workflows/", import.meta.url)
-const pinnedBunVersion = 'bun-version: "1.4.0"'
+const pinnedBunVersion = 'bun-version: "1.4.2"'
 const workflowPaths = readdirSync(workflowsDir)
   .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
   .map((name) => new URL(name, workflowsDir))
@@ -109,8 +109,9 @@ describe("test workflows", () => {
     const validatesDispatchSource = prepareJob.includes("PREPARED_RELEASE_SHA: ${{ inputs.prepared_release_sha }}") &&
       prepareJob.includes('"$PREPARED_RELEASE_SHA" != "$GITHUB_SHA"')
     const dispatchesPinnedTagRun =
-      dispatchJob.includes('git tag "v${VERSION}" "$RELEASE_SHA"') &&
-      dispatchJob.includes('gh workflow run publish.yml --ref "v${VERSION}"') &&
+      dispatchJob.includes('RELEASE_TAG="v${VERSION}"') &&
+      dispatchJob.includes('git tag "${RELEASE_TAG}" "$RELEASE_SHA"') &&
+      dispatchJob.includes('gh workflow run publish.yml --ref "${RELEASE_TAG}"') &&
       dispatchJob.includes('prepared_release_sha=${RELEASE_SHA}')
     const provenanceOperationsRequirePinnedRun =
       publishMainJob.includes("inputs.prepared_release_sha != ''") &&
@@ -179,7 +180,9 @@ describe("test workflows", () => {
     const verifyChecksEveryHash = verifyStep.includes("shasum -a 256 -c SHA256SUMS")
     const verifyFailsBelowThirteenAssets = verifyStep.includes('"$ASSET_COUNT" -ne 13')
     const stepsAreChannelNeutral = ![downloadStep, uploadStep, verifyStep].some((step) => step.includes("dist_tag"))
-    const verifyRunsUnconditionally = !verifyStep.includes("if:") && !verifyStep.includes("skip_platform")
+    const verifyRunsUnconditionally = !verifyStep.includes("skip_platform") &&
+      (verifyStep.match(/\n\s+if: /g) ?? []).length <= 1 &&
+      (!verifyStep.includes("if:") || verifyStep.includes("if: inputs.lazycodex_only != true"))
 
     // #then
     expect(stepsFollowReleaseCreation, "release-binary steps must live inside the release job after Create GitHub release").toBe(true)
@@ -318,7 +321,7 @@ describe("test workflows", () => {
       const unpinnedBunLines = bunVersionLines.filter((line) => line !== pinnedBunVersion)
 
       // #then
-      expect(unpinnedBunLines, `${workflowPath.pathname} must pin Bun to 1.4.0`).toEqual([])
+      expect(unpinnedBunLines, `${workflowPath.pathname} must pin Bun to 1.4.2`).toEqual([])
     }
   })
 

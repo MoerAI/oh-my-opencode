@@ -1,6 +1,6 @@
 ---
 name: ulw-execute
-description: "Executes a written Prometheus work plan with Boulder state, evidence ledger, worktree discipline, and parallel subagents. Use when the user says ulw-execute or asks to run a .omo/plans plan."
+description: "Executes a written ulw-plan work plan with Boulder state, evidence ledger, worktree discipline, and parallel subagents. Use when the user says ulw-execute or asks to run a .omo/plans plan."
 ---
 
 ## ABSOLUTE RULE: YOU ARE AN ORCHESTRATOR — NEVER THE IMPLEMENTER
@@ -33,7 +33,7 @@ Plan and reviewer agents may run for a long time: spawn them in the background a
 
 # ulw-execute
 
-Execute a Prometheus work plan until every top-level checkbox is complete. This skill pairs with the harness's ulw-execute continuation hook, which re-injects the next turn while `.omo/boulder.json` says this `codex:<session_id>` still has unchecked plan work.
+Execute a work plan until every top-level checkbox is complete. This skill pairs with the harness's ulw-execute continuation hook, which re-injects the next turn while `.omo/boulder.json` says this `codex:<session_id>` still has unchecked plan work.
 
 ## Usage
 
@@ -57,7 +57,7 @@ Do ALL of this immediately after the plan is selected, BEFORE the first implemen
 ## Phase 1: Select the plan
 
 1. Read `.omo/boulder.json` if it exists.
-2. List Prometheus plan files under `.omo/plans/`.
+2. List work plan files under `.omo/plans/`.
 3. If `plan-name` was provided, select the matching plan.
 4. If exactly one active or paused Boulder work exists for this session, resume it.
 5. If no active work exists and exactly one plan exists, select it.
@@ -69,7 +69,7 @@ Do ALL of this immediately after the plan is selected, BEFORE the first implemen
 When the user explicitly said `start work` / `$ulw-execute` and no selectable plan exists, treat that phrase as approval: bootstrap `ulw-plan` to create the approved plan before execution and implementation, instead of stalling or asking for generic approval again. A brief or notes file without waves, checkboxes, and acceptance criteria is NOT decision-complete — enter this bootstrap too.
 
 1. Invoke the `ulw-plan` skill from the current request and require its dynamic adversarial workflow: collect, verify, design, adversarial plan-review, synthesize.
-2. The generated Prometheus plan must be saved under `.omo/plans/<slug>.md` before implementation or Boulder state writes that point at plan work.
+2. The generated work plan must be saved under `.omo/plans/<slug>.md` before implementation or Boulder state writes that point at plan work.
 3. Use maximum safe parallelism in the generated plan: independent files/tasks fan out; same-file writes, shared state, and named dependencies serialize.
 4. Preserve safety boundaries. Ask one focused question only when the objective is missing, destructive, or has a safety/product ambiguity that repository exploration cannot resolve.
 5. After the plan exists, continue directly to Phase 2.
@@ -160,7 +160,7 @@ Each sub-task message must include:
 5. One Manual-QA channel, named with the exact tool and exact invocation (the literal `curl`, `send-keys`, `browser:control-in-app-browser` action, `page.click`, payload, selectors, and the binary observable that decides PASS/FAIL), not "verify it works". A LIGHT checkbox needs one real-surface proof of its deliverable, and auxiliary surfaces (CLI stdout, DB state diff, parsed config dump) are first-class when the surface is CLI- or data-shaped:
    - HTTP call: `curl -i` against the live endpoint.
    - Terminal / TUI: drive a real pty; `tmux send-keys` is fine for a boot/behavior smoke, but color/layout/CJK evidence goes through the xterm.js web terminal below, NEVER `tmux capture-pane`.
-   - Browser use: prefer the harness's in-app browser control when available and the scenario does not need an authenticated or persistent user browser profile; otherwise drive the real page with Chrome, or agent-browser (https://github.com/vercel-labs/agent-browser) when Chrome is unavailable.
+   - Browser use: from js eval, use `new Bun.WebView()` on Bun >= 1.4 (macOS default; Linux/Windows need Chrome/Chromium/Edge). Otherwise, or for Chrome semantics, stealth, trace, or auth, write and run a `playwright-core` script against local Chrome (`channel: "chrome"`; persistent context on a CLONED profile). Codex: `browser:control-in-app-browser` for ordinary page control.
    - Computer use: OS-level GUI automation against the running desktop app when the surface is not a page.
    - TUI visual evidence: when a TUI claim needs visual QA or PR proof, run `bun script/qa/web-terminal-visual-qa.mjs --command "<cmd>" --input "{Enter}" --evidence-dir <dir>` (real pty rendered through xterm.js in Chrome) and attach `terminal.png` plus `metadata.json`.
 6. The adversarial classes that apply to this sub-task (from the 9 ultraqa classes) and how each is probed.
@@ -181,7 +181,7 @@ For each checkbox, complete all five gates before marking it done:
 
 Append evidence to `.omo/ulw-execute/ledger.jsonl`, one JSON object per line. Include at least `event`, `plan`, `task`, `session_id`, `commands`, `artifact`, `adversarial_classes`, and `cleanup` fields. `adversarial_classes` lists each probed class with its observable result and each ruled-out class with a one-line reason.
 
-### Sisyphus-style completion contract
+### Completion contract
 
 A worker done claim is never final: each implementation sub-task returns a `DoneClaim`, a different context runs `AdversarialVerify` probing or reproducing the claim, failures loop back to the executor, and only a confirmed verifier verdict becomes `FullyDone`.
 

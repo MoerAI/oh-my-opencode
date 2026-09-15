@@ -9,7 +9,7 @@ import {
 import { Type, type Static, type TSchema } from "typebox"
 
 import { prepareMemoryEngineSession } from "./engine-session"
-import { createMemoryWriteRenderResult } from "./memory-write-render"
+import { createMemoryWriteRenderResult, renderMemoryWriteCall } from "./memory-write-render"
 import type { MemoryRpcSnapshot } from "./memory-rpc-bridge"
 import { buildMemorySnapshot, createMemoryRpcGitRepo } from "./memory-rpc-snapshot-state"
 
@@ -24,7 +24,7 @@ import {
 export { MEMORY_TOOL_NAME }
 
 const UNBOUND_IDENTITY_MESSAGE =
-  "no memory identity bound to this session; enable omo memory and restart the session so the memory tools can initialize"
+  "no memory identity bound to this session yet; the binding is re-established on the next user turn, or start a new session if this persists"
 
 export const MemoryToolParams = Type.Object({
   command: Type.Union([
@@ -155,6 +155,7 @@ function createMemoryTool(
     ],
     parameters: MemoryToolParams,
     executionMode: "sequential",
+    renderShell: "self",
     execute: async (_toolCallId, params) => {
       const context = resolveContext()
       if (context === undefined) return errorResult(`${MEMORY_TOOL_NAME}: ${UNBOUND_IDENTITY_MESSAGE}`)
@@ -173,6 +174,7 @@ function createMemoryTool(
         throw error
       }
     },
+    renderCall: renderMemoryWriteCall,
     renderResult: renderResultFor(options),
   }
 }

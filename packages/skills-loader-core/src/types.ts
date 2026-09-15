@@ -5,7 +5,7 @@ export type { CommandDefinition }
 
 export type SkillMcpConfig = Record<string, ClaudeCodeMcpServer>
 
-export type BrowserAutomationProvider = "playwright" | "agent-browser" | "dev-browser" | "playwright-cli"
+export type BrowserAutomationProvider = "playwright" | "dev-browser" | "playwright-cli"
 
 export interface GitMasterConfig {
   readonly commit_footer?: boolean | string

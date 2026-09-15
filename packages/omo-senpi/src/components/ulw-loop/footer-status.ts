@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 const STATUS_KEY = "ulw-loop"
@@ -39,7 +39,8 @@ export interface UlwLoopFooterStatus {
 }
 
 export function createUlwLoopFooterStatus(options: UlwLoopFooterStatusOptions = {}): UlwLoopFooterStatus {
-  const isGoalActive = options.isGoalActive ?? goalActiveFromContext
+  const goalCache = createGoalJsonCache()
+  const isGoalActive = options.isGoalActive ?? ((runtime: UlwLoopFooterRuntime) => goalActiveFromContext(runtime, goalCache))
   const timers = options.timers ?? defaultTimers
   let timer: TimerHandle | undefined
   let frameIndex = 0
@@ -89,6 +90,7 @@ export function createUlwLoopFooterStatus(options: UlwLoopFooterStatusOptions = 
     dispose() {
       ulwActive = false
       stop()
+      goalCache.clear()
       runtime = undefined
     },
   }
@@ -121,26 +123,66 @@ function runtimeFromContext(value: unknown): UlwLoopFooterRuntime | undefined {
   }
 }
 
-function goalActiveFromContext(runtime: UlwLoopFooterRuntime): boolean {
-  for (const goalPath of runtime.goalPaths) {
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(goalPath, "utf8"))
-      if (
-        isRecord(parsed) &&
-        parsed["version"] === 1 &&
-        isRecord(parsed["goal"]) &&
-        typeof parsed["goal"]["status"] === "string"
-      ) {
-        return parsed["goal"]["status"] === "active"
+type GoalJsonCache = {
+  read(path: string): Record<string, unknown> | undefined
+  clear(): void
+}
+
+// The footer ticks at 320ms, but the goal JSON only needs re-reading when its mtime changes.
+export function createGoalJsonCache(): GoalJsonCache {
+  const entries = new Map<string, { mtimeMs: number; parsed: Record<string, unknown> | undefined }>()
+  return {
+    read(path) {
+      let mtimeMs: number
+      try {
+        mtimeMs = statSync(path).mtimeMs
+      } catch {
+        entries.delete(path)
+        return undefined
       }
-    } catch {
-      continue
+      const hit = entries.get(path)
+      if (hit !== undefined && hit.mtimeMs === mtimeMs) return hit.parsed
+      let parsed: Record<string, unknown> | undefined
+      try {
+        const value: unknown = JSON.parse(readFileSync(path, "utf8"))
+        parsed = isRecord(value) ? value : undefined
+      } catch {
+        parsed = undefined
+      }
+      entries.set(path, { mtimeMs, parsed })
+      return parsed
+    },
+    clear() {
+      entries.clear()
+    },
+  }
+}
+
+function readGoalJsonUncached(path: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"))
+    return isRecord(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function goalActiveFromContext(runtime: UlwLoopFooterRuntime, cache?: GoalJsonCache): boolean {
+  for (const goalPath of runtime.goalPaths) {
+    const parsed = cache === undefined ? readGoalJsonUncached(goalPath) : cache.read(goalPath)
+    if (
+      parsed !== undefined &&
+      parsed["version"] === 1 &&
+      isRecord(parsed["goal"]) &&
+      typeof parsed["goal"]["status"] === "string"
+    ) {
+      return parsed["goal"]["status"] === "active"
     }
   }
   return false
 }
 
-function goalPathsFromContext(value: unknown): readonly string[] {
+export function goalPathsFromContext(value: unknown): readonly string[] {
   if (!isRecord(value)) return []
   const manager = value["sessionManager"]
   if (!isRecord(manager)) return []

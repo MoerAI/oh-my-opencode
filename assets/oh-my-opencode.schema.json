@@ -9712,7 +9712,6 @@
           "type": "string",
           "enum": [
             "playwright",
-            "agent-browser",
             "dev-browser",
             "playwright-cli"
           ]

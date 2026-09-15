@@ -24,17 +24,14 @@ setDefaultTimeout(guardTimeoutMs)
 
 const PACKED_ARTIFACTS = [
   "bin/omo.js",
-  "bin/omo-agent-toolkit.js",
   "plugin/package.json",
+  "plugin/CHANGELOG.md",
   "plugin/extensions/omo.js",
   "plugin/skills-conditional/x-search/SKILL.md",
   "plugin/runtime/lsp-daemon/dist/cli.js",
   "plugin/runtime/ast-grep-mcp/cli.js",
-  "plugin/runtime/agent-toolkit/cli.js",
-  "plugin/runtime/agent-toolkit/ulw-loop/cli.js",
-  "plugin/runtime/agent-toolkit/omo-agent-toolkit",
-  "plugin/runtime/agent-toolkit/omo-agent-toolkit.cmd",
   "plugin/runtime/dag/sdk.js",
+  "plugin/runtime/agent-toolkit-sdk/sdk.js",
 ] as const
 
 const PACKED_SKILL_COUNT = 23
@@ -91,6 +88,12 @@ function skillPaths(count: number): string[] {
 }
 
 describe("omo-ai payload verifier", () => {
+  test("#given a payload missing only the agent toolkit SDK #when verified #then it fails naming that artifact", () => {
+    const run = runVerifierOnPayload([...PACKED_ARTIFACTS.filter(path => path !== "plugin/runtime/agent-toolkit-sdk/sdk.js"), ...skillPaths(PACKED_SKILL_COUNT)])
+    expect(run.exitCode).toBe(1)
+    expect(run.output).toContain("missing artifact: plugin/runtime/agent-toolkit-sdk/sdk.js")
+  })
+
   describe("#given a packed payload whose only gap is the dag eval sdk", () => {
     describe("#when the verifier runs", () => {
       test("#then it fails naming plugin/runtime/dag/sdk.js as a missing artifact", () => {
