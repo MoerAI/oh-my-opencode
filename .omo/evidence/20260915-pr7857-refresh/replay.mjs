@@ -17,6 +17,8 @@ function sessionCount(file) {
   const db = new DatabaseSync(file, { readOnly: true })
   try { return db.prepare("SELECT count(*) AS n FROM session").get().n } finally { db.close() }
 }
+const qaCase = process.env.QA_CASE ?? "fresh"
+assert(["fresh", "attached"].includes(qaCase))
 const realSessionCountBefore = sessionCount(QA_REAL_DB)
 assert.equal(spawnSync(QA_BUN, ["--version"], { encoding: "utf8" }).stdout.trim(), "1.4.0")
 assert.match(spawnSync(QA_NODE, ["--version"], { encoding: "utf8" }).stdout.trim(), /^v24\./)
@@ -35,7 +37,7 @@ const env = {
 }
 const deadline = AbortSignal.timeout(90000)
 let child, server, streamReader
-const receipt = { isolation: { environmentCleared: true, inheritedCredentials: false, inheritedConfig: false, inheritedSkills: false, cwdEmptySandbox: true, envKeys: Object.keys(env).sort() }, events: [], provider: [], passed: false }
+const receipt = { case: qaCase, isolation: { environmentCleared: true, inheritedCredentials: false, inheritedConfig: false, inheritedSkills: false, cwdEmptySandbox: true, envKeys: Object.keys(env).sort() }, events: [], provider: [], passed: false }
 let expectedSessionID, expectedTerminalMessage, resolveTerminal
 const matchesTerminal = event => expectedSessionID !== undefined &&
   event.properties?.sessionID === expectedSessionID &&
@@ -63,7 +65,7 @@ try {
         sendSse(res, textEvents(count, "PR7857_CALLER_RECEIVED"))
       } else if (JSON.stringify(body).includes("PR7857_PARENT")) {
         receipt.provider.push({ branch: "tool-call" })
-        sendSse(res, toolCallEvents(count, "qa_terminal_child", "call_pr7857", {}))
+        sendSse(res, toolCallEvents(count, "qa_terminal_child", "call_pr7857", { attached: qaCase === "attached" }))
       } else {
         receipt.provider.push({ branch: "auxiliary" })
         sendSse(res, textEvents(count, "PR7857 QA"))
@@ -145,13 +147,21 @@ try {
     if (capturedError) resolveTerminal(capturedError)
     await Promise.race([terminalObserved, consume.then(() => { throw new Error("SSE closed before matching error") })])
     const messages = db.prepare("SELECT data FROM message WHERE session_id = ?").all(childSession.id).map(row => JSON.parse(row.data))
-    assert.equal(messages.length, 2)
-    assert(messages.every(message => message.role === "user"), "An assistant error could bypass the PR callback")
+    const continuationMessages = messages.slice(-2)
+    assert.equal(continuationMessages.length, 2)
+    assert(continuationMessages.every(message => message.role === "user"), "An assistant error could bypass the PR callback")
+    if (qaCase === "fresh") assert.equal(messages.length, 2)
+    else {
+      assert.equal(messages.length, 4)
+      assert.equal(messages[1].role, "assistant")
+      assert.equal(messages[1].finish, "stop")
+      assert.equal(messages[1].error, undefined)
+    }
     const tool = db.prepare("SELECT data FROM part WHERE session_id = ?").all(parent.id).map(row => JSON.parse(row.data)).find(part => part.type === "tool" && part.tool === "qa_terminal_child")
     assert.equal(tool.state.status, "completed")
     assert.equal(tool.state.output, caller.output)
     assert(receipt.events.some(event => event.properties.sessionID === childSession.id && event.properties.error.data.message === caller.output), "SSE error and caller output differ")
-    receipt.database = { childMessageRoles: messages.map(message => message.role), childAssistantCount: 0, toolStatus: tool.state.status, toolDurationMs: tool.state.time.end - tool.state.time.start, callerOutputEqualsSseError: true }
+    receipt.database = { childMessageRoles: messages.map(message => message.role), childAssistantCount: messages.filter(message => message.role === "assistant").length, continuationAssistantCount: 0, completedBackgroundBeforeContinuation: qaCase === "attached", toolStatus: tool.state.status, toolDurationMs: tool.state.time.end - tool.state.time.start, callerOutputEqualsSseError: true }
     assert(receipt.database.toolDurationMs >= 10000, "Terminal error bypassed the fallback grace")
   } finally { db.close() }
   receipt.isolation.realSessionCountBefore = realSessionCountBefore
@@ -172,6 +182,6 @@ try {
   }
   if (server) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
   fs.writeFileSync(path.join(QA_RAW, "sandbox-path.txt"), sandbox + "\n")
-  fs.writeFileSync(path.join(here, "live-result.json"), JSON.stringify(receipt, null, 2) + "\n")
+  fs.writeFileSync(path.join(here, `p1-${qaCase}-live-result.json`), JSON.stringify(receipt, null, 2) + "\n")
   console.log(JSON.stringify(receipt, null, 2))
 }

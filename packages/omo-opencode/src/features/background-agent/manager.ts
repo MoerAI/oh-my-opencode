@@ -1852,14 +1852,14 @@ The fallback retry session is now created and can be inspected directly.
       if (!sessionID) return
 
       const resolved = this.resolveTaskAttemptBySession(sessionID)
-      if (this.parentWakeNotifier.getDispatchedParentWakes().has(sessionID) || !resolved?.isCurrent) {
-        if (!resolved) {
-          const errorMessage = props ? getSessionErrorMessage(props) : undefined
-          const errorName = extractErrorName(props?.error)
-          if (errorMessage && isTerminalSessionError({ name: errorName, message: errorMessage })) {
-            this.terminalChildErrors.set(sessionID, { message: errorMessage, recordedAt: Date.now() })
-          }
+      if (!resolved || (resolved.isCurrent && this.syncAttachedSessions.has(sessionID))) {
+        const errorMessage = props ? getSessionErrorMessage(props) : undefined
+        const errorName = extractErrorName(props?.error)
+        if (errorMessage && isTerminalSessionError({ name: errorName, message: errorMessage })) {
+          this.terminalChildErrors.set(sessionID, { message: errorMessage, recordedAt: Date.now() })
         }
+      }
+      if (this.parentWakeNotifier.getDispatchedParentWakes().has(sessionID) || !resolved?.isCurrent) {
         void this.requeueDispatchedParentWake(sessionID, "session.error")
           .then(() => {
             this.clearParentWakeTextDeltaBuffers(sessionID)

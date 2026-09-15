@@ -6070,6 +6070,66 @@ describe("BackgroundManager.handleEvent - session.error", () => {
     manager.shutdown()
   })
 
+  test.each(["completed", "error"] as const)("records terminal errors for sync-attached %s tasks without changing background state", (status) => {
+    //#given
+    const manager = createBackgroundManager()
+    const nowSpy = spyOn(Date, "now").mockReturnValue(1_000_000)
+    const message = "Model not found: openai/pr7857-missing"
+    const task = createMockTask({ id: `attached-${status}`, parentSessionId: "parent", sessionId: `ses_${status}`, status })
+    getTaskMap(manager).set(task.id, task)
+    const detach = manager.attachSyncContinuation(task.sessionId!)
+    try {
+      //#when
+      manager.handleEvent({ type: "session.error", properties: { sessionID: task.sessionId, error: { name: "APIError", message: "503 overloaded" } } })
+      nowSpy.mockReturnValue(1_010_000)
+      expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
+      manager.handleEvent({ type: "session.error", properties: { sessionID: task.sessionId, error: { name: "ProviderModelNotFoundError", message } } })
+      nowSpy.mockReturnValue(1_019_999)
+      expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
+      nowSpy.mockReturnValue(1_020_000)
+      //#then
+      expect(manager.getTerminalChildError(task.sessionId!)).toBe(message)
+      expect(task.status).toBe(status)
+      expect(task.error).toBeUndefined()
+      manager.handleEvent({ type: "message.updated", properties: { info: { sessionID: task.sessionId, role: "assistant", id: "recovered" } } })
+      expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
+      detach()
+      manager.handleEvent({ type: "session.error", properties: { sessionID: task.sessionId, error: { name: "ProviderModelNotFoundError", message } } })
+      nowSpy.mockReturnValue(1_030_000)
+      expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
+    } finally {
+      detach()
+      nowSpy.mockRestore()
+      manager.shutdown()
+    }
+  })
+
+  test("does not record terminal errors for sync-attached historical attempts", () => {
+    //#given
+    const manager = createBackgroundManager()
+    const nowSpy = spyOn(Date, "now").mockReturnValue(1_000_000)
+    const task = createMockTask({
+      id: "stale-attached", parentSessionId: "parent", sessionId: "current", currentAttemptID: "attempt-current",
+      attempts: [{ attemptId: "attempt-old", attemptNumber: 1, sessionId: "old", status: "error", providerId: "openai", modelId: "missing", startedAt: new Date(0) }],
+    })
+    getTaskMap(manager).set(task.id, task)
+    const detach = manager.attachSyncContinuation("old")
+    try {
+      //#when
+      manager.handleEvent({ type: "session.error", properties: { sessionID: "old", error: { name: "ProviderModelNotFoundError", message: "Model not found" } } })
+      nowSpy.mockReturnValue(1_010_000)
+      //#then
+      expect(manager.getTerminalChildError("old")).toBeNull()
+      expect(manager.getTerminalChildError("current")).toBeNull()
+      expect(task.status).toBe("running")
+      expect(task.error).toBeUndefined()
+    } finally {
+      detach()
+      nowSpy.mockRestore()
+      manager.shutdown()
+    }
+  })
+
   test("delays untracked terminal errors for fallback grace and clears recovered sessions", () => {
     //#given
     const manager = createBackgroundManager()
