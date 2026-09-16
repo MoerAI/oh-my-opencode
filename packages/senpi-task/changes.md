@@ -1,4 +1,85 @@
 
+## 2026-09-16 — Scope a child's kernel-tool grant with the engine's per-call invoke scope
+
+`kernel-tools/contract.ts` gained the optional per-call execution scope the producer accepts
+(`invoke(request, signal | { signal?, scope? })`), the `kernel_tool_host_denied` code, and
+`supportsInvokeScope(capability)` — a runtime duck-type of `capabilities.invokeScope === true`, so
+the package still compiles and behaves against an engine pin that predates senpi#1731. When the
+marker is present, `resolveKernelToolGrant` no longer refuses a child whose allow/deny narrows the
+parent: it attaches `childInvokeScope(...)` to the grant, `buildChildKernelTools` recomputes that
+scope against the child's REAL installed surface, and every wrapper invoke carries
+`{ scope: { tools: { allow, deny? } } }` beside the turn's signal. Without the marker the grant is
+refused exactly as before and the wrapper posts the bare signal it always did.
+`TaskKernelToolsDetail` reports `scoped: true` plus the allow/deny summary so the caller can see a
+grant is child-permissioned, and a nested call the engine refuses arrives on the child's own tool
+channel as a `kernel_tool_host_denied` envelope instead of failing the parent's cell. Curated
+read-only agents, team members, process children and non-JavaScript parents are untouched.
+
+## 2026-09-14 — Re-mirror the curated agent chains from model-core and guard the mirror
+
+`agents/builtin/fallback-chains.ts` had drifted from the `model-core` table it claims to mirror: `plan-consultant`
+still headed with `claude-sonnet-4-6` (no reasoning variant) although the source moved off that head on 2026-07-26,
+and `explore` / `librarian` carried `qwen3.5-plus` where the source has `qwen3.7-plus` (#8259). The consultant chain is
+now `claude-fable-5-1 (max)` -> `claude-opus-5 (max)` -> `kimi-k3 (max)`, with `claude-sdk-oauth` still heading the
+Claude rungs (#8051), and the utility rungs match the source again. `AGENT_FALLBACK_CHAINS` is exported from the
+`./agents-builtin` subpath so `omo-senpi` can hold a parity test that compares every curated chain with its model-core
+source rung for rung (modulo the `claude-sdk-oauth` head); the pin test here keeps catching transcription drift, the
+parity test catches source drift.
+
+## 2026-09-13 — Preserve layout when sanitizing recorded reports
+
+`stripTerminalControls` is exported with an opt-in `preserveWhitespace` option
+for multiline recorded reports. Tabs, line endings and ordinary spacing survive
+while terminal escape/control sequences are removed. Existing single-line
+normalizers retain their default behavior.
+
+## 2026-09-12 — Remove the retired curated agent-name alias
+
+`agents/legacy-agent-names.ts` and its exports (`LEGACY_AGENT_NAME_ALIASES`, `canonicalAgentName`, `legacyAgentNameNotice`, `CanonicalAgentName`) are deleted: the one-release window opened at 5.0.0-beta.51 and the package has since shipped through 5.0.0-beta.56. Every input boundary takes the submitted agent name verbatim — `resolveAgent`, `interactionPolicyForAgent`, `mapOmoConfigAgents` (including `allowed_subagents`), `dag/graph.ts` route compilation, `team/member-validator.ts`, the task tool's `validateTaskTarget` / `resolveSpawnItems`, and the spawn policy / invocation gate. The in-memory `legacySubagentType` → `legacyAlias` → `legacy_subagent_type` plumbing (validation, execute, execute-single, result-details, start-presentation) is removed with it, so a start text carries no deprecation line and `TaskToolDetails` never gains the extra field. `legacyOmoConfigAgentKeys` is gone; its only consumer was the omo-senpi startup notice. `resolve-agent.ts`'s `legacyFallbackChain` read-alias is deleted as dead code — `AGENT_FALLBACK_CHAINS` has been keyed by the canonical ids since the rename.
+
+## 2026-09-10 — Retire myth agent names from test fixtures and update package documentation
+
+The builtin curated agents `metis` and `momus` are renamed to `plan-consultant` and `plan-reviewer` in
+the codebase; the alias handles legacy task records. All non-alias test fixtures in `packages/senpi-task/src/`
+are updated to use the canonical names, and the team member name `atlas` in control-tool tests becomes `builder`.
+`packages/senpi-task/AGENTS.md` and `packages/senpi-task/AGENTS.md` are updated to reflect the new curated agent
+identities. Legacy ids (`metis` and `momus`) are only used in tests that explicitly exercise the alias table
+(todos 1, 3, 5) or in persisted task records demonstrating backward compatibility.
+
+## 2026-09-10 — Keep the user question tools out of child sessions
+
+RPC children now receive `--no-ask-user` immediately after `--no-extensions` so the detached process cannot register `request_user_input` / `ask_user_question`. Headless auto-answer treats `method: "question"` as cancelled (structural request type until the pinned senpi unions include it). Catalog argv is unchanged.
+
+## 2026-09-10 — Team tool failures are tool errors and the family renders as team rows
+
+`tools/control/tool-result.ts` gains `toolErrorResult` (and the `ToolExecutionResult` shape carrying senpi's inline `isError`). Every failure kind of the lead team family returns through it — `team_create` `invalid_arguments` / `spec_error` / `runtime_error`, `team_delete` `invalid_state`, `task_get` `not_found`, `task_update` `already_claimed` / `blocked_by` / `invalid_transition` / `cross_owner`, the team mailbox error kinds, and both shutdown error views — while success kinds are untouched. `task_send` propagates the flag when it wraps a failed team message. The result keeps its typed `details`, so the model still branches on `kind`. The row background, the RPC `tool_execution_end.isError` the desktop maps to `failed`, and the `toolResult.isError` the model sees are derived by the senpi engine, which honors the inline flag from senpi#1549 onward; until the `@code-yeongyu/senpi` pin moves to a release containing it (#8082) those surfaces still show the old success state and only the compact rows below are live.
+
+New `tools/team/renderers.ts` gives the six lead tools their own `renderCall` / `renderResult` in the shared renderer-text grammar (`team create name:<n> members:<N>` / `spec:<name>`, `team delete run:<id> [force]`, `team task <op> ...`), lists every member with its own `statusThemeColor`, and renders every failure as one error-colored line carrying the kind, code, and a bounded reason excerpt — replacing senpi's bold-name + raw-JSON fallback. The factories are now generically typed so those renderers keep their argument and details types, `buildLeadTeamTools` publishes the family as a `LeadTeamTool` union, and `filterSharedParentTools` / `mergeChildCustomTools` take a generic tool element (they only read `name` and `exposure`).
+
+`team/spawn-members.ts` describes a `plan_unresolved` member start with the same recoverable target lists the task tool offers, so a member that cannot be routed names the valid categories instead of only the planner message.
+## 2026-09-10 — Survive a Windows EPERM on the task-record rename and never strand a terminal outcome
+
+On Windows a task-record rename under `tasks/` can be refused with `EPERM` (a sharing violation from Defender,
+an indexer, or another senpi process). When that hit the terminal transition the record stayed `running`,
+`waitFor` never settled, and a mass-ulw / DAG run stopped dequeuing dependents (#8050). Two layers now hold:
+
+- `store/record-write.ts` (extracted from `record-store.ts`) retries `renameSync` on `EPERM`/`EBUSY`/`EACCES`
+  on win32 only - 8 attempts with a 5 ms synchronous backoff, matching `dag/store.ts` - and rethrows every
+  other platform, errno, or the final attempt unchanged. The temp file carries a random segment and is removed
+  in a `finally`. `createTaskRecordStore(config, { platform })` is the test seam for the win32 branch.
+- `manager/manager-outcome.ts` no longer lets a throwing terminal `store.transition` skip settlement. It logs
+  the failure once with `taskId`, `code`, `syscall`, and `path`, calls `forget(taskId)` so the residency slot
+  is released, and settles the waiters with a synthesized `error` record naming the persistence failure.
+  `#settleWaiters(taskId, terminal?)` accepts that record instead of re-reading the store, which is guaranteed
+  stale in this scenario. The DAG node folds as failed and `retry` can re-run it.
+## 2026-09-08 — Persist child_session_id on spawned task records
+
+`#recordSpawnFacts` now writes the spawned child's own session id from the handle onto `st_*.json` as `child_session_id`, for both in-process and process children. Reattach rewrites keep or refresh the field from the live handle so resume paths cannot drop it. The parser already treated the field as optional; a legacy record without it still loads. External readers (omo-desktop) join a grandchild session's `parent_session_id` back to this field.
+
+## 2026-09-08 — Persist team linkage on member task records
+
+Team members spawned by `team_create` now persist `team_run_id`, `team_name`, `team_member_name`, and `team_role: "member"` on their `st_*.json` task records. The parser keeps all four fields optional so records written before this linkage remain compatible.
+
 ## 2026-09-05 — Make run_in_background=true the standard spawn in the task tool's prompt surfaces
 
 `src/tools/task/description.ts` no longer tells the model to use `run_in_background=true` "only for parallel
@@ -15,7 +96,6 @@ the old wording still pulling one of three single-dependent delegations back to 
 ## 2026-09-04 — Defer the lead tasklist tools to tool_search
 
 The four lead tasklist tools (`task_create`, `task_get`, `task_list`, `task_update`) register with `exposure: "search"` (plus `searchText`/`searchKeywords`/`searchGroup: "team-tasklist"`/`allowLazyActivation`) instead of the resident tool list. They only matter once a team exists, so they cost no prompt tokens until a tasklist operation is searched for and promote through `tool_search` on demand. Descriptions now lead with the selecting situation. `src/tools/team/tasklist-exposure.test.ts` pins the exposure on all four.
-
 
 ## 2026-08-28 — Align the task engine with Senpi 2026.8.28
 

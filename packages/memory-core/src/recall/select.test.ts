@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { matchScore, matchScoreNormalized, normalizeText, parseQuery } from "../search"
 import type { RecallDocument } from "./provider"
 import { selectRecallCandidates, type RecallCandidate } from "./select"
 
@@ -72,6 +73,52 @@ describe("selectRecallCandidates", () => {
 
     // then
     expect(paths(candidates)).toEqual(["reference/d.md"])
+  })
+
+  it("#given transcript-visible paths #when candidates are selected #then excluded paths do not consume the cap", () => {
+    // given
+    const documents = [
+      doc("reference/a.md", "Kubernetes", "ingress review"),
+      doc("reference/b.md", "Kubernetes", "rollout review"),
+    ]
+    const excludePaths: ReadonlySet<string> = new Set(["reference/a.md"])
+    const options = { ...BASE_OPTS, maxItems: 1, excludePaths }
+
+    // when
+    const candidates = selectRecallCandidates(documents, ["kubernetes"], options)
+
+    // then
+    expect(paths(candidates)).toEqual(["reference/b.md"])
+    expect(excludePaths).toEqual(new Set(["reference/a.md"]))
+  })
+
+  it("#given surfaced and transcript-visible paths #when candidates are selected #then both exclusions apply", () => {
+    // given
+    const documents = ["a", "b", "c"].map((name) => doc(`reference/${name}.md`, "Kubernetes", "review"))
+    const options = {
+      ...BASE_OPTS,
+      surfaced: new Set(["reference/a.md"]),
+      excludePaths: new Set(["reference/b.md"]),
+    }
+
+    // when
+    const candidates = selectRecallCandidates(documents, ["kubernetes"], options)
+
+    // then
+    expect(paths(candidates)).toEqual(["reference/c.md"])
+  })
+
+  it("#given an empty exclusion set #when candidates are selected #then omitted and empty options are equivalent", () => {
+    // given
+    const documents = [doc("reference/a.md", "Kubernetes", "ingress review")]
+    const options = { ...BASE_OPTS, excludePaths: new Set<string>() }
+
+    // when
+    const candidates = selectRecallCandidates(documents, ["kubernetes"], options)
+
+    // then
+    expect(candidates).toEqual(selectRecallCandidates(documents, ["kubernetes"], BASE_OPTS))
+    expect(paths(candidates)).toEqual(["reference/a.md"])
   })
 
   it("#given more matches than maxItems #when candidates are selected #then only the best capped set returns", () => {
@@ -156,6 +203,73 @@ describe("selectRecallCandidates", () => {
     // then
     expect(candidates[0]?.excerpt).not.toContain("\n")
     expect(candidates[0]?.excerpt).toContain("mentions kubernetes")
+  })
+
+  it("#given the same document objects #when selection repeats #then the normalized haystack is composed once", () => {
+    // given: a document that matches nothing, so only the haystack ever reads the body
+    let bodyReads = 0
+    const document: RecallDocument = {
+      path: "reference/a.md",
+      description: "Deploy",
+      get body(): string {
+        bodyReads += 1
+        return "nothing relevant lives here"
+      },
+    }
+
+    // when
+    for (let call = 0; call < 3; call += 1) {
+      expect(selectRecallCandidates([document], ["kubernetes", "ingress"], BASE_OPTS)).toEqual([])
+    }
+
+    // then
+    expect(bodyReads).toBe(1)
+  })
+
+  it("#given a memoized haystack #when selection repeats #then candidates stay deep-equal to the unmemoized scorer", () => {
+    // given
+    const documents = [
+      doc("reference/a.md", "Deploy", "The KUBERNETES ingress   gateway\nis flaky during rollouts"),
+      doc("notes/b.md", "Kubernetes notes", "kubernetes kubernetes everywhere and the ingress gateway too"),
+      doc("skills/c.md", "Rollout skill", "nothing relevant lives here"),
+    ]
+    const queries = ["kubernetes", '"ingress gateway"', "rollouts kubernetes"]
+    const expected = documents
+      .map((document) => {
+        const scores = queries
+          .map((query) => matchScore(`${document.description}\n${document.body}`, parseQuery(query)))
+          .filter((score): score is number => score !== null)
+        return scores.length === 0 ? undefined : { path: document.path, score: Math.min(...scores) }
+      })
+      .filter((entry): entry is { path: string; score: number } => entry !== undefined)
+      .sort((left, right) => left.score - right.score || left.path.localeCompare(right.path))
+
+    // when
+    const first = selectRecallCandidates(documents, queries, BASE_OPTS)
+    const second = selectRecallCandidates(documents, queries, BASE_OPTS)
+
+    // then
+    expect(second).toEqual(first)
+    expect(first.map((candidate) => ({ path: candidate.path, score: candidate.score }))).toEqual(expected)
+  })
+
+  it("#given a pre-normalized haystack #when the normalized scorer runs #then it equals the raw-input scorer", () => {
+    // given
+    const samples = [
+      "Deploy\nThe KUBERNETES ingress   gateway\nis flaky",
+      "   ",
+      "",
+      "kubernetes\n\ningress gateway",
+    ]
+    const queries = ["kubernetes", '"ingress gateway"', "kubernetes missing", '"unclosed', "  "]
+
+    // when / then
+    for (const sample of samples) {
+      for (const query of queries) {
+        const parsed = parseQuery(query)
+        expect(matchScoreNormalized(normalizeText(sample), parsed)).toBe(matchScore(sample, parsed))
+      }
+    }
   })
 
   it("#given a non-positive maxItems #when candidates are selected #then nothing is returned", () => {

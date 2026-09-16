@@ -17,6 +17,7 @@ on:
           - reply-listener
           - dag-race
           - memfs-restore
+          - memory-two-process
           - senpi-overflow
           - full-shard-2
       iterations:
@@ -47,7 +48,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.2"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -127,6 +128,12 @@ jobs:
               [ordered]@{
                 Phase = "test"
                 Arguments = [string[]]@("test", "packages/omo-senpi/src/components/memory/commands/memfs-extra.test.ts")
+              }
+            )
+            "memory-two-process" = @(
+              [ordered]@{
+                Phase = "test"
+                Arguments = [string[]]@("test", "packages/memory-core/src/concurrency/two-process.test.ts")
               }
             )
             "senpi-overflow" = @()

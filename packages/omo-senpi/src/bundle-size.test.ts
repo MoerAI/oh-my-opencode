@@ -38,7 +38,32 @@ const builtExtensionPath = join(packageRoot, "plugin", "extensions", "omo.js")
 // user feature wired into the extension entry; the imports span the whole engine (nothing accidental
 // inlined, no new third-party dependency added). Measured 863,893 bytes after minification. Headroom to
 // 880,000 leaves margin for follow-up memory polish without inviting unrelated bloat.
-const BUDGET_BYTES = 1_050_000
+// Raised 1,050,000 -> 1,100,000 for plan omo-thread-tools (PR #7456): registering the six-tool `thread`
+// family (tools, live socket surface, component) pulls the already-shipped addressing, address-book,
+// reader, receipts, mailbox and metadata seams into the entry for the first time. First-party code only -
+// bundle-purity stays green with no new third-party dependency inlined. Measured 1,068,655 bytes after
+// minification on top of dev's 1,031,755; 1,100,000 keeps ~2.9% headroom rather than the failing value.
+// Raised 1,100,000 -> 1,140,000 for plan omo-senpi-role-names (model profiles): the `model-profile`
+// component (builtin profile table, chain resolver, session-apply wiring) enters the entry for the
+// first time. First-party code only - `bundle purity` stays green on both cases and no dependency
+// manifest changed (`git diff origin/dev...HEAD -- package.json packages/omo-senpi/package.json` is
+// empty). Measured 1,105,921 bytes after minification on top of dev's 1,098,205; 1,140,000 keeps ~3%
+// headroom rather than the failing value.
+// Raised 1,140,000 -> 1,180,000 for memory strict-YAML frontmatter (#8179): the memory-core writer
+// grew a scalar grammar, a shared validation gate, and the one-time legacy normalizer, all first-party
+// (the `yaml` package was rejected for the runtime precisely because it would have cost ~119 KB here;
+// it is a devDependency oracle only). bundle-purity stays green and no third-party dependency was
+// inlined. Measured 1,144,862 bytes after minification on top of dev's 1,136,265 (linux/amd64, bun
+// 1.4.2); 1,180,000 keeps ~3% headroom rather than the failing value.
+// Raised 1,180,000 -> 1,220,000 for the Kibitzer bounds wave (#8335 incremental candidate collection,
+// #8336 sidecar grep budgets, #8337 shutdown and wake caps): the per-entry mention index, the
+// normalized-haystack memo, the stat-gated HEAD and ledger probes, the grep budget/abort/gitignore
+// paths and the drain race plus wake clamps are all first-party code, and the dependency manifests are
+// byte-identical to pre-wave dev (`git diff 879a8b791...HEAD -- package.json bun.lock
+// packages/*/package.json` is empty). The wave grew the minified bundle 1,175,406 -> 1,181,607
+// (linux/amd64, node 24 + bun 1.4.2), and the previous ceiling had only 4,594 bytes of slack left
+// before it. 1,220,000 keeps ~3.2% headroom rather than the failing value.
+const BUDGET_BYTES = 1_220_000
 
 describe("omo-senpi bundle size budget", () => {
   it("#given the built extension #when its byte size is measured #then it stays within the documented byte budget", () => {

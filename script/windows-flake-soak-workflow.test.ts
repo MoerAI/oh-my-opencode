@@ -57,6 +57,12 @@ const expectedTargets = [
     ],
   },
   {
+    name: "memory-two-process",
+    arguments: [
+      '@("test", "packages/memory-core/src/concurrency/two-process.test.ts")',
+    ],
+  },
+  {
     name: "senpi-overflow",
     arguments: [] as readonly string[],
   },
@@ -242,7 +248,7 @@ describe("Windows flake soak workflow", () => {
       "uses: actions/setup-node@v7",
       'node-version: "24"',
       "uses: oven-sh/setup-bun@v2",
-      'bun-version: "1.4.0"',
+      'bun-version: "1.4.2"',
       "name: Install dependencies",
       "run: bun install --frozen-lockfile",
       "name: Remove stale self-package test copies",
@@ -260,7 +266,12 @@ describe("Windows flake soak workflow", () => {
     expect(soakStepSection(workflow)).toContain(
       "WINDOWS_TEST_SHARD: ${{ inputs.target == 'full-shard-2' && '2/2' || 'flake-soak' }}",
     )
-    expect(targetArgumentLists(soakShard)).toEqual(testArgumentLists(ciShard))
+    const fullShardTwo = expectedTargets.find((target) => target.name === "full-shard-2")
+    if (fullShardTwo === undefined) throw new Error("full-shard-2 target missing")
+    expect(targetArgumentLists(soakShard)).toEqual([...fullShardTwo.arguments])
+    expect(testArgumentLists(ciShard).at(-1)).toBe(
+      '@("--config=bunfig.win2.parallel.toml", "test", "--parallel")',
+    )
     expect(soakShard.indexOf('Phase = "quarantine"')).toBeLessThan(
       soakShard.indexOf('Phase = "remainder"'),
     )

@@ -3,7 +3,9 @@ import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 import type { ManagedChildHandle } from "../manager/child-handle"
 import type { TaskRecord } from "../state"
 import type { TaskRecordStore } from "../store"
+import type { KernelToolBindingRegistry } from "../kernel-tools/bindings"
 import type { BatchAdmissionOptions } from "./residency"
+import type { RevivePolicyPort } from "./revive-policy"
 
 // Why a task is being torn down. Cancel (todo 10), LRU eviction, TTL cleanup, and session_start
 // reconciliation ALL route their destruction through the single-writer port. Session shutdown is
@@ -83,9 +85,10 @@ export type DetachedRevivalReservation = {
   release(): void
 }
 
+export type ColdRevivalFailureCode = "admission_refused" | "cwd_unavailable" | "config_generation_mismatch"
 export type DetachedRevivalResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: string }
+  | { readonly ok: false; readonly reason: string; readonly code?: ColdRevivalFailureCode }
 
 export type DetachedRevivalRollbackResult = "rolled_back" | "not_owner"
 
@@ -154,6 +157,7 @@ export type IdleReclaimerScheduler = {
 }
 
 export type LifecycleDeps = {
+  readonly revivePolicy?: RevivePolicyPort
   readonly store: TaskRecordStore
   readonly registry: ResidencyRegistry
   readonly config: OmoTaskSettings
@@ -174,6 +178,9 @@ export type LifecycleDeps = {
   readonly reconcileAdmission?: BatchAdmissionOptions
   // Injectable timer seam keeps lifecycle tests deterministic and prevents test-created timers.
   readonly idleReclaimerScheduler?: IdleReclaimerScheduler
+  // The engine's runtime-only parent kernel-tool map. Destruction and expunge release a child's
+  // binding through it; idle parking keeps the binding so a same-host revive still reaches it.
+  readonly kernelToolBindings?: KernelToolBindingRegistry
 }
 
 export function injectedLifecycleReattachPorts(deps: LifecycleDeps): LifecycleReattachPorts | undefined {

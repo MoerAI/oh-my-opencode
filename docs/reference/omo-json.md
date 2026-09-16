@@ -100,9 +100,12 @@ No default profiles ship. A profile exists only when you write one under `profil
   "task": {},           // task engine settings
   "teams": {},          // record<string, TeamSpec>
   "models": {},         // record<string, ModelCatalogEntry>, shared model catalog
+  "model_profiles": {}, // record<string, ModelProfile>, named model chains picked by intent (Senpi harness)
+  "model_profile": "",  // active profile id or a literal provider/model pin (Senpi harness)
   "memory": {},         // MemorySettings, Senpi memory subsystem
-  "git_master": { "commit_footer": true, "include_co_authored_by": true }, // commit attribution (Senpi harness)
+  "git_master": { "commit_footer": false }, // opt-in commit footer (Senpi harness); no Co-authored-by trailer is ever emitted
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
+  "disabled_skills": [], // skill names hidden on every harness, unioned across layers
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
   "[senpi]": {},        // Senpi-only overrides, typed base keys
   "[codex]": {},        // Codex-only overrides, typed base keys
@@ -116,7 +119,18 @@ Source: `packages/omo-config-core/src/schema/config.ts`.
 
 ### Harness blocks
 
-`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `memory`, `telemetry`), so a harness-specific override stays schema-checked.
+`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`, `disabled_skills`), so a harness-specific override stays schema-checked.
+
+### `disabled_skills` (every harness)
+
+The one supported way to turn a skill off. A name listed here is absent from the run: on OmO Native / Senpi it never enters the `<available_skills>` index, the `/skill:` commands, or `get_commands`; on the OpenCode plugin it is dropped from the builtin set and the skill tool. Unlike other arrays, layers are unioned: the shared base, the `[harness]` block, the user file, the project file, and the active profile all add names, and a project cannot re-enable a skill the user file disabled by omitting it.
+
+```jsonc
+// ~/.omo/omo.jsonc
+{
+  "disabled_skills": ["frontend", "visual-qa"]
+}
+```
 
 Security invariant: the OpenCode plugin honors `mcp_env_allowlist` and `browser_automation_engine.playwright_mcp_args` only from the user layer, including the user layer's own active profile block. Project layers cannot extend them.
 
@@ -138,23 +152,25 @@ The block may also appear at the shared top level or in profile layers and follo
 
 ### `memory` (Senpi harness)
 
-The optional `memory` block configures the Senpi memory subsystem (`schema/memory.ts` `OmoMemorySettingsSchema`). Keys: `enabled` (default `true`), `agent` (default `"auto"`), the sub-blocks `reflection`, `nudge`, `facts`, `dream`, `people`, `soul`, `write_notice`, `sync`, `search`, plus `compile_warn_tokens` and per-agent overrides under `agents`.
+The optional `memory` block configures the Senpi memory subsystem (`schema/memory.ts` `OmoMemorySettingsSchema`). Keys: `enabled` (default `true`), `agent` (default `"auto"`), the sub-blocks `reflection`, `nudge`, `recall` (the resident, read-only Kibitzer sidecar behind `recalled memory:` notices - one per main session, prompt and tool-call triggered, nudge-only output, no memory writes: `enabled` as the only off switch, `max_items` per wake, `category` defaulting to `quick`, `event_caps` defaulting to `{ tool_args: 400, result_head: 600, assistant: 1500, prompt: 4000 }` for its redacted event feed, `sidecar_max_tokens` defaulting to `48000` with a proactive reseed at 60%, `max_concurrent_wakes` defaulting to `2` as the machine-wide wake lease, and `tool_budget` defaulting to `8` read-only tool calls per wake), `facts`, `dream`, `people`, `soul`, `write_notice`, `sync`, `search`, plus `compile_warn_tokens` and per-agent overrides under `agents`. These recall keys can be set at the shared root, harness/profile layer, or per-agent override; layer values are deep-partial and later layers win.
 
 ### `git_master` (Senpi harness)
 
-The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-attribution directive to the skill content based on these settings.
+The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-footer directive to the skill content only when you opt in.
+
+Commit-identity contract: commits omo causes in your repository carry your own git `user.name` / `user.email` as author and committer, and omo never adds a `Co-authored-by` trailer or any other GitHub-resolvable automation identity. A default install appends nothing.
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `commit_footer` | boolean \| string | `true` | Adds the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer to commit messages. A string replaces the builtin footer text; `false` disables the footer. |
-| `include_co_authored_by` | boolean | `true` | Adds the `Co-authored-by: sisyphus-dev-ai <sisyphus-dev-ai@users.noreply.github.com>` trailer ([sisyphus-dev-ai](https://github.com/sisyphus-dev-ai)) to commit messages. |
+| `commit_footer` | boolean \| string | `false` | Opt in to the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer in the commit body. A string replaces the builtin footer text. |
+| `include_co_authored_by` | boolean | `false` | Deprecated no-op, accepted so existing configs keep validating. omo does not emit a `Co-authored-by` trailer regardless of this value. |
 
-Both attributions ship enabled by default. To opt out of the co-author trailer:
+To opt in to the body footer:
 
 ```jsonc
 {
   "git_master": {
-    "include_co_authored_by": false
+    "commit_footer": true
   }
 }
 ```
@@ -179,6 +195,52 @@ A record of short name to catalog entry (`schema/model-catalog.ts`). The canonic
 ```
 
 When an agent or category `model` string matches a catalog key, resolution (`models/model-reference-resolution.ts`) swaps in the entry's model id and fills any unset `reasoning` from the entry. Tuning written at the use site always wins. A `[harness]` block (or a profile) can override individual catalog entries for its own view. Catalog cycles are detected and reported as `model_catalog_cycle` diagnostics instead of looping.
+
+### Model profiles (Senpi harness)
+
+A model profile is a named, ordered model chain you pick by intent ("Capable", "Deep work") instead of by model id. Two keys drive it (`schema/model-profile.ts`, `schema/config.ts`):
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `model_profiles` | record<string, `{ display_name?: string; models?: model entries }`> | Named chains. `models` entries are the same shape as a category chain: a bare string (`provider/model`, a bare model id, either with an optional `:level` reasoning suffix) or `{ model, reasoning?, ... }`. Both fields are optional; the object is strict. |
+| `model_profile` | string | Which chain drives the main session model. Either a profile id (`capable`) or a literal `provider/model` (`anthropic/claude-opus-5`). A value containing `/` is a pin, so the pin and the profile share one key. |
+
+This is not the `profiles` key. `profiles.<name>` is a config-layer overlay activated by `OMO_PROFILE` (see [Profile activation](#profile-activation)): it changes which configuration is loaded. `model_profiles` and `model_profile` are ordinary base keys inside that configuration: they change which model the main session starts on. A `profiles.<name>` layer may set `model_profile` like any other key, which is the one way the two meet.
+
+Three builtin profiles ship (`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`). Each rung lists every provider that serves the model, so a Copilot-only or gateway-only setup still resolves:
+
+| Id | Display name | Chain |
+|----|--------------|-------|
+| `capable` | Capable | `claude-fable-5-1` (max) -> `claude-opus-5` (max) -> `kimi-k3` (max) -> `glm-5.3` (max) |
+| `simple-work` | Simple work | `gpt-5.6-luna-fast` (low) -> `deepseek-v4-flash` -> `claude-haiku-4-5` |
+| `deep-work` | Deep work | `gpt-6-astra` (high) -> `gpt-5.6-sol` (medium), the `deep` category chain verbatim |
+
+What happens at session start (`packages/omo-senpi/src/components/model-profile/index.ts`, `resolve.ts`):
+
+- `model_profile` unset: nothing. Senpi's own default resolution, including its `recommended-models` builtin, runs untouched.
+- A literal `provider/model`: that exact model is looked up in the live registry and applied.
+- A profile id: the builtin table is overlaid with `model_profiles`, and the first rung the live registry can serve is applied. The notice names the pick and the skipped rungs, for example `omo-senpi: model profile "capable" selected anthropic/claude-opus-5 (skipped: anthropic/claude-fable-5-1); mid-session fallback follows senpi's retry chains`.
+- No rung resolves: a notice lists the chain and Senpi's default model stays.
+- Unknown id: `model_profile "<name>" is not defined; known profiles: ...`.
+
+The profile is applied only to a fresh session (`reason` is `startup` or `new`) whose model wasn't set explicitly: a `--model` flag, a scoped model, a resumed session, and a fork all keep their own model. Apply is session-scoped; it never writes `settings.json` or `omo.json`. Mid-session model failures follow Senpi's own `retry.fallbackChains`, not the profile chain.
+
+Override semantics: a `model_profiles.<name>` entry that matches a builtin replaces it wholesale, with no per-field merge. `"capable": { "display_name": "Best" }` therefore yields a profile with no models, reported at runtime as `defines no models`, rather than the builtin chain under a new label. Any other name adds a profile. Chain entries may name a `models.<catalog>` entry and expand through the same `resolveModelReferences` path as category chains; a profile named like a catalog entry gets a `shadows a model catalog entry` diagnostic. A bare string in `categories.*.models` or `agents.*.models` that equals a profile id gets a `splicing a profile into a category chain is not supported yet` diagnostic: profiles pick the main session model and never enter a delegated child's chain.
+
+```jsonc
+{
+  "models": {
+    "opus": { "model": "anthropic/claude-opus-5", "reasoning": "max" }
+  },
+  "model_profiles": {
+    "office": {
+      "display_name": "Office hours",
+      "models": ["opus", "openai/gpt-5.6-sol:medium"] // catalog alias, then a literal with a reasoning suffix
+    }
+  },
+  "model_profile": "office" // or "capable", or a pin such as "anthropic/claude-opus-5"
+}
+```
 
 ### `agents`
 
@@ -212,14 +274,16 @@ These are the only deprecated keys the strict agent schema accepts. `textVerbosi
 
 #### Builtin agents
 
-The Senpi task engine ships four builtin curated agents: `explore` and `librarian` are always spawnable through the task tool with zero configuration, for example `task(subagent_type: "explore", ...)`, while `metis` and `momus` are plan-gated: spawnable only after the user requests the `ulw-plan` workflow, a `.omo/plans/*.md` artifact was touched, and `ulw-execute` was never invoked. They are read-only research and review specialists; implementation and orchestration agents stay category-routed. (`oracle` is an OpenCode plugin agent, not a Senpi builtin.)
+The Senpi task engine ships four builtin curated agents: `explore` and `librarian` are always spawnable through the task tool with zero configuration, for example `task(subagent_type: "explore", ...)`, while `plan-consultant` and `plan-reviewer` are plan-gated: spawnable only after the user requests the `ulw-plan` workflow, a `.omo/plans/*.md` artifact was touched, and `ulw-execute` was never invoked. They are read-only research and review specialists; implementation and orchestration agents stay category-routed (architecture consults go through `task(category: "architect")`).
+
+> **Removed**: `agents.metis` / `agents.momus` and `subagent_type: "metis"|"momus"` no longer resolve to `plan-consultant` / `plan-reviewer`. The one-release alias window closed after 5.0.0-beta.51: a retired id is now an ordinary agent name, so a config key defines a custom agent and an undefined `subagent_type` fails as unknown. Rename them to the canonical ids. <!-- retired-name-allowed -->
 
 | Name | Purpose |
 |------|---------|
 | `explore` | Codebase search specialist. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". Supports thoroughness levels from quick to very thorough. |
 | `librarian` | Remote codebase and documentation research: searches open-source repositories, retrieves official documentation, and finds implementation examples via the GitHub CLI and direct documentation retrieval. |
-| `metis` | Pre-planning consultant that analyzes requests to surface hidden intentions, ambiguities, and AI failure points. |
-| `momus` | Expert reviewer that evaluates work plans against clarity, verifiability, and completeness standards. |
+| `plan-consultant` | Pre-planning consultant that analyzes requests to surface hidden intentions, ambiguities, and AI failure points. |
+| `plan-reviewer` | Expert reviewer that evaluates work plans against clarity, verifiability, and completeness standards. |
 
 Each builtin carries its own persona prompt, a read-only tool policy, and a per-agent model fallback chain, and is pinned to `execution_mode: "in-process"`. The nine-name allowlist includes a curated `bash` override, but it is not Senpi's general shell: it directly runs only validated read-only `gh` queries and HTTPS `curl` retrievals, with no shell parsing, redirects, output files, uploads, request bodies, or mutating HTTP methods. Direct `edit`, `write`, and mutating LSP tools are excluded.
 
@@ -238,7 +302,7 @@ To hide a builtin from the task tool description and from spawn resolution, disa
 ```jsonc
 {
   "agents": {
-    "momus": { "disable": true }
+    "plan-reviewer": { "disable": true }
   }
 }
 ```
@@ -248,7 +312,7 @@ Overriding `execution_mode` on a curated agent is ignored. All other configured 
 Curated agents and teams. A team member spec naming a curated read-only agent (`kind: "subagent_type"`) is rejected at member validation with this error:
 
 ```
-curated read-only agent "momus" cannot be a team member; delegate via the task tool instead
+curated read-only agent "plan-reviewer" cannot be a team member; delegate via the task tool instead
 ```
 
 Team members always spawn in `process` mode, which cannot carry the curated persona or tool policy, so delegate to these agents through the task tool instead of naming them as team members.
@@ -307,7 +371,7 @@ Each member shares a base (`name` matching `^[a-z0-9-]+$`, optional `cwd`, `work
 
 ### `profiles`
 
-A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfileSchema`). Each profile accepts the shared base keys (`categories`, `agents`, `task`, `teams`, `models`, `memory`, `telemetry`) plus `[opencode]`, `[senpi]`, and `[codex]` blocks of its own:
+A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfileSchema`). Each profile accepts the shared base keys (`categories`, `agents`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`) plus `[opencode]`, `[senpi]`, and `[codex]` blocks of its own:
 
 ```jsonc
 {
@@ -316,9 +380,9 @@ A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfile
       "categories": {
         "deep": { "model": "kimi-for-coding/kimi-k3" }
       },
-      "[opencode]": {
+      "[senpi]": {
         "agents": {
-          "sisyphus": { "model": "kimi-for-coding/kimi-k3" }
+          "plan-reviewer": { "model": "kimi-for-coding/kimi-k3" }
         }
       }
     }
@@ -326,7 +390,7 @@ A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfile
 }
 ```
 
-Profiles are inert until activated (see [Profile activation](#profile-activation)). When active, the profile's base keys fold over the shared base, and the profile's harness block folds over the top-level harness block.
+Profiles are inert until activated (see [Profile activation](#profile-activation)). When active, the profile's base keys fold over the shared base, and the profile's harness block folds over the top-level harness block. A config profile is a different thing from a model profile: see [Model profiles](#model-profiles-senpi-harness).
 
 ### Model references and model strings
 

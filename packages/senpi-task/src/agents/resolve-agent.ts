@@ -11,6 +11,7 @@ import {
   parseAvailableAgentModels,
   type ParsedAgentModel,
 } from "./agent-model-registry"
+import { agentToolPolicy } from "./agent-tool-policy"
 import { AGENT_FALLBACK_CHAINS } from "./builtin/fallback-chains"
 import type { AgentDefinition } from "./types"
 
@@ -63,11 +64,12 @@ type AgentResolutionContext = {
 }
 
 export function resolveAgent<TModel extends SenpiModelPort>(
-  name: string,
+  requestedName: string,
   agents: Readonly<Record<string, AgentDefinition>>,
   registry: SenpiModelRegistryPort<TModel> | undefined,
   options: ResolveAgentOptions = {},
 ): AgentResolutionResult {
+  const name = requestedName.trim()
   const availableAgents = Object.entries(agents)
     .filter(([, definition]) => definition.disable !== true)
     .map(([agentName]) => agentName)
@@ -89,9 +91,7 @@ export function resolveAgent<TModel extends SenpiModelPort>(
     }
   }
 
-  const fallbackChain = Object.hasOwn(AGENT_FALLBACK_CHAINS, name)
-    ? AGENT_FALLBACK_CHAINS[name]
-    : undefined
+  const fallbackChain = Object.hasOwn(AGENT_FALLBACK_CHAINS, name) ? AGENT_FALLBACK_CHAINS[name] : undefined
   if (registry === undefined) {
     const fallbackHead = fallbackChain?.[0]
     const fallbackProvider = fallbackHead?.providers[0]
@@ -199,18 +199,11 @@ export function resolveAgent<TModel extends SenpiModelPort>(
 }
 
 function agentPersona(name: string, definition: AgentDefinition): AgentPersona {
-  const literalToolRules = definition.tools?.filter((rule) =>
-    !rule.pattern.includes(" ") && !rule.pattern.includes("*")
-  )
-  const toolAllowlist = literalToolRules?.filter((rule) => rule.allow).map((rule) => rule.pattern)
-  const toolRuleDenylist = literalToolRules?.filter((rule) => !rule.allow).map((rule) => rule.pattern)
-  const toolDenylist = [...(definition.disallowedTools ?? []), ...(toolRuleDenylist ?? [])]
   const agentExecutionMode = toExecutionMode(definition.executionMode)
   return {
     agentType: name,
     ...(definition.prompt !== undefined ? { instructions: definition.prompt } : {}),
-    ...(toolAllowlist !== undefined ? { toolAllowlist } : {}),
-    ...(toolDenylist.length > 0 ? { toolDenylist } : {}),
+    ...agentToolPolicy(definition),
     ...(agentExecutionMode !== undefined ? { agentExecutionMode } : {}),
     ...(definition.allowedSubagents !== undefined ? { allowedSubagents: definition.allowedSubagents } : {}),
     ...(definition.maxDepth !== undefined ? { maxDepth: definition.maxDepth } : {}),

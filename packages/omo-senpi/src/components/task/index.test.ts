@@ -21,7 +21,7 @@ import * as taskComponentModule from "./index"
 import type { CapturedUi } from "./runtime-context"
 import { createSessionTransitionBridge } from "./session-transition-bridge"
 
-const TASK_TOOL_NAMES = ["task", "task_send", "task_cancel", "task_output", "workflow"]
+const TASK_TOOL_NAMES = ["task", "task_send", "task_cancel", "task_output", "workflow", "workpool"]
 const TEAM_TOOL_NAMES = [
   "team_create",
   "team_delete",
@@ -43,7 +43,7 @@ const TASK_EVENTS = [
   "agent_end",
 ]
 const SKILL_INVOCATION_TRACKER_EVENTS = ["input", "tool_result", "session_shutdown"]
-const DAG_LIFECYCLE_EVENTS = ["session_start", "session_before_switch", "session_shutdown", "session_shutdown"]
+const DAG_LIFECYCLE_EVENTS = ["session_start", "session_shutdown", "session_shutdown"]
 const TASK_COMMANDS = ["dag", "task-kill", "tasks"]
 
 interface RecordedLog {
@@ -211,9 +211,11 @@ describe("omo-senpi task component wiring", () => {
     ])
     // exactly the task event handlers (session lifecycle + transition-buffer edges), the
     // skill-invocation tracker subscriptions feeding the plan-gated agent gate, plus the
-    // unconditional T16 hygiene sweep handler, which registers its own session_start listener
+    // unconditional T16 hygiene sweep handler, which registers its own session_start listener,
+    // plus the workpool aggregate attach-recovery listener (registerWorkpoolTool session_start
+    // → workpools.attach, which rolls back accepted-without-ack and flushes on boot)
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual(
-      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start"].sort(),
+      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start", "session_shutdown", "session_start"].sort(),
     )
   })
 
@@ -226,8 +228,8 @@ describe("omo-senpi task component wiring", () => {
     if (typeof wireDagLifecycle !== "function") return
     wireDagLifecycle(pi, {
       attach: async () => { order.push("dag-resume") },
-      detach: () => undefined,
-      pauseForShutdown: () => { order.push("dag-pause") },
+      detach: () => { order.push("dag-detach") },
+      pauseForShutdown: async () => { order.push("dag-pause") },
       dispose: () => { order.push("dag-dispose") },
     }, () => {
       pi.on("session_start", () => { order.push("task-reconcile") })
@@ -236,6 +238,8 @@ describe("omo-senpi task component wiring", () => {
 
     // when
     await pi.dispatch("session_start", {})
+    await pi.dispatch("session_before_switch", { reason: "resume" })
+    expect(order).toEqual(["task-reconcile", "dag-resume"])
     await pi.dispatch("session_shutdown", {})
 
     // then
@@ -243,6 +247,7 @@ describe("omo-senpi task component wiring", () => {
       "task-reconcile",
       "dag-resume",
       "dag-pause",
+      "dag-detach",
       "task-suspend",
       "dag-dispose",
     ])

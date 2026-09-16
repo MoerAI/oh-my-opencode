@@ -10,10 +10,19 @@
     },
     "./fs": {
       "import": "./src/fs/resilient.ts"
+    },
+    "./personas": {
+      "import": "./src/personas/manifest.ts"
+    },
+    "./process-identity": {
+      "import": "./src/locks/process-identity.ts"
     }
   },
   "scripts": {
     "typecheck": "tsgo --noEmit -p tsconfig.json",
     "test": "bun test src/"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
   }
 }

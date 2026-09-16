@@ -69,14 +69,14 @@ describe("formatStatusTarget", () => {
 
   test("#given only an agent type #when formatted #then the agent target shares the category grammar", () => {
     // given / when / then
-    expect(formatStatusTarget({ agentType: "momus" })).toBe("agent:momus")
+    expect(formatStatusTarget({ agentType: "plan-reviewer" })).toBe("agent:plan-reviewer")
   })
 
   test("#given an agent type and resolved model #when formatted #then model metadata qualifies the agent exactly like a category", () => {
     // given / when / then
     expect(
       formatStatusTarget({
-        agentType: "momus",
+        agentType: "plan-reviewer",
         resolvedModel: {
           provider: "openai",
           model_id: "gpt-5.6-sol-fast",
@@ -85,13 +85,40 @@ describe("formatStatusTarget", () => {
           source: "agent",
         },
       }),
-    ).toBe("agent:momus(openai/gpt-5.6-sol-fast:high)")
+    ).toBe("agent:plan-reviewer(openai/gpt-5.6-sol-fast:high)")
   })
 
   test("#given an agent type with only a raw model #when formatted #then the raw model qualifies the agent target", () => {
     // given / when / then
     expect(formatStatusTarget({ agentType: "explore", model: "anthropic/claude-sonnet-4-6" })).toBe(
       "agent:explore(anthropic/claude-sonnet-4-6)",
+    )
+  })
+
+  // A record carrying BOTH identities is a task whose caller wrote a subagent_type that a category
+  // ended up resolving (#8348). The category must never silently erase the name the caller wrote:
+  // the model and the target that selected it have to travel together in the same view.
+  test("#given a record carrying both the asked-for agent and the resolving category #when formatted #then both targets ride the model", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "architect",
+        agentType: "architect",
+        resolvedModel: {
+          provider: "anthropic",
+          model_id: "claude-fable-5-1",
+          display: "claude-fable-5-1",
+          reasoning: "xhigh",
+          source: "category",
+        },
+      }),
+    ).toBe("agent:architect\u2192category:architect(anthropic/claude-fable-5-1:xhigh)")
+  })
+
+  test("#given a record whose asked-for agent differs from the resolving category #when formatted #then the asked-for name is kept", () => {
+    // given / when / then
+    expect(formatStatusTarget({ category: "visual-engineering", agentType: "frontend-worker" })).toBe(
+      "agent:frontend-worker\u2192category:visual-engineering",
     )
   })
 

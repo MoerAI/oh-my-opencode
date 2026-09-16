@@ -5,6 +5,7 @@ import {
   mkdir,
   open,
   readFile,
+  rename,
   stat,
   unlink,
   writeHandleAll,
@@ -22,7 +23,7 @@ import {
 } from "./candidate-sweep"
 import type { LockRecord } from "./lock-record"
 import { parseLockRecord } from "./lock-record"
-import { getPidLiveness, getProcessStartIdentity } from "./process-identity"
+import { getPidLiveness, getProcessStartIdentity, startIdentitiesConflict } from "./process-identity"
 
 export type AcquireLockOptions = {
   readonly waitTimeoutMs?: number
@@ -86,7 +87,8 @@ async function unlinkCandidate(candidatePath: string): Promise<boolean> {
   return false
 }
 
-function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+/** Resolves after `milliseconds`, or rejects with the signal's reason the moment it aborts. */
+export function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
     const timer = setTimeout(finish, milliseconds)
@@ -181,7 +183,12 @@ function rearmCandidateSweep(lockDirectory: string): void {
   sweptLockDirectories.delete(lockDirectory)
 }
 
-async function isProvenDead(owner: LockRecord): Promise<boolean> {
+/**
+ * The one stale-owner policy every lock domain shares: an owner is dead only on proof - a pid the
+ * kernel no longer knows, or a live pid whose start identity contradicts the recorded one (the pid
+ * was recycled). Another host, an unknown liveness or an incomparable identity all keep the owner.
+ */
+export async function isLockOwnerProvenDead(owner: LockRecord): Promise<boolean> {
   if (owner.hostname !== hostname()) return false
   const liveness = getPidLiveness(owner.pid)
   if (liveness === "dead") return true
@@ -189,7 +196,47 @@ async function isProvenDead(owner: LockRecord): Promise<boolean> {
 
   const actualStart = await getProcessStartIdentity(owner.pid)
   if (actualStart === null || owner.process_start === "unavailable") return false
-  return actualStart !== owner.process_start
+  return startIdentitiesConflict(owner.process_start, actualStart)
+}
+
+// The recovery lock's only remover is its holder's nonce-matched releaseLock, so a holder
+// SIGKILLed inside recoverDeadOwner leaks a file that would otherwise block every future
+// eviction of the primary. Apply the same proven-dead test the primary gets; no age-based
+// reaping, and an unparsable record fails closed exactly as it does for the primary.
+//
+// rename-then-inspect instead of unlink: rename is atomic, so exactly one reaper obtains the
+// inode. If the bytes it obtained are not the dead record it saw, another contender already
+// reaped that record and published a fresh live holder in between, so the file is handed back
+// with link (EEXIST means yet another contender republished first, and nothing is lost).
+// The tombstone name must not match LEAKED_CANDIDATE_NAME in candidate-sweep.ts, otherwise a
+// concurrent stale-candidate sweep could delete it while it is still being inspected.
+async function reclaimDeadRecoveryLock(recoveryPath: string): Promise<boolean> {
+  const stale = await readOwner(recoveryPath)
+  if (stale === null || stale.record === null || !(await isLockOwnerProvenDead(stale.record))) return false
+
+  const tombstonePath = `${recoveryPath}.reaping-${randomUUID()}`
+  try {
+    await rename(recoveryPath, tombstonePath)
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return false
+    // Windows refuses to rename a file another process holds open; leave it to that holder.
+    if (isUnlinkSharingError(error)) return false
+    throw error
+  }
+
+  const moved = await readOwner(tombstonePath)
+  if (moved !== null && moved.raw === stale.raw) {
+    await unlink(tombstonePath)
+    return true
+  }
+
+  try {
+    await link(tombstonePath, recoveryPath)
+  } catch (error) {
+    if (errorCode(error) !== "EEXIST") throw error
+  }
+  await unlink(tombstonePath)
+  return false
 }
 
 async function recoverDeadOwner(
@@ -197,7 +244,7 @@ async function recoverDeadOwner(
   snapshot: OwnerSnapshot,
   contender: LockRecord,
 ): Promise<boolean> {
-  if (snapshot.record === null || !(await isProvenDead(snapshot.record))) return false
+  if (snapshot.record === null || !(await isLockOwnerProvenDead(snapshot.record))) return false
 
   const recoveryPath = `${lockPath}.recovery`
   const recoveryRecord: LockRecord = {
@@ -206,13 +253,23 @@ async function recoverDeadOwner(
     created_at: new Date().toISOString(),
     purpose: `${contender.purpose}:recovery`,
   }
-  if (!(await publishExclusive(recoveryPath, recoveryRecord))) return false
+  // Bounded to one reclaim and one re-publish so a waitTimeoutMs: 0 caller (the bind-time
+  // reconcile path) recovers a doubly-stale lock in a single pass without introducing a spin.
+  for (let attempt = 0; ; attempt += 1) {
+    if (await publishExclusive(recoveryPath, recoveryRecord)) break
+    if (attempt > 0 || !(await reclaimDeadRecoveryLock(recoveryPath))) return false
+  }
 
   try {
     const current = await readOwner(lockPath)
     if (current === null) return true
     if (current.raw !== snapshot.raw || current.record === null) return false
-    if (!(await isProvenDead(current.record))) return false
+    if (!(await isLockOwnerProvenDead(current.record))) return false
+    // Fence: only unlink the primary while this contender still owns the recovery lock. A
+    // reaper that grabbed our live record and handed it back may have lost that hand-back to
+    // a third contender's publish; in that case the critical section is no longer ours.
+    const fence = await readOwner(recoveryPath)
+    if (fence === null || fence.record?.nonce !== recoveryRecord.nonce) return false
     await unlink(lockPath)
     return true
   } finally {

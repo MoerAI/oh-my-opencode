@@ -1,11 +1,27 @@
 import { join } from "node:path"
 
 import { isSpawnSpecV1, type BackgroundMode, type SpawnSpecV1, type TaskRecord, type TaskRecordInput } from "../state"
-import type { ManagedStartSpec, ManagerStartSpec, ResolvedChildPlan } from "./types"
+import type { ManagedStartSpec, ManagerStartSpec, ResolvedChildPlan, StartResult } from "./types"
 import type { ExecutionMode } from "./execution-mode"
 
 export function nowIso(now: () => number): string {
   return new Date(now()).toISOString()
+}
+
+/**
+ * The manager's floor for parent kernel tools: a TEAM MEMBER runs out of process and can never
+ * reach a parent JavaScript kernel, so a member spec that carries a grant is refused before a
+ * record exists - never spawned silently without the tools its caller believes it has.
+ */
+export function memberKernelToolRefusal(spec: ManagerStartSpec): Extract<StartResult, { kind: "plan_unresolved" }> | undefined {
+  if (spec.team_role !== "member" || spec.kernelTools === undefined) return undefined
+  return {
+    kind: "plan_unresolved",
+    error: {
+      code: "invalid_target",
+      message: "Team members run out of process and cannot reach a parent JavaScript kernel, so they never receive parent kernel tools.",
+    },
+  }
 }
 
 export function buildRecordInput(input: {
@@ -33,6 +49,10 @@ export function buildRecordInput(input: {
     notify_on_terminal: runInBackground,
     ...(spec.task_summary !== undefined ? { task_summary: spec.task_summary } : {}),
     ...(spec.description !== undefined ? { description: spec.description } : {}),
+    ...(spec.team_run_id !== undefined ? { team_run_id: spec.team_run_id } : {}),
+    ...(spec.team_name !== undefined ? { team_name: spec.team_name } : {}),
+    ...(spec.team_member_name !== undefined ? { team_member_name: spec.team_member_name } : {}),
+    ...(spec.team_role !== undefined ? { team_role: spec.team_role } : {}),
     ...(plan.requested_model !== undefined
       ? { requested_model: plan.requested_model }
       : {}),
@@ -95,6 +115,7 @@ export function buildManagedSpec(input: {
     ...(spec.memberScopedTools !== undefined
       ? { memberScopedToolNames: spec.memberScopedTools.map((tool) => tool.name) }
       : {}),
+    ...(spec.kernelTools !== undefined ? { kernelTools: spec.kernelTools } : {}),
     ...(spec.extensions !== undefined ? { extensions: spec.extensions } : {}),
     ...(memberEnv !== undefined ? { memberEnv } : {}),
   }
@@ -172,6 +193,17 @@ export function inSession(record: TaskRecord, sessionId: string): boolean {
 export function recordSpawnedPid(record: TaskRecord, pid: number | undefined): TaskRecord | undefined {
   if (pid === undefined || isTerminalRecord(record)) return undefined
   return { ...record, pid }
+}
+
+// Fold the spawned child's own session id onto its record. External readers join a grandchild
+// session's parent_session_id back to this field. Empty/missing ids and already-terminal records
+// leave the record untouched so a settled task is never resurrected.
+export function recordSpawnedChildSession(
+  record: TaskRecord,
+  sessionId: string | undefined,
+): TaskRecord | undefined {
+  if (sessionId === undefined || sessionId.length === 0 || isTerminalRecord(record)) return undefined
+  return { ...record, child_session_id: sessionId }
 }
 
 export function isTerminalRecord(record: TaskRecord): boolean {

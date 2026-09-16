@@ -15,13 +15,30 @@ export type SharedToolFilterOptions = {
 }
 
 export function isTaskOrTeamFamilyTool(name: string): boolean {
-  return name === "workflow" || name === "task" || name.startsWith("task_") || name.startsWith("team_")
+  return name === "workpool" || name.startsWith("workpool_") || name === "workflow" || name === "task" || name.startsWith("task_") || name.startsWith("team_")
 }
 
-export function filterSharedParentTools(
-  tools: readonly ToolDefinition[],
+/**
+ * The names a child ends up with before its OWN allow/deny applies: the shared parent tools minus
+ * the task/team family and the UI-only names. The kernel-tool grant needs this set at the TOOL
+ * layer - before any child session exists - to refuse a colliding name and to decide the
+ * nested-host-scope rule (kernel-tools/nested-host-scope.ts).
+ */
+export function childVisibleToolNames(
+  names: readonly string[],
+  uiOnlyToolNames: Iterable<string> = [],
+): string[] {
+  const uiOnly = new Set(uiOnlyToolNames)
+  return names.filter((name) => !isTaskOrTeamFamilyTool(name) && !uiOnly.has(name))
+}
+
+// Only `name` and `exposure` are read, and every tool is passed through unchanged, so the element
+// type stays generic: a fully-typed ToolDefinition (whose renderCall pins its own arg type) is
+// invariant against the bare ToolDefinition element type and would not fit a widened parameter.
+export function filterSharedParentTools<TTool extends Pick<ToolDefinition, "name" | "exposure">>(
+  tools: readonly TTool[],
   options: SharedToolFilterOptions = {},
-): ToolDefinition[] {
+): TTool[] {
   const uiOnly = new Set(options.uiOnlyToolNames ?? [])
   return tools
     .filter((tool) => !isTaskOrTeamFamilyTool(tool.name) && !uiOnly.has(tool.name))
@@ -32,10 +49,13 @@ export function filterSharedParentTools(
     )
 }
 
-export function mergeChildCustomTools(
-  sharedParentTools: readonly ToolDefinition[],
-  memberScopedTools: readonly ToolDefinition[] | undefined,
+export function mergeChildCustomTools<
+  TShared extends Pick<ToolDefinition, "name" | "exposure">,
+  TMember extends Pick<ToolDefinition, "name" | "exposure">,
+>(
+  sharedParentTools: readonly TShared[],
+  memberScopedTools: readonly TMember[] | undefined,
   options: SharedToolFilterOptions = {},
-): ToolDefinition[] {
+): (TShared | TMember)[] {
   return [...filterSharedParentTools(sharedParentTools, options), ...(memberScopedTools ?? [])]
 }

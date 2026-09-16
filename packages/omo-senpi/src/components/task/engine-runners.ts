@@ -12,20 +12,28 @@ import {
   mapOmoConfigAgents,
   parseExtensionEntries,
   type AgentDefinition,
+  type KernelToolBindingRegistry,
   type ManagedRunner,
 } from "@oh-my-opencode/senpi-task"
 
 import { MEMORY_TOOL_NAME } from "../memory/tools"
 import type { TaskRuntimeContext } from "./runtime-context"
 
-// Memory tools are bound to the parent session's identity (repo commits + writer lock); a task
-// child must never inherit them, so they ride the same ui-only exclusion as render-only tools.
-export const TASK_CHILD_UI_ONLY_TOOL_NAMES: readonly string[] = [MEMORY_TOOL_NAME]
+// Memory tools are bound to the parent session's identity (repo commits + writer lock); question
+// tools need a parent user UI. A task child must never inherit either, so they ride the same
+// ui-only exclusion as render-only tools.
+export const TASK_CHILD_UI_ONLY_TOOL_NAMES: readonly string[] = [
+  MEMORY_TOOL_NAME,
+  "request_user_input",
+  "ask_user_question",
+]
 
 export interface RunnerBuildContext {
   readonly runtime: TaskRuntimeContext
   readonly sharedParentTools: () => readonly ToolDefinition[]
   readonly settings: OmoTaskSettings
+  // The engine's runtime-only parent kernel-tool map (item 6); absent in bare test wirings.
+  readonly kernelToolBindings?: KernelToolBindingRegistry
 }
 
 export interface TaskRunnerFactories {
@@ -61,6 +69,7 @@ function buildInProcessRunner(build: RunnerBuildContext): ManagedRunner {
     },
     uiOnlyToolNames: TASK_CHILD_UI_ONLY_TOOL_NAMES,
     depthPolicy: { maxDepth: Math.max(build.settings.max_depth + 1, 1) },
+    ...(build.kernelToolBindings === undefined ? {} : { kernelToolBindings: build.kernelToolBindings }),
   })
   const context = createParentRegistrySessionContext(() => build.runtime.modelRegistry())
   return createInProcessManagedRunner(inProcess, context)

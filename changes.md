@@ -1,3 +1,92 @@
+## 2026-09-16 - Parent kernel-tool grants run child-permissioned when the engine can scope them (#8226)
+
+A child whose own tool policy is narrower than its parent's - `tools: { write: false }`, an `excludeTools` denial, any explicit allow/deny - used to be refused a parent JavaScript tool outright (`tools_unavailable`), because the closure's nested `tool.<name>()` calls ran with the PARENT's permissions and granting one would have been a write bypass of the child's own policy. The engine can now bound those nested calls per invocation (senpi#1731, senpi PR #1765), so omo detects that at RUNTIME - `kernelTools.capabilities.invokeScope === true`, duck-typed off the live capability, with no engine pin bump and no senpi type imported - and, when it is there, GRANTS the narrowed child and sends the child's resolved effective tool policy as the execution scope of every invoke made on that child's behalf: `scope.tools.allow` is the exact list the runner installs for that child (senpi session builtins plus merged custom tools, minus the task/team family, minus its denylist, intersected with its allowlist when it defines one, even an empty one), and its literal denylist rides along as `scope.tools.deny`, which the engine lets win. The scope is recomputed at the runner against the child's REAL surface, so a category child whose plan is only known there is scoped to what it actually got. A nested call outside that scope is refused inside the worker and lands on the CHILD's own tool-result channel as a typed `kernel_tool_host_denied` envelope - the child can read it and recover, and the parent's cell never fails for it. The `kernel_tools` status record now says whether the grant was scoped (`scoped: true` plus the `allow`/`deny` summary), so the parent can tell a child-permissioned grant from a parent-permissioned one. Nothing changes on an engine without the marker: the same narrowed children are refused with the same message naming the escalation, and an unscoped invoke posts exactly the frame it always did. Curated read-only agents (`explore`, `librarian`, ...) still receive no parent kernel tools at all, scope or no scope, and team members, process/RPC children and non-JavaScript parents are still typed unavailable.
+
+## 2026-09-16 - ulw-loop never rebuilds goals.json below what its ledger records (#8328)
+
+A ulw-loop run created under the removed `omo_agent_toolkit` tool path could publish `revisions/00000004.json` with one goal, then keep adding goals and evidence straight into `goals.json` and `ledger.jsonl`; the first `agent-toolkit-sdk` read then rebuilt the projection from that snapshot and every later goal, its evidence and its audit entries vanished, after which `record-evidence`/`checkpoint` on those goals failed with `ULW_LOOP_GOAL_NOT_FOUND`. Reconciliation now lets a `goals.json` that names goals the newest snapshot lacks win (when it carries no revision or the snapshot's own), stamps it with that revision so the next publish folds the whole plan into revision N+1 instead of hitting `ULW_LOOP_PUBLISH_CONFLICT` on an existing file, and attributes raw ledger lines appended after a published revision to that revision so a later `ledgerResetRevision` no longer discards them. A cache naming an older revision is still a lagging view and never wins. On top of the fold, every write of `goals.json` (locked reads before a mutation, and each commit) checks the projection against the reconciled ledger: a `goal_added` goal the plan lacks is a typed `ULW_LOOP_PROJECTION_TRUNCATED` refusal that names the missing ids, never a silent truncation.
+
+## 2026-09-16 - A subagent_type that names no agent is an error, not a category (#8348)
+
+`task(subagent_type="architect")` used to resolve `architect` as a *category* and hand the child that category's model - a different model family from anything in the caller's agent table - with no error and no warning; the same silent fallthrough applied to every unknown or disabled agent name that happened to collide with a category key (`visual-engineering`, `writing`, ...). The child planner now treats `subagent_type` as an agent name only: an unknown or disabled name returns a typed `unknown_target` error that names the target, lists the available agents and categories, and, when the string is a category key, says `"architect" is a category, not an agent - use category="architect" instead`. Deliberate category calls are untouched: `task(category="architect")` keeps routing exactly as before, so the shipped plan-consultant, `ulw-plan` and fallback-architect guidance to consult the `architect` category still works. A child's model stays a pure function of the child's own target - the planner still takes no parent category or parent model, and a spawn naming no target at all is still rejected - and both are now pinned by tests. Any status row carrying both the caller's `subagent_type` and a resolving category renders `agent:<asked>->category:<used>(<model>)` instead of dropping the name the caller wrote.
+
+## 2026-09-16 - Parent JavaScript tools reach in-process children (#8226)
+
+A JavaScript `eval` cell that defines tools with `tool(fn)` can now hand named tools to the children it spawns: `task`/`agent` accept `tools: [...]`, and `workpool` create accepts the same names for its workers. The names are resolved at spawn against the parent's live kernel capability, normalized with the MCP name rules, and refused as typed errors — never partially granted — when they duplicate, collide with an existing child tool, hit a reserved host alias, or were never defined. Only non-curated in-process children of a live JavaScript parent receive them: curated read-only agents, process/team children and other kernel languages get `tools_unavailable`/`curated_policy_denied` with no child session and no task record created. A parent closure's nested host calls still run with the PARENT's permissions — the engine offers no scoped execution for them yet — so the grant is also refused when the child's OWN tool policy would be out-permissioned by it. The exact rule: the child's effective tool set is the same list the in-process runner installs — senpi session builtins plus merged custom tools (shared parent tools minus UI-only names, minus the task/team family, plus member-scoped names), minus its denylist, intersected with its allowlist whenever the agent defines one — even an empty one. That list must not be missing any write-capable tool the closure can reach; if it is, the caller gets a typed `tools_unavailable` before anything is created. Write-capability is read from the same host-tool table the child-options path uses to union session builtins; a name that is not on that table counts as write-capable, so an unrecognised MCP or extension tool fails closed. The host-wide exclusions are not refusals: `memory`, `ask_user_question`, `request_user_input` and the task/team family are withheld from every child because they bind to the parent session's identity, UI or spawn graph, and a parent-authored closure may still reach them on the parent's own bridge. Each granted child tool validates its fenced descriptor and calls the live parent closure by name, so a stale kernel generation or a redefined tool returns a typed error on the child's own tool-result channel instead of running the wrong code. The grant is runtime state: no closure, descriptor or requested name is written to a task record, a spawn spec or a session transcript. A child parked for idle time keeps its grant and can call the same tool after it revives in the same live parent, while a kernel reset, a same-name redefinition or a restarted host leaves the revived child with a typed unavailable/stale result instead of a silently rebound or replaced closure - a restored stub never runs a closure, and nothing claims a revived tool survived a dead kernel. Pool workers resolve their grant afresh at every new worker spawn, and a worker that reports a stale tool produces one keyed error and one aggregate rather than an automatic retry. Python, Ruby and Julia parents, and MCP-hosted kernel tools, remain follow-ups.
+
+## 2026-09-16 - Session shutdown and Kibitzer wakes are bounded (#8344)
+
+Session shutdown no longer waits on the Kibitzer sidecar or on facts cancellation past the 1500ms drain deadline: `shutdown-drain.ts` gained `raceDetached`, which always starts the cleanup (it is what hands back the machine-wide wake lease and the sidecar directory owner lock) but races it against the same deadline the drain steps share, logs the existing budget warning with the step name, and lets the work finish detached instead of stalling quit/reload/new/resume. Every Kibitzer wake is now bounded from the admission that opened it: `seed()` and `followUp()` arm the 90s deadline before the child I/O rather than after it, so a `startChild` that never returns ends the wake as `deadline` with its lease handed back and the late handle aborted and disposed without beginning a turn, and every re-arm is clamped to `startedAt + KIBITZER_WAKE_MAX_TOTAL_MS` (300s), so a steer storm can no longer keep one wake - and one machine slot - alive without bound.
+
+## 2026-09-16 - The Kibitzer sidecar grep stops at a budget, an abort, or a .gitignore rule (#8342)
+
+The resident Kibitzer's read-only `grep` no longer reads a whole workspace. Its scan is bounded by a file count (5000), the bytes it actually reads (64MB) and wall-clock time (10s), and it also stops when the turn's AbortSignal fires - which it now receives, because every sidecar tool closure takes senpi's third `execute` argument and `budgeted()` forwards it. Whichever limit trips first keeps the matches found so far and names itself in a new `stopped` field beside `truncated: true`; a scan that trips nothing returns exactly the same JSON as before. In a git work tree the candidate list comes from `git ls-files --cached --others --exclude-standard`, so ignored build output, caches and vendored dependencies are skipped; a non-git root or any git failure falls back to the previous walk, and an explicitly named file is still scanned as given.
+
+## 2026-09-16 - Make Kibitzer candidate collection incremental (#8340)
+
+Kibitzer recall collection runs on the main thread at every prompt and every tool call, and it re-scanned the whole 200-entry transcript window against every corpus document, re-normalized every document haystack once per query, spawned `git rev-parse` for the corpus revision, and re-read the surfaced ledger file — about 235 ms of synchronous CPU per trigger on a large memory corpus. Transcript mentions are now computed once per branch entry and cached by entry id (the newest entry is always recomputed because it can still be streaming, and entries outside the window are evicted), the normalized document haystack is memoized per corpus revision, the HEAD revision is re-resolved only when the git ref files backing it changed, and the surfaced ledger is served from a stat-gated parse cache that its own writer keeps current. Candidates, scores, order, excerpts and the transcript-exclusion set are unchanged — a differential test asserts the new exclusion set equals the old whole-window regex scan for every window of a synthetic branch — and the new `packages/omo-senpi/scripts/qa/recall-collect-bench.mjs` measures 308 ms to 5 ms per trigger on an 800-document fixture.
+
+## 2026-09-15 - Idle sessions stop polling: member acks, lead poller, ulw footer (#8290)
+
+Three idle-session drains are now demand-driven. The member-extension ack loop (`senpi-task` `self-poller.ts`) skips its lockfile lease entirely when the pending-ack queue is empty, so an idle member performs zero filesystem work per minute. The lead poller (`omo-senpi` `lead-poller-lifecycle.ts`) stands down when the session owns no teams — owned teams can only appear through this session's own `team_create`, which now kicks the poller back awake — so a teamless session reads the team registry zero times per minute instead of 60. The ulw footer caches the goal JSON by mtime (`createGoalJsonCache`), so the 320ms frame no longer re-reads and re-parses the file unless it changed.
+
+## 2026-09-14 - Metis heads with Claude Fable 5.1 at max (#8259)
+
+The `metis` pre-planning consultant chain in `model-core` is now `claude-fable-5-1 (max)` -> `claude-opus-5 (max)` ->
+`kimi-k3 (max)` (was `claude-opus-5 (high)` -> `kimi-k3 (low)`). The senpi-native `plan-consultant` chain mirrors it
+again, `explore` / `librarian` on that edition are back on `qwen3.7-plus`, and a parity test now fails whenever the two
+tables disagree. Docs and example configs that documented the retired `claude-sonnet-4-6` head are updated.
+
+## 2026-09-09 - Suspend native DAG runs on committed session switches (#8020)
+
+OMO no longer cancels DAG nodes from the vetoable `session_before_switch` hook. Committed shutdown first retires scheduler admission and settlement, awaits in-flight admission and journal delivery, then persists the pause before task-child suspension. Returning in the same process can reclaim an explicitly released own lease; active self claims and live foreign holders remain protected. Completed output is reused, running children reconcile through their durable task owners, and pending dependents are admitted once. Deliberate workflow cancellation remains destructive. `/session` information and `/resume` selector cancellation are unchanged. External terminal-hosted controllers are outside this native DAG lifecycle fix.
+
+## 2026-09-09 — Preserve Windows omob executable suffixes
+
+Windows omob builds now retain the `.exe` suffix through installation, cache/provenance lookup, and direct refresh. The test fixtures use native compiled executables and platform-native paths while preserving the POSIX launcher contract and all refresh assertions.
+
+## 2026-09-08 — Persist child_session_id on senpi-task records
+
+Spawned senpi-task children now persist `child_session_id` (the child's own session id from the spawn handle) on their `st_*.json` record. Reattach/resume rewrites keep the field. `packages/team-core/AGENTS.md` documents the on-disk `st_*.json` identity fields so external readers can join a grandchild session (`parent_session_id`) back to its parent task.
+
+## 2026-09-08 — Expose team runtime layout and member linkage
+
+Team member task records now carry durable team identity fields, and `packages/team-core/AGENTS.md` documents the runtime state, tasklist, and mailbox paths and JSON shapes consumed by external readers.
+
+## 2026-09-07 — Make the two Windows-flaky tests from #7898 deterministic
+
+Both tests raced the wall clock and lost on the slowest CI runner. The team-mode case
+`inbox stays intact when live delivery fails so the fallback path still works` ran the production
+prompt-gate schedule in real time: the failed live delivery placed a 2 s post-dispatch hold on the
+recipient, then each refused fallback wake waited `max(postDispatchHoldMs, 250*2^n)` = 2 s, 2 s, 2 s
+before the fifth `promptAsync` was allowed, so the test needed ~8.6 s on Linux against a 12 s event
+budget and exceeded it on Windows. Five neighbouring cases each spent ~2.5 s because the queue re-arms
+after a *cancelled* wake with that same 2 s hold. `TeamSendMessageToolDeps` now carries an optional
+`dispatchTiming` (`postDispatchHoldMs`, `queueRetryMs`, `fallbackWakeSettleMs`) that
+`deliverLive` threads into the live dispatch and into `enqueueFallbackMailboxWake`; every field
+falls back to the gate default when omitted, so production behaviour is unchanged and only tests set
+it. The six tests inject near-zero timing through `createImmediateTeamSendMessageTool` and wait on
+their deferred event with the file's default 3 s circuit breaker; the Windows-only 15 s budgets are
+gone. Captured on gorky (bun 1.4.0): tightened test RED on unchanged production code ("timed out
+waiting for fallback wake after pre-send transport failure" at 3 s), GREEN at ~100 ms after plumbing;
+the whole file dropped from 25.9 s to 8.0 s with no test above 0.6 s.
+
+The hooks-state case `recovers a trusted snapshot at a synchronized legacy truncate/write boundary`
+spawned a detached legacy writer that completed its write only after an `fs.watch` notification of
+a release file, while senpi's `FileHookStateStorage.read` retries `lockSync` 10 x 20 ms before
+returning the fail-closed empty state; cross-process watch latency on Windows exceeded that window and
+the reader returned `{ version: 1, hooks: {} }`. `script/fixtures/senpi-hooks-state-legacy-reader.ts`
+now simulates the writer in-process: the lock dir is held and the snapshot truncated before the reader
+starts, the reader's first `lockSync` is refused by the real `proper-lockfile` (the fixture mocks the
+nested copy senpi resolves, capturing the real function before `mock.module` rewires the live
+binding), and the writer's remaining work runs inside that refusal, so the boundary is crossed at the
+same instruction on every run. The fixture reports `truncatedReads` and `lockAttempts` and the
+test pins them at exactly 1 and 2, proving the contention path ran. Two mutations fail the test
+(writer never releases -> empty state; snapshot already complete -> no truncated read, one lock
+attempt). The detached writer fixture and the `taskkill`/`SIGTERM` timed-out-writer cleanup helper
+with its three unit tests are removed because nothing spawns a writer any more. Future syncs must keep
+the counters exact and must not reintroduce a second process or a real-time wait into this fixture.
+
 ## 2026-09-05 — Sweep the remaining task examples and the delegate schema to background-by-default
 
 The gate review of #7795 found model-facing text that still prescribed `run_in_background=false`: the
@@ -435,7 +524,6 @@ are safe to leave blocked. The Anthropic peer warning remains an intentional
 tradeoff: the required `@anthropic-ai/sdk >=0.93.0` line pulls Node credential
 modules into the browser bundle, while the retained 0.91.1 pin passes the
 browser-safety gate.
-
 
 ## 2026-08-23 — Surface attribution + shared install id on every omo-native event (schema v3)
 

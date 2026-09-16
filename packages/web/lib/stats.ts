@@ -1,15 +1,20 @@
 const GITHUB_OWNER = "code-yeongyu"
 const GITHUB_REPO = "oh-my-openagent"
-const NPM_PACKAGES = ["oh-my-opencode", "oh-my-openagent"]
+// OmO shipped under three npm names in sequence; downloads are the sum of the lineage.
+const NPM_PACKAGES = ["oh-my-opencode", "oh-my-openagent", "omo-ai"] as const
 const NPM_FIRST_PUBLISH_YEAR = 2025
 
 const CACHE_TTL_MS = 60 * 60 * 1000
 
+export const FALLBACK_DESCRIPTION =
+  'OmO: Just type "mass ulw" keyword with your prompt. Now you are the master of graph engineering.'
+
 export const FALLBACK_STATS_DATA: StatsData = {
-  stars: 40_000,
-  totalDownloads: 1_000_000,
-  monthlyDownloads: 580_000,
-  weeklyDownloads: 90_000,
+  stars: 69_000,
+  description: FALLBACK_DESCRIPTION,
+  totalDownloads: 3_800_000,
+  monthlyDownloads: 200_000,
+  weeklyDownloads: 36_000,
 }
 
 interface StatsCache {
@@ -19,6 +24,7 @@ interface StatsCache {
 
 export interface StatsData {
   stars: number
+  description: string
   totalDownloads: number
   monthlyDownloads: number
   weeklyDownloads: number
@@ -26,12 +32,17 @@ export interface StatsData {
 
 export interface FormattedStatsData {
   readonly stars: string
+  readonly description: string
   readonly totalDownloads: string
   readonly monthlyDownloads: string
   readonly weeklyDownloads: string
 }
 
 let cache: StatsCache | null = null
+
+export function resetStatsCacheForTests(): void {
+  cache = null
+}
 
 function formatCount(num: number): string {
   if (num >= 1_000_000) {
@@ -45,10 +56,18 @@ function formatCount(num: number): string {
   return String(num)
 }
 
-async function fetchGitHubStars(): Promise<number> {
+async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
+  const res = await fetch(url, { ...init, next: { revalidate: 3600 } } as RequestInit)
+  if (!res.ok) {
+    throw new Error(`Upstream ${res.status} for ${url}`)
+  }
+  return res.json()
+}
+
+async function fetchGitHubStats(): Promise<Pick<StatsData, "stars" | "description">> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "oh-my-openagent-web",
+    "User-Agent": "omo-web",
   }
 
   const token = process.env.GITHUB_TOKEN
@@ -56,74 +75,74 @@ async function fetchGitHubStars(): Promise<number> {
     headers.Authorization = `Bearer ${token}`
   }
 
-  const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`, {
+  const data = await fetchJson(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`, {
     headers,
-    next: { revalidate: 3600 },
   })
-
-  if (!res.ok) {
-    throw new Error(`GitHub API error: ${res.status}`)
+  if (typeof data !== "object" || data === null) {
+    throw new Error("GitHub repo payload is not an object")
   }
-
-  const data = await res.json()
-  return data.stargazers_count
-}
-
-async function fetchNpmDownloadsForPackage(period: string, pkg: string): Promise<number> {
-  try {
-    const res = await fetch(`https://api.npmjs.org/downloads/point/${period}/${pkg}`, {
-      next: { revalidate: 3600 },
-    })
-
-    if (!res.ok) return 0
-
-    const data = await res.json()
-    return data.downloads ?? 0
-  } catch {
-    return 0
+  const stars = Reflect.get(data, "stargazers_count")
+  if (typeof stars !== "number") {
+    throw new Error("GitHub repo payload has no stargazers_count")
+  }
+  const description = Reflect.get(data, "description")
+  return {
+    stars,
+    description:
+      typeof description === "string" && description.trim() ? description : FALLBACK_DESCRIPTION,
   }
 }
 
-async function fetchNpmDownloads(period: string): Promise<number> {
-  const results = await Promise.all(
-    NPM_PACKAGES.map((pkg) => fetchNpmDownloadsForPackage(period, pkg)),
-  )
-  return results.reduce((sum, n) => sum + n, 0)
-}
-
-async function fetchAllNpmDownloadsForPackage(pkg: string): Promise<number> {
-  const now = new Date()
-  let total = 0
-  let year = NPM_FIRST_PUBLISH_YEAR
-
-  while (year <= now.getFullYear()) {
-    const start = `${year}-01-01`
-    const endDate = new Date(year, 11, 31)
-    const end =
-      endDate > now ? (now.toISOString().split("T")[0] ?? `${year}-12-31`) : `${year}-12-31`
-
-    try {
-      const res = await fetch(`https://api.npmjs.org/downloads/point/${start}:${end}/${pkg}`, {
-        next: { revalidate: 3600 },
-      })
-      if (res.ok) {
-        const data = await res.json()
-        total += data.downloads ?? 0
-      }
-    } catch {
-      continue
-    }
-    year++
+function readDownloads(payload: unknown, context: string): number {
+  if (typeof payload !== "object" || payload === null) {
+    throw new Error(`npm payload for ${context} is not an object`)
   }
-
-  return total
+  const downloads = Reflect.get(payload, "downloads")
+  if (typeof downloads !== "number" || !Number.isFinite(downloads) || downloads < 0) {
+    throw new Error(`npm payload for ${context} has no downloads count`)
+  }
+  return downloads
 }
 
-async function fetchAllNpmDownloads(): Promise<number> {
-  const results = await Promise.all(NPM_PACKAGES.map((pkg) => fetchAllNpmDownloadsForPackage(pkg)))
-  return results.reduce((sum, n) => sum + n, 0)
+async function fetchPackageDownloads(range: string, pkg: string): Promise<number> {
+  const payload = await fetchJson(`https://api.npmjs.org/downloads/point/${range}/${pkg}`)
+  return readDownloads(payload, `${pkg}@${range}`)
 }
 
+async function sumPackages(range: string): Promise<number> {
+  const counts = await Promise.all(NPM_PACKAGES.map((pkg) => fetchPackageDownloads(range, pkg)))
+  return counts.reduce((sum, n) => sum + n, 0)
+}
+
+function yearRanges(now: Date): readonly string[] {
+  const today = now.toISOString().slice(0, 10)
+  const ranges: string[] = []
+  for (let year = NPM_FIRST_PUBLISH_YEAR; year <= now.getFullYear(); year++) {
+    const end = year === now.getFullYear() ? today : `${year}-12-31`
+    ranges.push(`${year}-01-01:${end}`)
+  }
+  return ranges
+}
+
+async function fetchAllTimeDownloads(now: Date): Promise<number> {
+  const perYear = await Promise.all(yearRanges(now).map((range) => sumPackages(range)))
+  return perYear.reduce((sum, n) => sum + n, 0)
+}
+
+async function fetchFreshStats(now: Date): Promise<StatsData> {
+  const [github, monthlyDownloads, weeklyDownloads, totalDownloads] = await Promise.all([
+    fetchGitHubStats(),
+    sumPackages("last-month"),
+    sumPackages("last-week"),
+    fetchAllTimeDownloads(now),
+  ])
+  return { ...github, totalDownloads, monthlyDownloads, weeklyDownloads }
+}
+
+/**
+ * All-or-nothing: any failed sub-request rejects instead of contributing 0, so a partial
+ * aggregate is never returned or cached. An expired cache is served when a refresh fails.
+ */
 export async function getStats(): Promise<StatsData> {
   const now = Date.now()
 
@@ -131,22 +150,23 @@ export async function getStats(): Promise<StatsData> {
     return cache.data
   }
 
-  const [stars, monthlyDownloads, weeklyDownloads, totalDownloads] = await Promise.all([
-    fetchGitHubStars(),
-    fetchNpmDownloads("last-month"),
-    fetchNpmDownloads("last-week"),
-    fetchAllNpmDownloads(),
-  ])
-
-  const data: StatsData = { stars, totalDownloads, monthlyDownloads, weeklyDownloads }
-  cache = { data, timestamp: now }
-
-  return data
+  try {
+    const data = await fetchFreshStats(new Date(now))
+    cache = { data, timestamp: now }
+    return data
+  } catch (error) {
+    if (cache) {
+      console.warn("Stats refresh failed; serving last known-good values", error)
+      return cache.data
+    }
+    throw error
+  }
 }
 
 export function formatStats(stats: StatsData): FormattedStatsData {
   return {
     stars: formatCount(stats.stars),
+    description: stats.description,
     totalDownloads: formatCount(stats.totalDownloads),
     monthlyDownloads: formatCount(stats.monthlyDownloads),
     weeklyDownloads: formatCount(stats.weeklyDownloads),
