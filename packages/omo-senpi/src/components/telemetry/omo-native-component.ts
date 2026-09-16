@@ -18,6 +18,7 @@ import { resolveStateDir } from "@oh-my-opencode/senpi-task"
 import { sharedTaskTerminalObservers, type TaskTerminalObservers } from "../task/terminal-observers"
 import { createOmoNativeDelegationCapture } from "./omo-native-delegation"
 import { createOmoNativeNoticeRegistration } from "./omo-native-notice"
+import { registerOmoNativeKibitzerSummary } from "./omo-native-kibitzer-summary"
 import { registerOmoNativeParallelSummary } from "./omo-native-parallel-summary"
 import { createOmoNativePromptComponent } from "./omo-native-prompt"
 import {
@@ -73,6 +74,17 @@ export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryCom
       registerOmoNativeParallelSummary(pi, {
         captureEvent: client.captureEvent,
         hashSessionId: options.hashSessionId ?? hashSessionId,
+      })
+
+      // Same ordering constraint as the parallelism summary: the session component's shutdown
+      // handler clears `state.capture`, so this registration must precede it. Its own detach runs
+      // after the emission because it is registered second.
+      const detachKibitzerSummary = registerOmoNativeKibitzerSummary(pi, {
+        captureEvent: client.captureEvent,
+        hashSessionId: options.hashSessionId ?? hashSessionId,
+      })
+      pi.on("session_shutdown", () => {
+        detachKibitzerSummary()
       })
 
       createOmoNativePromptComponent({

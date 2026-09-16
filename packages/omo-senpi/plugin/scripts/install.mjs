@@ -61,6 +61,9 @@ function renderLocalLauncher(options) {
     envPrefix: "OMO",
     userAgent: "omo",
     originator: "omo",
+    changelog: {
+      path: join2(options.pluginPath, "CHANGELOG.md").replaceAll("\\", "/")
+    },
     update: {
       packageName: "omo-ai",
       distTag: "beta",
@@ -300,11 +303,8 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join4("skills", "ulw-research", "SKILL.md"),
   join4("skills", "visual-qa", "SKILL.md"),
   join4("skills-conditional", "x-search", "SKILL.md"),
+  join4("runtime", "agent-toolkit-sdk", "sdk.js"),
   join4("runtime", "ast-grep-mcp", "cli.js"),
-  join4("runtime", "agent-toolkit", "cli.js"),
-  join4("runtime", "agent-toolkit", "ulw-loop", "cli.js"),
-  join4("runtime", "agent-toolkit", "omo-agent-toolkit"),
-  join4("runtime", "agent-toolkit", "omo-agent-toolkit.cmd"),
   join4("runtime", "lsp-daemon", "dist", "cli.js"),
   join4("runtime", "lsp-daemon", "dist", "index.js"),
   join4("runtime", "lsp-daemon", "dist", "index.d.ts"),
@@ -322,7 +322,6 @@ async function ensurePluginArtifacts(context) {
     await context.runCommand("node", [join4(context.pluginPath, "scripts", "build-install.mjs")], { cwd: context.repoRoot });
     await context.runCommand("node", [join4(context.pluginPath, "scripts", "stage-lsp-daemon-runtime.mjs")], { cwd: context.repoRoot });
     await context.runCommand("node", [join4(context.pluginPath, "scripts", "stage-ast-grep-mcp-runtime.mjs")], { cwd: context.repoRoot });
-    await context.runCommand("node", [join4(context.pluginPath, "scripts", "stage-agent-toolkit.mjs")], { cwd: context.repoRoot });
     await context.runCommand("node", [join4(context.pluginPath, "scripts", "stage-x-search-skill.mjs")], { cwd: context.repoRoot });
   }
   if (await hasMissingPluginArtifact(context.pluginPath)) {

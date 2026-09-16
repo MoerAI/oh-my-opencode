@@ -1,9 +1,9 @@
 import { loadPiTui } from "@oh-my-opencode/senpi-task"
 
 import { createDagSdkRootProvisioning } from "./dag-sdk-root-provisioning"
+import { AGENT_TOOLKIT_SDK_ROOT_ENV, createSdkRootProvisioning } from "./sdk-root-provisioning"
 import { IdleInjectionCoordinator } from "./idle-injection-coordinator"
 import { installToolCaptureRegistry } from "./tool-capture-registry"
-import { createToolkitPathProvisioning } from "./toolkit-path-provisioning"
 import type { ComponentContext, ComponentLogger, OmoSenpiComponent, SenpiExtensionAPI } from "./types"
 
 export interface ComposeOmoSenpiExtensionOptions {
@@ -21,6 +21,10 @@ const REQUIRED_CAPABILITIES = [
 ] as const
 
 type RequiredCapability = (typeof REQUIRED_CAPABILITIES)[number]
+
+// Batch window for the shared idle-injection flush: everything that becomes ready inside it collapses
+// into ONE steer injection.
+const IDLE_FLUSH_BATCH_WINDOW_MS = 200
 
 // Forward `details` only when present: `console.info(message, undefined)` renders a trailing "undefined".
 function consoleArgs(message: string, details: unknown): [string] | [string, unknown] {
@@ -56,15 +60,18 @@ export function composeOmoSenpiExtension(
   options: ComposeOmoSenpiExtensionOptions = {},
 ): (pi: unknown) => Promise<void> {
   const logger = options.logger ?? defaultLogger
-  const provisionToolkitPath = createToolkitPathProvisioning({ logger })
   const provisionDagSdkRoot = createDagSdkRootProvisioning({ logger })
+  const provisionAgentToolkitSdkRoot = createSdkRootProvisioning({
+    envKey: AGENT_TOOLKIT_SDK_ROOT_ENV,
+    packagedRelativeDir: "../runtime/agent-toolkit-sdk",
+    sourceTreeRelativeDir: "../../plugin/runtime/agent-toolkit-sdk",
+    logger,
+  })
 
   return async (pi: unknown): Promise<void> => {
-    // Provision the in-session toolkit PATH/env at activation, before any component registers,
-    // so component spawns resolve omo-agent-toolkit without global bins. Never throws.
-    provisionToolkitPath()
     // Publish the dag eval sdk directory so JavaScript cells can import it from OMO_DAG_SDK_ROOT.
     provisionDagSdkRoot()
+    provisionAgentToolkitSdkRoot()
 
     const missing = getMissingCapabilities(pi)
     if (missing.length > 0 || !isSenpiExtensionAPI(pi)) {
@@ -99,12 +106,28 @@ export function composeOmoSenpiExtension(
     const captureRegistry = installToolCaptureRegistry(pi)
     // The 200ms batch window: every delivered notification (completions, team messages, the ulw
     // continuation) defers its flush through this timer, so everything that becomes ready within the
-    // window collapses into ONE steer injection instead of N separate ones.
+    // window collapses into ONE steer injection instead of N separate ones. The timer is unref'd and
+    // cancellable like every sibling scheduler in this codebase (lead-poller-lifecycle's interval,
+    // senpi-task's completion retry): retirement cancels the armed handle instead of leaving a live
+    // 200ms timer behind after a `quit` shutdown.
     const idleCoordinator = new IdleInjectionCoordinator(
       (message, options) =>
         pi.sendMessage(message, { triggerTurn: true, deliverAs: options.deliverAs }),
-      { scheduleFlush: (flush) => void setTimeout(flush, 200) },
+      {
+        scheduleFlush: (flush) => {
+          const timer = setTimeout(flush, IDLE_FLUSH_BATCH_WINDOW_MS)
+          timer.unref?.()
+          return () => clearTimeout(timer)
+        },
+      },
     )
+    // senpi emits session_shutdown on the old runner before it invalidates that generation; retire the
+    // shared queue there so a 200ms flush armed before a reload cannot call pi.sendMessage on a stale
+    // API and throw out of the timer queue (uncaughtException -> exit 1). Retirement hands every
+    // still-queued injection back to its producer as a delivery failure, so a completion caught inside
+    // the batch window is recorded as undelivered and redelivered after the reload.
+    // See: https://github.com/code-yeongyu/oh-my-openagent/issues/7932
+    pi.on("session_shutdown", () => idleCoordinator.retire())
 
     // Warm the pi-tui lazy boundary once for the whole extension, before any component registers.
     // Renderers across several components (fallback-architect notices, memory worker entries, task

@@ -18,14 +18,14 @@ import { registerMemorySkillsScope } from "./skills-scope"
 import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import { registerMemoryUsage, type MemoryUsageTracker } from "./memory-usage"
 import type { createMemoryNoticeWiring } from "./memory-notice-wiring"
-import type { KibitzerGateWiring } from "./kibitzer-wiring"
-import type { KibitzerComposition } from "./wiring-kibitzer"
+import type { KibitzerComposition } from "./kibitzer"
 import type { createMemoryRecallWiring } from "./recall-wiring"
 import { createReflectionTriggerWiring } from "./trigger-wiring"
 import { registerMemoryToolSurface } from "./tools"
 import {
   registerReflectionCompletionRenderer,
   registerReflectionHealthRenderer,
+  registerReflectionParkedRenderer,
   type ReflectionCompletionApi,
 } from "./worker"
 import { branchEntryCount, sessionIdFrom } from "./wiring-context"
@@ -42,7 +42,6 @@ export function registerMemoryStatic(input: {
   readonly nudgeWiring: ReturnType<typeof createMemoryNudgeWiring>
   readonly noticeWiring: ReturnType<typeof createMemoryNoticeWiring>
   readonly recallWiring: ReturnType<typeof createMemoryRecallWiring>
-  readonly kibitzerGateWiring: KibitzerGateWiring
   readonly kibitzer: KibitzerComposition
   readonly dreamTriggerWiring: DreamTriggerWiring
   readonly completionApi: (pi: SenpiExtensionAPI) => ReflectionCompletionApi | undefined
@@ -65,22 +64,20 @@ export function registerMemoryStatic(input: {
   readonly onMemoryWrite?: (sessionId: string) => void | Promise<void>
 }): void {
   const {
-    pi, ctx, options, promptCache, nudgeWiring, noticeWiring, recallWiring, kibitzerGateWiring, dreamTriggerWiring,
+    pi, ctx, options, promptCache, nudgeWiring, noticeWiring, recallWiring, dreamTriggerWiring,
     completionApi, resolveContext, journalWiringFor, factsWiringFor, runtimeFor,
     triggerSessionFor, resolvePalacePeople, loadCommandSettings, lastEventCtx,
     activeSession, skillsUsageTrackersRef, memoryUsageTrackersRef, onReflectionLaunch, onSettled, onMemoryWrite,
   } = input
   const api = completionApi(pi)
-  // The gate is detached, so it receives the live appendEntry seam rather than the disposed event ctx.
-  // Registration is capability-gated below; this callback is only used when the host supports it.
   if (api !== undefined) {
     registerReflectionCompletionRenderer(api)
     registerReflectionHealthRenderer(api)
+    registerReflectionParkedRenderer(api)
   }
   if (hasMemoryCapabilities(pi)) {
     nudgeWiring.register(pi)
     noticeWiring.register(pi)
-    kibitzerGateWiring.attachEntrySink((customType, data) => pi.appendEntry(customType, data))
   }
   const promptHandler = createPromptHandler({
     resolveContext,
@@ -104,9 +101,10 @@ export function registerMemoryStatic(input: {
   // senpi merges one message per handler in registration order, so the hint lands last and the
   // prompt handler stays the only writer of systemPrompt.
   if (hasMemoryCapabilities(pi)) recallWiring.register(pi)
-  // Kibitzer hooks come LAST: their before_agent_start handler never contributes a message, and
-  // registering it after the projection handler keeps handler results ordered projection-first,
-  // the same invariant the recall registration above documents.
+  // Kibitzer hooks come LAST: their before_agent_start handler only captures the prompt for the
+  // resident sidecar and never contributes a message, so registering it after the projection
+  // handler keeps handler results ordered projection-first, the same invariant the recall
+  // registration above documents. Its agent_settled handler is bookkeeping, never a wake.
   if (hasMemoryCapabilities(pi)) input.kibitzer.registerHooks(pi)
   pi.on("session_start", (_payload, eventCtx) => {
     if (eventCtx !== undefined) lastEventCtx.current = eventCtx
@@ -124,8 +122,6 @@ export function registerMemoryStatic(input: {
     }
     const result = await journalWiringFor(identity).reconcileSession(eventCtx)
     await factsWiringFor(identity).onSettled(sessionId)
-    // Fire-and-forget by contract: the gate advises the NEXT turn, so this one never waits for it.
-    input.kibitzer.trigger.onSettled(eventCtx)
     await onSettled?.(sessionId, eventCtx)
     return result
   })
@@ -193,6 +189,7 @@ export function registerMemoryStatic(input: {
           ...(request.conversationIds === undefined ? {} : { conversationIds: request.conversationIds }),
         })
         if (result === null) throw new Error("reflection reservation rejected")
+        if (result.status === "parked") throw new Error("manual reflection must bypass the park gate")
         if (result.status === "active") {
           runtime.launch(result.run)
           await onReflectionLaunch?.(identity.identity, result.run)

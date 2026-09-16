@@ -1,3 +1,152 @@
+## 2026-09-16 — Kibitzer nudges are reference-only
+
+A recalled note used to arrive with no stated posture, and 54% of the hints
+Kibitzer delivered this month were written as orders to the primary agent
+("verify these before ...", "하지 말아야 합니다"), which is advice the agent did
+not ask for and cannot audit. The injected block now names its sender and its
+posture in the header itself - Kibitzer, a background memory advisor, surfaced
+this stored note; it may or may not apply, reference only, the current task
+stands - in English or Korean according to the hint
+(`packages/memory-core/src/recall/render.ts`). The persona's sample block and the
+renderer are pinned to each other byte for byte by `render.test.ts`, so the judge
+is never shown a block the harness does not produce.
+
+The persona asks for the other half of the contract: a hint states what the
+stored note records ("the note records that ..."), and an instruction to the
+agent joins commentary-only and topical-only nudges as a worked bad example
+(`packages/memory-core/src/recall/assets/kibitzer-persona.md`).
+
+The rule is enforced where nudges are admitted instead of being left to the
+model. `describeInvalidHint` in `packages/memory-core/src/recall/gate.ts` answers
+`addresses-agent` for a hint that carries the second person, opens with an
+imperative or negated imperative, or ends in a Korean request form, next to the
+existing `empty`, `too-long`, `multiline` and `decision-commentary` reasons.
+`validateNudges` drops such a hint on the parent side and the sidecar's `nudge`
+tool refuses it at call time with the reason and the fix - restate what the note
+records as a plain observation - keeping the single correction the tool contract
+allows. Only the opening of the sentence is scanned for imperatives, so an
+observation that quotes a rule mid-sentence ("the release note records that
+publish must follow the green-main guard") is still accepted, as are Korean
+plain-form endings. `isValidHint` deliberately keeps its older shape-only
+meaning: pending payloads and stored `omo-kibitzer:nudged` entries were admitted
+under the contract of their own day, and replaying them must not retroactively
+drop a nudge that is already on screen (#8355).
+
+## 2026-09-16 — memory_notice reports only messages compacted out of the live context
+
+`<memory_notice>` told every session that N previous messages had left the live context, with N read
+off `sessionManager.getBranch().length`. The branch is the whole path to the leaf, not what the
+compaction dropped, so a fresh session of fifteen entries and zero compactions announced that twelve
+of its own live messages were gone. The count now comes from the branch's latest compaction entry:
+the `message` entries positioned before its `firstKeptEntryId` - or before the compaction entry
+itself when that id is no longer on the branch - are the ones senpi no longer sends. A branch that
+never compacted counts zero, and a zero count prints no line at all.
+
+The notice is now strictly session-volatile. When the compaction count is zero and there is no save
+nudge and no soul update, the `before_agent_start` handler returns its `systemPrompt` with no message
+at all, so an uncompacted session spends no tokens on a notice that has nothing to report.
+
+The reason the old line existed survives where it belongs. That relevant stored memory arrives on its
+own as `<recalled-memory>` blocks and that there is no recall tool to call are standing facts about
+the toolset, not facts about this turn, so they are one sentence at the end of memory-core's compiled
+REMINDER, present in every prompt whether or not anything compacted. Models still learn there is
+nothing to search for, and they learn it from the block that is always there.
+
+## 2026-09-13 — Project persisted reflection reports into TUI and RPC
+
+Recap projection requires an explicit positive outcome attempt matching the
+ledger. Two omitted attempt IDs are not proof of the same child execution;
+legacy records without that evidence retain their operational notice.
+
+Report and page reads use the existing resilient memory filesystem boundary.
+An interrupted positional report read retries the same explicit offset, retaining
+short-read and file-change checks; it does not become a missing report merely
+because a child-reaping signal interrupted the syscall.
+
+Bundle import normalization preserves `bun` and namespaced specifiers. Bun's
+ambient builtin catalog includes its own modules; prefixing those with `node:`
+made Bun-generated artifacts disagree with the Node-driven CI freshness check.
+Both launchers must generate identical bytes without relaxing artifact checks.
+
+Committed reflection results derive a bounded, attributed report from existing
+run output and matching finalization artifacts. The completion file remains
+unchanged; only the delivered custom entry carries the presentation projection.
+The read-only `omo.memory.reflections` method pages relevant results without
+consuming delivery state. Failed, unchanged and unmerged runs do not become
+learned-memory recaps.
+
+The TUI supports compact and expanded report content without flattening Markdown
+whitespace. The real-runtime QA driver covers actual child commits, exclusions,
+disconnection recovery and source/recipient session switching. Its readiness
+signal is the existing memory binding entry, not an extension-event capability
+that the stdio client did not negotiate.
+
+## 2026-09-13 - Ship the agent toolkit as an eval SDK
+
+Adds `plugin/runtime/agent-toolkit-sdk/sdk.js` at `OMO_AGENT_TOOLKIT_SDK_ROOT`. The SDK imports only Node builtins and binds each call synchronously from `PI_SESSION_ID`, `PI_SESSION_CWD`, and `PI_GOAL_STORE_FILE`; importing it performs no I/O. Missing session facts resolve as operation-tagged failure envelopes. Checkpoints and review blockers use the session's driver snapshot unless explicitly supplied, with authoritative `goal:null` stopping fallback reads. Invalid stores are advisory warnings and are never rewritten.
+
+The host status reader uses the additive `#omo-agent-toolkit-sdk` import map. Build freshness, installer/payload allowlists, node-only input checks, and isolated worker tests cover the new artifact. Generic directory provisioning preserves DAG behavior. This increment retains the old tool registration, runtime alias, and sidecar; their removal is a separate change.
+
+## 2026-09-12 — Drop the retired agent-name alias notices
+
+The `omo-config:agent-alias-deprecated` startup warning is removed from `components/config-startup/index.ts` together with its `StartupNotice.kind` discriminator: with the alias gone from senpi-task, `agents.metis` / `agents.momus` are ordinary custom agent keys and there is nothing to deprecate. `components/task/dag-lint.ts` no longer warns on a retired `subagent_type`, and `components/telemetry/omo-native-tools.ts` reports the submitted subagent name (a retired id masks to `custom` like any other unknown name) instead of canonicalizing it first. `scripts/qa/plan-gated-agents-e2e.mjs`'s four alias scenarios become `retired-id` / `team-retired` / `dag-retired` / `retired-config`, each asserting the removal on a real senpi process: the retired id never reaches plan-reviewer, team_create names the submitted id, a workflow route keeps it verbatim, the config key defines a custom agent, and no surface prints a deprecation line.
+
+## 2026-09-11 — Keep Kibitzer events captured during child startup
+
+A hook event captured while the resident Kibitzer's child was still being started (between the seed envelope being built and `startChild` resolving) was drained together with the seed's own batch and never reached the child. The seed now cuts its payload from the event stream when the envelope is built, exactly as a followUp does, so an event that lands while the child boots opens the next batch and rides the next wake; a child that cannot be started carries that payload - its events and its candidates - into the retry seed after the backoff (`src/components/memory/kibitzer/sidecar-wake.ts`). No event is dropped at the seed boundary any more.
+
+`sidecar.ts`, `observe.ts`, `events.ts` and `sidecar-prompt.ts` are split by responsibility into modules under the 250-line ceiling; every public name is still exported from the original module. The QA lane gains `scripts/qa/dependency-diff-check.mjs`, the supply-chain control the plan's final verification invokes: it diffs every tracked manifest and lockfile between two commits and exits 0 only when no dependency entry was added.
+
+## 2026-09-11 — Persist resident Kibitzer observability
+
+Every settled wake of a resident Kibitzer sidecar now appends one line to `recall/sidecars/<encoded-session>/wakes.ndjson`, next to the child's own session JSONL (`src/components/memory/kibitzer/observe.ts`). The line is a closed record - wake and child generation, status and cause, model, parent cursor span, tool calls, duration, machine-slot wait, provider usage summed over the turn, context estimate, delivered paths - and it is bounded before it is written: the failure reason is cut before any stack frame, masked by both the memory-core and the senpi secret vocabularies and capped like a gate reason, paths and model ids are capped, and the whole line has a hard bound. The directory name is the unpadded URL-safe base64 of the exact parent session id, so two sessions whose ids differ only in characters a sanitizer would fold still get distinct directories.
+
+The `omo-kibitzer:gate` notice moves onto these outcomes with its policy unchanged: an isolated failure is silent (its ndjson line is the only trace), the third consecutive diagnostic failure of one main session appends exactly one actionable notice, and a normal completion or the session's shutdown resets the streak. The record keeps its one-shot fields (`runId` still renders for stored sessions) and gains the additive `wake`; the legacy `omo-memorian:*` renderers are untouched.
+
+Retention is bounded: a sidecar directory idle for seven days is removed by a sweep that runs when an identity's first sidecar comes alive and at every session shutdown. A live session owns its directory through a memory-core lock (`locks/recall-sidecar.<encoded-session>.lock`) from sidecar creation to shutdown, so the sweep skips this process's live sessions by name, skips any directory whose owner lock is held by a live process, recovers a crashed owner only on pid/start-identity proof, and re-checks idleness under the lock before claiming the directory by rename.
+
+## 2026-09-11 — Remove the one-shot Kibitzer machinery
+
+The resident sidecar (`src/components/memory/kibitzer/`) is now the only Kibitzer engine. Each bound main session owns ONE read-only in-process child, created lazily on the first wake-eligible prompt or `tool_call` and disposed at session shutdown. Every prompt, tool call and tool result reaches it as a bounded event - secrets redacted before truncation, then capped by `memory.recall.event_caps`, the newest 20 kept verbatim and older ones folded into a one-line digest - and it spends a model turn only when a batch carries a memory path it has not judged in its lifetime. A wake takes one slot of the machine-wide `recall-wake` lease (`max_concurrent_wakes`, default 2; a busy machine buffers, never drops), may make `tool_budget` (default 8) tool calls within 90 seconds, and speaks through exactly five member-scoped read-only tools: `read`, `grep`, `session_entries`, `memory` (`search`/`read` only) and `nudge`. There is no memory-write tool, no shell and no file write. Past 60% of `sidecar_max_tokens` the child is replaced by a fresh one seeded with its delivered and rejected paths, task summary and last cursor; a failed child is disposed and recreated after a jittered exponential backoff (1 s to 5 min) with every buffered event kept. Automatic reflection failures back off too, in memory-core's reflection journal (`next_eligible_at`, 5 s doubling to 5 min; a manual `/reflect` bypasses it and a successful reflection resets it).
+
+Deleted, with their tests and test-support files: `kibitzer-trigger.ts`, `kibitzer-runner.ts`, `kibitzer-runner.fallback-support.ts`, `kibitzer-judge-run.ts`, `kibitzer-judge-spec.ts`, `kibitzer-prompt.ts`, `kibitzer-concurrency.ts`, `kibitzer-lifecycle.ts`, `kibitzer-run-retention.ts` and `kibitzer-wiring.ts` - the per-launch judge, its candidate-set fingerprint, launch ceiling, trailing slot, process-wide `globalThis` judge slots and the per-run `recall/runs/<id>` directories with `outcome.json`, `candidates.json` and `transcript-window.txt`. `abortAndDispose`, which the facts child also used, now lives in `in-process-memory-child.ts`. The compaction epoch is gone from the pending-nudge file (`PendingNudges.write`/`take` take no epoch; a stored file that still carries `compactionEpoch` is consumed normally), from `recall-drain`/`recall-wiring` (`currentCompactionEpoch`) and from `kibitzer/delivery.accept`: a parent compaction retracts what delivery still holds and never invalidates the sidecar. `omo-kibitzer:gate`, `omo-kibitzer:nudged` and the legacy `omo-memorian:*` renderers stay registered so stored sessions render unchanged; the sidecar's audit trail is its own session JSONL under `recall/sidecars/<encoded-session>/`. `memory.recall.enabled: false` remains the only off switch; there is no legacy mode. Docs (`docs/guide/orchestration.md`, `docs/guide/overview.md`, `docs/reference/configuration.md`, `docs/reference/omo-json.md`), the memory `AGENTS.md` rows, `kibitzer/AGENTS.md` and the give-me-tips skill describe the resident design.
+
+## 2026-09-10 — Model profiles pick the main session model without persisting it
+
+`model_profile` in omo.json now selects the main session model at session start: a profile id (builtin `capable`, `simple-work`, `deep-work`, or a `model_profiles.<name>` chain) walks its rungs against the live registry with the same matcher category chains use; a literal `provider/model` value pins that model. The component (`src/components/model-profile/`) applies the pick through senpi's session-only setter, so `settings.json` `defaultProvider`/`defaultModel` are never rewritten and the profile keeps working on the next start. It runs after senpi's own `recommended-models` builtin and overrides its auto-switch; an unset `model_profile` changes nothing. Mid-session fallback still follows senpi's `retry.fallbackChains`, and the applied notice says so.
+
+`scripts/qa/model-profile-e2e.mjs` proves this on a real senpi process in an isolated home: the tier's third rung is selected with the skipped rungs named, the literal pin applies, an unknown id yields one notice and no model change, no `model_profile` yields no notice, the tier beats the recommended-models auto-switch, and `<agentDir>/settings.json` is sha256-identical before and after every scenario (a bundle mutated to call `pi.setModel` changes the digest, which is the no-persist regression proof). The `--model` provenance scenario is asserted and documents a gap: the current senpi release never attaches `initialModelProvenance: "cli"` to `session_start` (its `main.ts` builds the value but does not pass it to `createAgentSessionFromServices`), so the component must treat an absent provenance as explicit user state to leave a `--model` session alone.
+
+## 2026-09-10 — Name curated agents by role, keep the old ids for one release
+
+The builtin curated agents `metis` and `momus` are now `plan-consultant` and `plan-reviewer`. The ulw-plan skill works as the Ultrawork Planner instead of a named persona, ulw-execute talks about the "ulw-plan work plan", and docs plus omo.dev describe every agent by what it does rather than by a myth name. The draft/plan frontmatter key `review.momus` becomes `review.plan_reviewer`, and telemetry `delegation_started.name` / `delegation_completed.agent_type` report the new ids, so dashboards that filter on `metis` or `momus` need updating.
+
+The old ids still resolve for one release. `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them canonicalize through `senpi-task/src/agents/legacy-agent-names.ts` and emit a deprecation notice. That alias window ships in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) and is removed in the next tagged publish; a test pins the alias table to exactly those two keys so nothing else slips in.
+
+## 2026-09-10 — Hide question tools from task children
+
+`TASK_CHILD_UI_ONLY_TOOL_NAMES` now lists `request_user_input` and `ask_user_question` next to `memory`, so in-process children do not inherit the parent-only question tools. RPC children get the matching `--no-ask-user` flag from senpi-task.
+
+## 2026-09-10 — Route user questions in the ultrawork directive through the question tool
+
+Three sentences in `skills/ultrawork/SKILL.md` told the model to stop, surface, or plainly "ask the user" when only the user could unblock the run: blockers left after two re-reviews, two identical failed attempts at one step, and the goal-waiting paragraph that had no user-decision case at all. With senpi's question tool (`request_user_input` / `ask_user_question`) available, ending the turn or marking the goal blocked is the wrong move. The re-review rule now asks through the question tool with the outstanding blockers as options; the retry rule asks through the question tool and continues on best judgment if the question times out; the goal-waiting paragraph gains one sentence stating that a decision only the user can make is asked through the question tool, waiting for the answer when the run cannot proceed without it, and is never recorded as blocked.
+
+`src/components/ultrawork/generated-directive.ts` is regenerated from the source through `plugin/scripts/embed-directive.mjs`; the `--check` drift gate in `ultrawork.test.ts` failed against the edited source and passes after regeneration. The committed bundle `plugin/extensions/omo.js` is rebuilt on the CI-pinned Bun 1.4.0 so the reload test in `ultrawork-arming.test.ts` sees the same directive from the bundle and from the generated module. Heading count of SKILL.md is unchanged (27). The planned wording `wait_for_answer true` was not used because the embed script rejects any `wait_for` token as a non-senpi harness surface; the sentence says "waiting for the answer" instead.
+
+## 2026-09-10 — Export claude-sdk-oauth as a known telemetry provider
+
+`src/components/telemetry/model-vocabulary.ts` gains a `claude-sdk-oauth` key carrying the same ids as `anthropic`. The builtin Claude rungs in senpi-task now head with that lane (#8051), and without the key every delegated Claude turn on a Claude Pro/Max machine would have exported as `custom`, collapsing the category-model insight on exactly the lane the product routes to. The generated schema block in `docs/reference/senpi-telemetry.md` lists the new provider value; `product-identity.test.ts` pins the mask. The shipped `plugin/extensions/omo.js`, `omo-task.js`, and `omo-init-deep-advisor.js` bundles are regenerated so the plugin carries the new rung order and the model-core tie-break that no longer prefers a shorter provider name.
+
+## 2026-09-10 — Stop failing Kibitzer fires for reasons that are not failures
+
+`Kibitzer gate failed` kept appearing intermittently on beta.51 after the persona prime shipped, from three producers that were not real gate failures (#8052, #7963).
+
+A judge that answers only through `nudge` and then stops without prose is a completed run. senpi's empty-assistant recovery retries one invisible stop and settles the second as `Model returned an empty response twice`, which the gate reported as `child_failed` even after accepted nudges. The nudge tool result now carries `terminate: true` once the run's `max_items` is reached (also on a rejection at the cap), so the agent loop ends the turn on the tool batch and the model never has to answer with nothing; as the floor for runs that stop below the cap, `classifyJudgeTurn` treats that settled message as `completed` when nudges were accepted and `empty` when none were. Accepted nudges are delivered in both cases.
+
+Run-dir artifacts (`candidates.json`, `transcript-window.txt`) are auditable output the child never reads; a write that fails now logs `kibitzer gate run artifacts skipped` and the fire continues instead of ending as `session_create_failed`. A persona read that fails at fire time is reported as `persona_unavailable` with the asset filename in the reason. The `#omo-task-runtime` module is primed at memory-component registration beside the four personas (`omo-senpi memory boot asset unavailable` names a module that cannot load), and a fire awaits that same load instead of resolving the specifier against the install tree at fire time.
+
+The notice policy is unchanged: one notice per session after three consecutive diagnostic failures (PR #8033), which beta users receive with the next release.
+
 ## 2026-09-09 — Pin persona assets to the payload a process started from
 
 The memory component read each persona markdown from beside the bundle at child-launch time, so the asset had to still be on disk, under its current name, every time a gate fired. The install tree is mutable while a session runs: a global install replaces it in place and the omob launcher rebuilds and prunes runtime dirs. After the Kibitzer rename shipped, sessions whose process had loaded the pre-rename bundle kept opening `extensions/memorian-persona.md` in the replaced tree and every recall gate died with `session_create_failed` (ENOENT). The same shape hit omob runtime dirs on 2026-09-07 through a prune.

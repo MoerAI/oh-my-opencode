@@ -1,11 +1,13 @@
-import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 
 import type { PreToolUsePayload } from "./codex-hook.js";
 import { parsePreToolUsePayload } from "./codex-hook.js";
 import { isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir, ulwLoopDir, ulwLoopStateLockPath } from "./paths.js";
+import { readUlwLoopPlanSync } from "./plan-io.js";
+import { atomicWriteJson, isNonEmptyFile, readAdmissionBreaker, readCount, readCounts } from "./spawn-budget-io.js";
+import { spawnRoleDenial } from "./spawn-role-guard.js";
 import { isStateLockTimeout, type StateLockOptions, withStateLockSync } from "./state-lock.js";
 import {
 	GATE_REVIEWER_AGENT_NAMES,
@@ -18,7 +20,12 @@ import type { UlwLoopPlan } from "./types.js";
 // spawn_agent = v1; collaborationspawn_agent = the delimiter-free flattened v2
 // hook token from codex-rs hook_names.rs; collaboration.spawn_agent = the
 // dotted token observed live in the task-1 probe (hook-tool-tokens.txt).
-const SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]);
+const SPAWN_TOOL_TOKENS = new Set([
+	"spawn_agent",
+	"multi_agent_v1.spawn_agent",
+	"collaborationspawn_agent",
+	"collaboration.spawn_agent",
+]);
 export const DEFAULT_FANOUT_LIMIT = 24;
 const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
 const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
@@ -35,6 +42,15 @@ export interface SpawnGuardOptions {
 
 export function applySpawnGuards(payload: PreToolUsePayload, options: SpawnGuardOptions = {}): string {
 	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
+	if (resolveToolkitSurface() === "lazycodex") {
+		const reason = spawnRoleDenial(payload.tool_input);
+		if (reason !== null) return deny(reason);
+	}
+	return applySpawnBudgetGuards(payload, options);
+}
+
+export function applySpawnBudgetGuards(payload: PreToolUsePayload, options: SpawnGuardOptions = {}): string {
+	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
 	const breaker = readAdmissionBreaker(payload.session_id);
 	if (breaker !== null)
 		return deny(
@@ -42,7 +58,7 @@ export function applySpawnGuards(payload: PreToolUsePayload, options: SpawnGuard
 		);
 	const scope = { sessionId: payload.session_id } as const;
 	const stateDir = ulwLoopDir(payload.cwd, scope);
-	const plan = readPlan(join(stateDir, "goals.json"));
+	const plan = readPlan(payload.cwd, payload.session_id);
 	if (plan === null) return "";
 	const lockOptions: StateLockOptions =
 		options.lockTimeoutMs === undefined ? {} : { timeoutMs: options.lockTimeoutMs };
@@ -110,11 +126,14 @@ export async function runSpawnGuardCli(stdin: NodeJS.ReadableStream, stdout: Nod
 		const chunks: Buffer[] = [];
 		for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
 		const payload = parsePreToolUsePayload(Buffer.concat(chunks).toString("utf8"));
-		if (payload === null) return;
+		if (payload === null) {
+			stdout.write(deny("LazyCodex spawn guard received an invalid hook payload; role routing was not verified."));
+			return;
+		}
 		const output = applySpawnGuards(payload);
 		if (output.length > 0) stdout.write(output);
 	} catch (error) {
-		if (error instanceof Error) return;
+		stdout.write(deny(`LazyCodex spawn guard failed: ${error instanceof Error ? error.message : String(error)}`));
 	}
 }
 
@@ -130,6 +149,7 @@ function peekFanOutBudget(stateDir: string): string | null {
 	return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 }
 
+// Hook budget counters are exempt from plan/audit commits.
 // Per-session spawn counter; depth/lineage tracking is descoped — this is a
 // total-volume backstop against fan-out explosions, not a recursion tracker.
 function consumeFanOutBudget(stateDir: string): string | null {
@@ -227,12 +247,6 @@ function activeSurfaceReviewerAlias(reviewer: string): string {
 	return reviewer;
 }
 
-function atomicWriteJson(targetPath: string, data: unknown): void {
-	const tmp = join(dirname(targetPath), `.tmp-${randomBytes(6).toString("hex")}`);
-	writeFileSync(tmp, JSON.stringify(data));
-	renameSync(tmp, targetPath);
-}
-
 function deny(reason: string): string {
 	return `${JSON.stringify({
 		hookSpecificOutput: {
@@ -242,19 +256,6 @@ function deny(reason: string): string {
 			additionalContext: reason,
 		},
 	})}\n`;
-}
-
-function readAdmissionBreaker(sessionId: string): string | null {
-	const dataDir = process.env["PLUGIN_DATA"];
-	if (typeof dataDir !== "string") return null;
-	try {
-		const value = JSON.parse(readFileSync(join(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8")) as {
-			reason?: unknown;
-		};
-		return typeof value.reason === "string" ? value.reason : "capacity limit";
-	} catch {
-		return null;
-	}
 }
 
 function fanOutLimit(): number {
@@ -271,43 +272,9 @@ function reviewSpawnLimit(): number {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REVIEW_SPAWN_LIMIT;
 }
 
-function isNonEmptyFile(path: string): boolean {
+function readPlan(repoRoot: string, sessionId: string): UlwLoopPlan | null {
 	try {
-		return existsSync(path) && statSync(path).size > 0;
-	} catch (error) {
-		if (error instanceof Error) return false;
-		throw error;
-	}
-}
-
-function readCount(counterPath: string): number {
-	try {
-		const parsed = JSON.parse(readFileSync(counterPath, "utf8")) as Record<string, unknown>;
-		return typeof parsed["count"] === "number" && parsed["count"] >= 0 ? parsed["count"] : 0;
-	} catch (error) {
-		if (error instanceof Error) return 0;
-		throw error;
-	}
-}
-
-function readCounts(counterPath: string): Record<string, number> {
-	try {
-		const parsed: unknown = JSON.parse(readFileSync(counterPath, "utf8"));
-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-		const counts: Record<string, number> = {};
-		for (const [key, value] of Object.entries(parsed)) {
-			if (typeof value === "number" && value >= 0) counts[key] = value;
-		}
-		return counts;
-	} catch (error) {
-		if (error instanceof Error) return {};
-		throw error;
-	}
-}
-
-function readPlan(goalsPath: string): UlwLoopPlan | null {
-	try {
-		return JSON.parse(readFileSync(goalsPath, "utf8")) as UlwLoopPlan;
+		return readUlwLoopPlanSync(repoRoot, { sessionId });
 	} catch (error) {
 		if (error instanceof Error) return null;
 		throw error;

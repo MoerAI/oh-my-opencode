@@ -1,5 +1,5 @@
 import type { ManagedChildHandle } from "../manager/child-handle"
-import type { DetachedRevivalResult, DetachedRevivalRollbackResult } from "../lifecycle/port"
+import type { ColdRevivalFailureCode, DetachedRevivalResult, DetachedRevivalRollbackResult } from "../lifecycle/port"
 import type { TaskRecord, TaskRunStats, TaskStatus } from "../state"
 import type { TaskRecordStore } from "../store"
 
@@ -51,6 +51,7 @@ export type SendInput = {
 export const DEFAULT_SEND_DELIVERY: SendDelivery = "followUp"
 
 export type SendOutcome =
+  | { readonly kind: ColdRevivalFailureCode; readonly task_id: string; readonly reason: string }
   | { readonly kind: "steered"; readonly task_id: string; readonly status: TaskStatus; readonly delivered: SendDelivery }
   | { readonly kind: "revived"; readonly task_id: string; readonly run_epoch: number }
   | {
@@ -85,7 +86,8 @@ export type CancelOutcome =
 
 export type SteeringEngine = {
   hasPendingSends(taskId: string): boolean
-  sendToTask(input: SendInput): Promise<SendOutcome>
+  // Internal manager grant consumption; ordinary task_send callers never supply a reservation.
+  sendToTask(input: SendInput, reservation?: ReviveReservation): Promise<SendOutcome>
   interruptTask(idOrName: string): Promise<InterruptOutcome>
   cancelTask(idOrName: string, reason?: string, options?: CancelOptions): Promise<CancelOutcome>
   // Called by the manager right after a queued child launches: drains ordered pending messages.

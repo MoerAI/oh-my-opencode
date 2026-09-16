@@ -20,7 +20,7 @@ import { writeRunJsonAtomic } from "./run-artifacts"
 import { rmEfaultTolerant } from "../teardown.test-support"
 
 const roots: string[] = []
-const PHASE_WATCHDOG_MS = 2_000
+const PHASE_WATCHDOG_MS = process.platform === "win32" ? 10_000 : 2_000
 
 export async function cleanupReconciliationFixtures(): Promise<void> {
   await Promise.all(roots.splice(0).map((root) =>
@@ -55,6 +55,7 @@ export async function reconciliationFixture(trigger: "step-count" | "dream" = "s
     conversationIds: ["conversation-a"],
     snapshots: [{ conversationId: "conversation-a", snapshot }],
   })
+  if (reserved.status === "parked") throw new Error("fixture reservation was parked")
   const worktree = await createReflectionWorktree(repo, reserved.run.runId, identity.paths.worktrees)
   const runDir = join(identity.paths.reflection, "runs", reserved.run.runId)
   await mkdir(runDir, { recursive: true, mode: 0o700 })

@@ -32,11 +32,8 @@ export const REQUIRED_PLUGIN_ARTIFACTS: readonly string[] = [
   join("skills", "ulw-research", "SKILL.md"),
   join("skills", "visual-qa", "SKILL.md"),
   join("skills-conditional", "x-search", "SKILL.md"),
+  join("runtime", "agent-toolkit-sdk", "sdk.js"),
   join("runtime", "ast-grep-mcp", "cli.js"),
-  join("runtime", "agent-toolkit", "cli.js"),
-  join("runtime", "agent-toolkit", "ulw-loop", "cli.js"),
-  join("runtime", "agent-toolkit", "omo-agent-toolkit"),
-  join("runtime", "agent-toolkit", "omo-agent-toolkit.cmd"),
   join("runtime", "lsp-daemon", "dist", "cli.js"),
   join("runtime", "lsp-daemon", "dist", "index.js"),
   join("runtime", "lsp-daemon", "dist", "index.d.ts"),
@@ -61,7 +58,6 @@ export async function ensurePluginArtifacts(context: {
     await context.runCommand("node", [join(context.pluginPath, "scripts", "build-install.mjs")], { cwd: context.repoRoot })
     await context.runCommand("node", [join(context.pluginPath, "scripts", "stage-lsp-daemon-runtime.mjs")], { cwd: context.repoRoot })
     await context.runCommand("node", [join(context.pluginPath, "scripts", "stage-ast-grep-mcp-runtime.mjs")], { cwd: context.repoRoot })
-    await context.runCommand("node", [join(context.pluginPath, "scripts", "stage-agent-toolkit.mjs")], { cwd: context.repoRoot })
     await context.runCommand("node", [join(context.pluginPath, "scripts", "stage-x-search-skill.mjs")], { cwd: context.repoRoot })
   }
 

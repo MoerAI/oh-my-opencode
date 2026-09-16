@@ -2,10 +2,12 @@ export {
   DEFAULT_MAX_CHILD_DEPTH,
   InProcessRunner,
   RunnerError,
+  childVisibleToolNames,
   filterSharedParentTools,
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,
 } from "./in-process"
+export { childStructuralToolNames, SENPI_SESSION_BUILTIN_NAMES } from "./in-process/host-tools"
 export type {
   ChildCompletionPolicy,
   ChildHandle,
@@ -38,6 +40,7 @@ export {
   buildRpcSpawn,
   OMO_SENPI_TASK_RPC_CHILD,
   detectBunBinary,
+  detectCompiledEngine,
   resolveChildSessionDir,
   resolveSenpiExecutable,
   resolveSenpiLauncher,

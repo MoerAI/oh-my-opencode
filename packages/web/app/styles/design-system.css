@@ -75,6 +75,8 @@
   /* §4 radius scale: 0 for panels, 2px for controls, 50% for dots */
   --radius-none: 0px;
   --radius-control: 2px;
+  --radius-work: 12px;
+  --radius-message: 8px;
   --radius-lg: var(--radius);
   --radius-md: var(--radius);
   --radius-sm: var(--radius);
@@ -123,6 +125,12 @@
       opacity: 0.55;
     }
   }
+}
+
+@property --lit-p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
 }
 
 @layer base {
@@ -196,6 +204,13 @@
     --dur-type: 40ms;
     --dur-pulse: 2200ms;
     --dur-wave: 12s;
+    --lit-blur: 4px;
+    --lit-read-hold: 18vh;
+    --lit-follow-fade: 22vh;
+    --lit-follow-gap: 1.25em;
+    --lit-follow-rise: var(--space-6);
+    --lit-line: 50vh;
+    --lit-band: 1vh;
 
     /* Legacy shadcn variables remapped onto the ledger tokens */
     --background: var(--ink-0);
@@ -545,6 +560,13 @@
     letter-spacing: -0.025em;
     text-wrap: balance;
   }
+  .type-feature {
+    font-size: clamp(2rem, 1.5rem + 1.6vw, 2.5rem);
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
   .type-numeral {
     font-size: clamp(2rem, 1.4rem + 2vw, 2.75rem);
     font-weight: 500;
@@ -718,6 +740,454 @@
     .dag-edge-flow,
     .dag-edge-light {
       animation: none;
+    }
+  }
+}
+
+@layer base {
+  /* §3 v3 — Korean falls back from the Latin sans to a gothic web font (Pretendard); headings get more weight */
+  [lang|="ko"] {
+    font-family:
+      var(--font-geist-sans), "Pretendard Variable", Pretendard, "Apple SD Gothic Neo",
+      "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  }
+  [lang|="ko"] :where(h1, h2) {
+    font-weight: 700;
+  }
+}
+
+@layer utilities {
+  /* §3 v3 — story prose: looser leading and a visible paragraph gap for CJK readers */
+  .prose-cjk {
+    text-wrap: pretty;
+  }
+  :where([lang|="ko"], [lang|="ja"], [lang|="zh"]) .prose-cjk {
+    line-height: 1.8;
+  }
+  .prose-cjk + .prose-cjk {
+    margin-top: 1.25em;
+  }
+
+  /* §10 v3 — story primitives. Each one has a reduced-motion final state below. */
+
+  /* Marquee: one row of chips scrolling on translateX; the track is duplicated by the component. */
+  .marquee {
+    display: flex;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  }
+  .marquee-track {
+    display: flex;
+    flex: none;
+    gap: var(--space-3);
+    padding-inline-end: var(--space-3);
+    animation: marquee var(--marquee-dur, 40s) linear infinite;
+  }
+  .marquee-reverse .marquee-track {
+    animation-direction: reverse;
+  }
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+  @keyframes marquee {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+
+  /* Ticker: a vertical column of rows scrolling on translateY. */
+  .ticker {
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  }
+  .ticker-track {
+    animation: ticker var(--ticker-dur, 30s) linear infinite;
+  }
+  .ticker:hover .ticker-track {
+    animation-play-state: paused;
+  }
+  @keyframes ticker {
+    to {
+      transform: translateY(-50%);
+    }
+  }
+
+  /* Lit text: one paragraph progress (--lit-p 0→1) sweeps light through every word.
+     Each word owns 3 progress units and overlaps its neighbours, so the fill glides across
+     glyphs and between words instead of flipping. */
+  .lit-progress {
+    --lit-p: 0;
+    --lit-f: 0;
+    timeline-scope: --lit-body;
+  }
+  .lit-text {
+    white-space: pre-line;
+    view-timeline: --lit-body block;
+  }
+  /* Line mode (`lit-lines`): each authored line is a block with its own view timeline, and its
+     words light while the line crosses the reading line (--lit-line ± --lit-band). Lines do not
+     overlap vertically, so at most one line (plus a few words of its neighbour) is ever mid-sweep. */
+  .lit-line {
+    display: block;
+  }
+  @supports (animation-timeline: view()) {
+    .lit-progress.lit-scroll:not(.lit-lines) {
+      animation: lit-progress linear both;
+      animation-timeline: --lit-body;
+      animation-range-start: cover 20vh;
+      animation-range-end: cover calc(100% - 50vh);
+    }
+    .lit-lines.lit-scroll .lit-line {
+      animation: lit-progress linear both;
+      animation-timeline: view();
+      animation-range-start: cover calc(100vh - var(--lit-line) - var(--lit-band));
+      animation-range-end: cover calc(100% - var(--lit-line) + var(--lit-band));
+    }
+    .lit-scroll .lit-follow {
+      animation: lit-follow linear both;
+      animation-timeline: --lit-body;
+      animation-range-start: cover
+        calc(100% - 50vh + max(var(--lit-read-hold), var(--lit-follow-gap)));
+      animation-range-end: cover
+        calc(
+          100% - 50vh + max(var(--lit-read-hold), var(--lit-follow-gap)) + var(--lit-follow-fade)
+        );
+    }
+  }
+  .lit-follow {
+    margin-top: var(--lit-follow-gap);
+    opacity: var(--lit-f);
+    transform: translateY(calc((1 - var(--lit-f)) * var(--lit-follow-rise)));
+  }
+  @keyframes lit-follow {
+    from {
+      opacity: 0;
+      transform: translateY(var(--lit-follow-rise));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes lit-progress {
+    from {
+      --lit-p: 0;
+    }
+    to {
+      --lit-p: 1;
+    }
+  }
+  .lit-word {
+    --lit-local: clamp(0, calc((var(--lit-p) * (var(--lit-count) + 2) - var(--i)) / 3), 1);
+    background-image: linear-gradient(
+      90deg,
+      var(--text-hi) 0%,
+      var(--text-hi) 45%,
+      var(--text-faint) 55%,
+      var(--text-faint) 100%
+    );
+    background-size: 220% 100%;
+    background-repeat: no-repeat;
+    background-position-x: calc((1 - var(--lit-local)) * 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: blur(calc((1 - var(--lit-local)) * var(--lit-blur)));
+  }
+
+  /* Reading blocks (manifesto): the same sweep, tuned for long-form prose. Unread words stay
+     legible (--text-lo instead of --text-faint), the blur is halved, and every word is lit until
+     hydration picks a mode, so the page reads before JavaScript does. */
+  .lit-read {
+    --lit-blur: 2px;
+  }
+  .lit-read[data-lit-mode="pending"] {
+    --lit-p: 1;
+  }
+  .lit-read .lit-word {
+    background-image: linear-gradient(
+      90deg,
+      var(--text-hi) 0%,
+      var(--text-hi) 45%,
+      var(--text-lo) 55%,
+      var(--text-lo) 100%
+    );
+  }
+  .lit-link {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+  .lit-link:hover,
+  .lit-link:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+
+  /* Kibitzer: independent clocks; the nudge travels into the verification slot. */
+  .kib-stage {
+    --kib-watch-cycle: 4.5s;
+    --kib-main-cycle: 14s;
+    --kib-cycle: 14s;
+    --kib-source: translateY(calc(-1 * (var(--space-40) + var(--space-24)))) scale(0.8);
+    display: grid;
+    gap: var(--space-8);
+    padding: var(--space-5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-work);
+    background: var(--ink-1);
+  }
+  .kib-side {
+    min-width: 0;
+  }
+  .kib-watch {
+    border-left: 1px solid var(--line-strong);
+    padding-left: var(--space-3);
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .kib-watch-step,
+  .kib-main-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--space-12);
+    padding: var(--space-2);
+    color: var(--text-mid);
+    border-bottom: 1px solid var(--line);
+    animation: kib-main-beat var(--kib-main-cycle) steps(1) infinite;
+    animation-delay: calc(var(--i) * var(--kib-main-cycle) / 4);
+  }
+  .kib-watch-step {
+    font-size: 0.875rem;
+    animation-name: kib-watch-beat;
+    animation-duration: var(--kib-watch-cycle);
+    animation-delay: calc(var(--i) * var(--kib-watch-cycle) / 3);
+  }
+  .kib-dot {
+    width: var(--space-2);
+    height: var(--space-2);
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .kib-memory {
+    border-color: var(--line-strong);
+    animation: kib-memory var(--kib-watch-cycle) steps(1) infinite;
+  }
+  .kib-main-track {
+    border-left: 1px solid var(--line-strong);
+    padding-left: var(--space-3);
+  }
+  .kib-insertion {
+    display: grid;
+    align-items: center;
+    min-height: var(--space-24);
+    padding-block: var(--space-2);
+  }
+  .kib-nudge {
+    position: relative;
+    z-index: 1;
+    padding: var(--space-3);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-message);
+    background: var(--ink-2);
+    color: var(--accent-hot);
+    transform-origin: left center;
+    animation: kib-deliver var(--kib-cycle) linear infinite;
+  }
+  .kib-nudge > span {
+    color: var(--accent);
+  }
+  .kib-decision {
+    display: grid;
+  }
+  .kib-decision > span {
+    grid-area: 1 / 1;
+  }
+  .kib-before {
+    animation: kib-before var(--kib-cycle) steps(1) infinite;
+  }
+  .kib-after {
+    color: var(--accent);
+    animation: kib-after var(--kib-cycle) steps(1) infinite;
+  }
+  .kib-return {
+    border-left: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
+    padding: var(--space-3);
+  }
+  .kib-stage[data-running="false"] * {
+    animation-play-state: paused;
+  }
+  @media (min-width: 768px) {
+    .kib-stage {
+      --kib-source: translateX(calc(-50% - var(--space-12))) scale(0.5);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+      gap: var(--space-12);
+      padding: var(--space-8);
+    }
+    .kib-watch {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @keyframes kib-main-beat {
+    0%,
+    100% {
+      color: var(--accent);
+      background-color: var(--accent-8);
+    }
+    25% {
+      color: var(--text-mid);
+      background-color: transparent;
+    }
+  }
+  @keyframes kib-watch-beat {
+    0%,
+    100% {
+      color: var(--accent);
+      background-color: var(--accent-8);
+    }
+    33.333% {
+      color: var(--text-mid);
+      background-color: transparent;
+    }
+  }
+  @keyframes kib-memory {
+    0%,
+    66.667%,
+    100% {
+      border-color: var(--line-strong);
+      background-color: transparent;
+    }
+    33.333% {
+      border-color: var(--accent);
+      background-color: var(--accent-8);
+    }
+  }
+  @keyframes kib-deliver {
+    0%,
+    30%,
+    100% {
+      opacity: 0;
+      transform: var(--kib-source);
+    }
+    32%,
+    38% {
+      opacity: 1;
+      transform: var(--kib-source);
+    }
+    50%,
+    94% {
+      opacity: 1;
+      transform: none;
+    }
+    98% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  @keyframes kib-before {
+    0%,
+    98%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes kib-after {
+    0%,
+    98%,
+    100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kib-stage * {
+      animation: none;
+    }
+    .kib-nudge,
+    .kib-after {
+      opacity: 1;
+      transform: none;
+    }
+    .kib-before {
+      visibility: hidden;
+    }
+  }
+
+  /* Rotating word: a clipped line-height box; the track steps through --count words. */
+  .rotate-word {
+    display: inline-grid;
+    overflow: hidden;
+    vertical-align: top;
+    height: 1lh;
+  }
+  .rotate-word-track {
+    display: grid;
+    animation: rotate-word calc(var(--count) * 1.6s) steps(var(--count)) infinite;
+  }
+  .rotate-word-track > span {
+    height: 1lh;
+    white-space: nowrap;
+  }
+  @keyframes rotate-word {
+    to {
+      transform: translateY(-100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee,
+    .ticker {
+      mask-image: none;
+      overflow: visible;
+    }
+    .marquee-track,
+    .ticker-track {
+      animation: none;
+      flex-wrap: wrap;
+    }
+    .marquee-track {
+      width: 100%;
+    }
+    .marquee-track[aria-hidden="true"],
+    .ticker-track > [aria-hidden="true"] {
+      display: none;
+    }
+    .lit-progress,
+    .lit-progress.lit-scroll,
+    .lit-lines.lit-scroll .lit-line {
+      --lit-p: 1;
+      animation: none;
+    }
+    .lit-follow,
+    .lit-scroll .lit-follow {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+    .lit-word,
+    .lit-read .lit-word {
+      background-image: none;
+      color: var(--text-hi);
+      filter: none;
+    }
+    .rotate-word {
+      height: auto;
+      overflow: visible;
+    }
+    .rotate-word-track {
+      animation: none;
+    }
+    .rotate-word-track > span:not(:first-child) {
+      display: none;
     }
   }
 }

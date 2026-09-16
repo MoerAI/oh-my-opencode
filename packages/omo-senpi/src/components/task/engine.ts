@@ -14,11 +14,13 @@ import {
   type ChildPlanner,
   type CompletionNotifier,
   type PersistedTaskEvent,
+  type SkillInvocationState,
   type SpawnAdmission,
   type SkillLoader,
   type TaskLifecycle,
   type TaskManager,
   type TaskRecord,
+  type TaskToolDeps,
 } from "@oh-my-opencode/senpi-task"
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
@@ -30,16 +32,17 @@ import {
 } from "./category-config-generation"
 import { createCategoryUnavailableWarningPlanner } from "./category-unavailable-warning"
 import { createTaskStoreChain } from "./engine-store-chain"
+import { createEngineKernelTools } from "./engine-kernel-tools"
+import { createEngineLiveness } from "./engine-liveness"
 import {
   DEFAULT_RUNNER_FACTORIES,
   resolveTaskAgents,
   type RunnerBuildContext,
   type TaskRunnerFactories,
 } from "./engine-runners"
-import { createOwnedMemberLivenessNotifier } from "./owned-member-liveness"
 import { createParentNotifier } from "./parent-notifier"
 import { createTaskChildPlanner, type ResolveModelRegistry } from "./planner"
-import { createTeamMemberLivenessNotifier, type TeamMemberLivenessNotifier } from "./member-liveness"
+import type { TeamMemberLivenessNotifier } from "./member-liveness"
 import { createManagerResidencyRegistry } from "./residency-registry"
 import { TaskRuntimeContext } from "./runtime-context"
 import { sharedTaskTerminalObservers, type TaskTerminalObservers } from "./terminal-observers"
@@ -60,6 +63,12 @@ export interface TaskEngine {
   readonly loadSkills: SkillLoader
   readonly memberLiveness: TeamMemberLivenessNotifier
   readonly notifyOwnedMemberLiveness: (record: TaskRecord) => Promise<void>
+  /**
+   * Everything the `task` tool resolves a spawn against, including the child tool names a parent
+   * kernel-tool grant is decided from (item 6) - assembled here because this engine owns the
+   * manager, the agent map and the shared parent tool surface they are derived from.
+   */
+  readonly taskToolDeps: (resolveSkillInvocations: (sessionId: string) => SkillInvocationState) => TaskToolDeps
   readonly appendTaskEvent: (taskId: string, event: PersistedTaskEvent) => void
   // Subscribe to every store mutation (spawn/transition/replace/remove). The UI status sync attaches
   // here so the footer/widget refresh on background task activity. Returns an unsubscribe.
@@ -100,61 +109,26 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     ...(settings.state_dir !== undefined && { task: { state_dir: settings.state_dir } }),
   }
   const baseStore = createTaskRecordStore(stateDir)
-  const memberLiveness = createTeamMemberLivenessNotifier({
+  const { memberLiveness, notifyOwnedMemberLiveness } = createEngineLiveness({
     pi: deps.pi,
     ...(deps.coordinator === undefined ? {} : { coordinator: deps.coordinator }),
-    isStreaming: () => runtime.parentState().kind === "streaming",
-    wasDelivered: (record) => {
-      try {
-        const fresh = baseStore.load(record.task_id) ?? record
-        return (fresh.notification.liveness_notified_epoch ?? -1) >= record.notification.run_epoch
-      } catch (error) {
-        log("omo-senpi team liveness marker read failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return false
-      }
-    },
-    markDelivered: (record) => {
-      try {
-        const capturedEpoch = record.notification.run_epoch
-        baseStore.mutate(record.task_id, (fresh) => {
-          if (fresh.status !== record.status || fresh.notification.run_epoch !== capturedEpoch) return fresh
-          if ((fresh.notification.liveness_notified_epoch ?? -1) >= capturedEpoch) return fresh
-          return {
-            ...fresh,
-            notification: { ...fresh.notification, liveness_notified_epoch: capturedEpoch },
-          }
-        })
-      } catch (error) {
-        log("omo-senpi team liveness marker write failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    },
-    onError: (error) => {
-      log("omo-senpi team liveness delivery failed", {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
-  })
-  const notifyOwnedMemberLiveness = createOwnedMemberLivenessNotifier({
+    runtime,
+    store: baseStore,
     stateDir,
     settings,
-    runtime,
-    notifier: memberLiveness,
-    onError: (error, record) => {
-      log("omo-senpi team liveness ownership check failed", {
-        taskId: record.task_id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
   })
   const agents = resolveTaskAgents(deps.omoConfig)
 
-  const parentNotifier = createParentNotifier(deps.pi, deps.coordinator, () => runtime.parentState().kind === "streaming")
+  // The coordinator's async receipt closes the loop on batched delivery: a completion the coordinator
+  // accepted but never delivered (failed flush, or a batch window dropped when /reload retires it)
+  // rolls notified_epoch back and stamps the failure, so the post-reload session_start reconcile
+  // redelivers it instead of skipping the record forever.
+  const parentNotifier = createParentNotifier(
+    deps.pi,
+    deps.coordinator,
+    () => runtime.parentState().kind === "streaming",
+    (taskIds, error) => notifier.recordDeliveryFailure({ taskIds, error }),
+  )
   const notifier = createCompletionNotifier({
     notifier: parentNotifier,
     store: baseStore,
@@ -182,6 +156,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   }
 
   const categoryConfigGenerations = createCategoryConfigGenerations()
+  const kernelTools = createEngineKernelTools(deps.sharedParentTools)
+  const kernelToolBindings = kernelTools.bindings
   const storeChain = createTaskStoreChain({
     baseStore,
     runtime,
@@ -195,10 +171,22 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
 
   const registry = createManagerResidencyRegistry(getManager)
-  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings })
+  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings, kernelToolBindings,
+    revivePolicy: {
+      currentGeneration: () => {
+        const modelRegistry = runtime.modelRegistry()
+        return modelRegistry === undefined ? categoryConfigGenerations.current()?.generation
+          : categoryConfigGenerations.observe({ omoConfig: deps.omoConfig, registry: modelRegistry }).generation
+      },
+      warn: (warning) => {
+        baseStore.appendEvent(warning.task_id, { type: "config_generation_mismatch", payload: warning })
+        deps.pi.sendMessage({ customType: "senpi-task.config-generation-mismatch", content: "Resuming the recorded task configuration.", display: true, details: warning }, {})
+      },
+    },
+  })
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
-  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings }
+  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings }
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
   const basePlanner = createGenerationObservingPlanner({
     planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
@@ -216,6 +204,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   const manager = createTaskManager({
     store: storeChain.store,
     runners: { "in-process": factories.inProcess(runnerContext), process: factories.process(runnerContext) },
+    kernelToolBindings,
+    resolveChildToolNames: kernelTools.childToolNames,
     planner,
     config: settings,
     cwd: deps.cwd,
@@ -249,6 +239,14 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     loadSkills,
     memberLiveness,
     notifyOwnedMemberLiveness,
+    taskToolDeps: (resolveSkillInvocations) => ({
+      manager,
+      omoConfig: deps.omoConfig,
+      agents,
+      loadSkills,
+      resolveSkillInvocations,
+      resolveChildToolNames: kernelTools.childToolNames,
+    }),
     appendTaskEvent,
     onStoreMutation: storeChain.onMutation,
   }
