@@ -6078,6 +6078,8 @@ describe("BackgroundManager.handleEvent - session.error", () => {
     const task = createMockTask({ id: `attached-${status}`, parentSessionId: "parent", sessionId: `ses_${status}`, status })
     getTaskMap(manager).set(task.id, task)
     const detach = manager.attachSyncContinuation(task.sessionId!)
+    let recoveryPending = true
+    manager.setTerminalChildRecoveryCheck(() => recoveryPending)
     try {
       //#when
       manager.handleEvent({ type: "session.error", properties: { sessionID: task.sessionId, error: { name: "APIError", message: "503 overloaded" } } })
@@ -6087,6 +6089,8 @@ describe("BackgroundManager.handleEvent - session.error", () => {
       nowSpy.mockReturnValue(1_019_999)
       expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
       nowSpy.mockReturnValue(1_020_000)
+      expect(manager.getTerminalChildError(task.sessionId!)).toBeNull()
+      recoveryPending = false
       //#then
       expect(manager.getTerminalChildError(task.sessionId!)).toBe(message)
       expect(task.status).toBe(status)
@@ -6130,12 +6134,14 @@ describe("BackgroundManager.handleEvent - session.error", () => {
     }
   })
 
-  test("delays untracked terminal errors for fallback grace and clears recovered sessions", () => {
+  test("hides untracked terminal errors while recovery is pending and clears recovered sessions", () => {
     //#given
     const manager = createBackgroundManager()
     const recordedAt = Date.now()
     const nowSpy = spyOn(Date, "now").mockReturnValue(recordedAt)
     const message = "Model not found: opencode/gpt-5-nano"
+    const recovering = new Set(["ses_grace_terminal", "ses_grace_recovered"])
+    manager.setTerminalChildRecoveryCheck(sessionID => recovering.has(sessionID))
 
     try {
       //#when
@@ -6158,6 +6164,10 @@ describe("BackgroundManager.handleEvent - session.error", () => {
         },
       })
       nowSpy.mockReturnValue(recordedAt + 10_000)
+      expect(manager.getTerminalChildError("ses_grace_terminal")).toBeNull()
+      nowSpy.mockReturnValue(recordedAt + 60_000)
+      expect(manager.getTerminalChildError("ses_grace_terminal")).toBeNull()
+      recovering.clear()
       expect(manager.getTerminalChildError("ses_grace_terminal")).toBe(message)
       expect(manager.getTerminalChildError("ses_grace_recovered")).toBeNull()
       nowSpy.mockReturnValue(recordedAt + 20_000)

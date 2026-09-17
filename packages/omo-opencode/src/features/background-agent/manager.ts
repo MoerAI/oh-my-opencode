@@ -149,7 +149,6 @@ const TERMINAL_BACKGROUND_TASK_STATUSES = new Set<BackgroundTask["status"]>([
 ])
 
 const PENDING_PARENT_WAKE_RETRY_MS = 1_000
-const TERMINAL_CHILD_ERROR_GRACE_MS = 10_000
 const PENDING_PARENT_WAKE_DEBOUNCE_MS = 100
 const PARENT_WAKE_ACCEPTED_MESSAGE_SKEW_MS = 5_000
 const PARENT_WAKE_TOOL_CALL_DEFER_MAX_MS = 5_000
@@ -277,7 +276,8 @@ export class BackgroundManager {
   private parentWakeTextDeltaBuffers: Map<string, string> = new Map()
   private observedOutputSessions: Set<string> = new Set()
   private observedIncompleteTodosBySession: Map<string, boolean> = new Map()
-  private terminalChildErrors: Map<string, { readonly message: string; readonly recordedAt: number }> = new Map()
+  private terminalChildErrors: Map<string, string> = new Map()
+  private isTerminalChildRecoveryPending: (sessionID: string) => boolean = () => false
   private rootDescendantCounts: Map<string, number>
   private preStartDescendantReservations: Set<string>
   private enableParentSessionNotifications: boolean
@@ -1127,9 +1127,13 @@ The fallback retry session is now created and can be inspected directly.
     return this.hasUndeliveredParentWake(sessionID) || this.parentWakeNotifier.getDispatchedParentWakes().has(sessionID)
   }
 
+  setTerminalChildRecoveryCheck(check: (sessionID: string) => boolean): void {
+    this.isTerminalChildRecoveryPending = check
+  }
+
   getTerminalChildError(sessionID: string): string | null {
-    const error = this.terminalChildErrors.get(sessionID)
-    return error && Date.now() - error.recordedAt >= TERMINAL_CHILD_ERROR_GRACE_MS ? error.message : null
+    if (this.isTerminalChildRecoveryPending(sessionID)) return null
+    return this.terminalChildErrors.get(sessionID) ?? null
   }
 
   private hasUndeliveredParentWake(sessionID: string): boolean {
@@ -1856,7 +1860,7 @@ The fallback retry session is now created and can be inspected directly.
         const errorMessage = props ? getSessionErrorMessage(props) : undefined
         const errorName = extractErrorName(props?.error)
         if (errorMessage && isTerminalSessionError({ name: errorName, message: errorMessage })) {
-          this.terminalChildErrors.set(sessionID, { message: errorMessage, recordedAt: Date.now() })
+          this.terminalChildErrors.set(sessionID, errorMessage)
         }
       }
       if (this.parentWakeNotifier.getDispatchedParentWakes().has(sessionID) || !resolved?.isCurrent) {
