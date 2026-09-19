@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { loadSenpiOmoConfig } from "../config-resolution";
 import type { PostEditDiagnosticsOutcome } from "@oh-my-opencode/lsp-core/post-edit";
 import { createFormatterStep } from "../formatter/formatter";
+import { createLazyValue, deferUntilAfterFirstPaint } from "../../extension/startup-deferral";
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types";
 import {
 	lsp_diagnostics,
@@ -61,28 +62,35 @@ export function createLspComponent(options: LspComponentOptions = {}): OmoSenpiC
 		register(pi, ctx) {
 			const cwd = pi.cwd ?? process.cwd();
 			const runPostEditDiagnostics = options.postEdit?.runDiagnostics ?? createLspDiagnosticsRunner(cwd, options.callDaemonTool);
-			const formatMutation = options.formatter ?? createFormatterStep({
+			// The formatter reads omo config and the project's formatter markers off disk, and nothing
+			// before the first mutation tool result can observe it: built on first use, so a session
+			// that never edits a file never pays for it.
+			const formatMutation = createLazyValue(() => options.formatter ?? createFormatterStep({
 				config: loadSenpiOmoConfig({ cwd }).config.formatOnMutation,
 				markers: markerCwd => listProjectMarkers(markerCwd),
 				readMarker: (markerCwd, marker) => readProjectMarker(markerCwd, marker),
 				logger: ctx.logger,
-			});
+			}));
 			registerLspFlags(pi);
 			if (ctx.config.getFlag(LSP_TOOLS_ENABLED_FLAG) === false) return;
 
-			for (const notice of getConfigNotices()) {
-				ctx.logger.warn(
-					"omo-senpi ignored project-local LSP commands; move custom commands to the user .pi config",
-					notice,
-				);
-			}
+			// A startup diagnostic, not a precondition: reading both .pi configs is fs work the first
+			// paint should not wait for, and the warning still reaches the same logger one tick later.
+			deferUntilAfterFirstPaint(ctx, "lsp project-config notices", () => {
+				for (const notice of getConfigNotices()) {
+					ctx.logger.warn(
+						"omo-senpi ignored project-local LSP commands; move custom commands to the user .pi config",
+						notice,
+					);
+				}
+			});
 
 			registerLspTools(pi, cwd);
 
 			pi.on("tool_result", async (event, eventCtx) => {
 					const parsed = isToolResultLike(event) ? event : undefined;
 					if (!parsed) return undefined;
-					const formatted = await formatMutation(parsed, pi.cwd ?? process.cwd(), sessionIdFromContext(eventCtx));
+					const formatted = await formatMutation.get()(parsed, pi.cwd ?? process.cwd(), sessionIdFromContext(eventCtx));
 					const afterFormat = formatted.content ? { ...parsed, content: [...parsed.content, ...formatted.content] } : parsed;
 					if (formatted.error) return { content: afterFormat.content, isError: true };
 					if (ctx.config.getFlag(LSP_POST_EDIT_DIAGNOSTICS_ENABLED_FLAG) === false) return formatted.content ? { content: afterFormat.content } : undefined;

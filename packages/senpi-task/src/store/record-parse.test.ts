@@ -3,7 +3,14 @@ import { describe, expect, test } from "bun:test"
 import type { TaskRecord, TaskRunStats } from "../state"
 import { parseTaskRecord } from "./record-parse"
 
+// Enable this flag to capture RED test output before implementation
+const CAPTURE_RED = process.env.CAPTURE_RED === "1"
+
 function persisted(fields: Record<string, unknown>): Record<string, unknown> {
+  // Mark with CAPTURE_RED if you want to see which tests currently fail (RED)
+  if (CAPTURE_RED) {
+    // Placeholder for debugging
+  }
   return {
     task_id: "st_1a2b3c4d",
     status: "completed",
@@ -164,5 +171,108 @@ describe("record-parse task ordinals and background mode", () => {
 
     // when / then
     expect(() => parseTaskRecord(stored, "record.json")).toThrow(/background_mode/)
+  })
+})
+
+describe("record-parse runner_kind and host_session fields", () => {
+  test("#given a persisted record with runner_kind and host_session #when parsed #then both fields round-trip exactly", () => {
+    // given
+    const stored = persisted({
+      runner_kind: "host-session",
+      host_session: {
+        socket: "/tmp/omo-agent/rpc/rpc.sock",
+        routing_id: "routing-12345",
+        session_path: "01a0815e-session-path",
+        instance_id: "inst-uuid-001",
+        daemon_pid: 54321,
+      },
+    })
+
+    // when
+    const record = parseTaskRecord(stored, "record.json")
+
+    // then
+    expect(record.runner_kind).toBe("host-session")
+    expect(record.host_session).toEqual({
+      socket: "/tmp/omo-agent/rpc/rpc.sock",
+      routing_id: "routing-12345",
+      session_path: "01a0815e-session-path",
+      instance_id: "inst-uuid-001",
+      daemon_pid: 54321,
+    })
+  })
+
+  test("#given a legacy record without runner_kind and host_session #when parsed #then the record still loads", () => {
+    // given
+    const stored = persisted({})
+
+    // when
+    const record = parseTaskRecord(stored, "record.json")
+
+    // then
+    expect(record.runner_kind).toBeUndefined()
+    expect(record.host_session).toBeUndefined()
+    expect("runner_kind" in record).toBe(false)
+    expect("host_session" in record).toBe(false)
+  })
+
+  test("#given a record with runner_kind='child-process' #when parsed #then it round-trips", () => {
+    // given
+    const stored = persisted({ runner_kind: "child-process" })
+
+    // when
+    const record = parseTaskRecord(stored, "record.json")
+
+    // then
+    expect(record.runner_kind).toBe("child-process")
+    expect(record.host_session).toBeUndefined()
+  })
+
+  test("#given a record with malformed host_session (missing routing_id) #when parsed #then a typed error is thrown", () => {
+    // given
+    const stored = persisted({
+      runner_kind: "host-session",
+      host_session: {
+        socket: "/tmp/omo-agent/rpc/rpc.sock",
+        session_path: "01a0815e-session-path",
+        instance_id: "inst-uuid-001",
+        // routing_id is missing - should cause an error
+      },
+    })
+
+    // when / then - expect a typed parse error, not silent coercion
+    expect(() => parseTaskRecord(stored, "record.json")).toThrow(/routing_id/)
+  })
+
+  test("#given a record with host_session but no runner_kind #when parsed #then an error is thrown", () => {
+    // given - inconsistent: host_session present but runner_kind not set to host-session
+    const stored = persisted({
+      host_session: {
+        socket: "/tmp/omo-agent/rpc/rpc.sock",
+        routing_id: "routing-12345",
+        session_path: "01a0815e-session-path",
+        instance_id: "inst-uuid-001",
+      },
+    })
+
+    // when / then
+    expect(() => parseTaskRecord(stored, "record.json")).toThrow()
+  })
+
+  test("#given a record with host_session containing a non-numeric daemon_pid #when parsed #then an error is thrown", () => {
+    // given
+    const stored = persisted({
+      runner_kind: "host-session",
+      host_session: {
+        socket: "/tmp/omo-agent/rpc/rpc.sock",
+        routing_id: "routing-12345",
+        session_path: "01a0815e-session-path",
+        instance_id: "inst-uuid-001",
+        daemon_pid: "not-a-number",
+      },
+    })
+
+    // when / then
+    expect(() => parseTaskRecord(stored, "record.json")).toThrow(/daemon_pid/)
   })
 })

@@ -63,7 +63,7 @@ function outputForRecord(deps: TaskOutputDeps, record: TaskRecord, params: TaskO
   const mode = params.mode ?? "status"
 
   if (mode === "status" || record.status === "lost") {
-    return toolResult(statusText(snapshot), { kind: "status", snapshot })
+    return toolResult(withNotices(statusText(snapshot), deps), { kind: "status", snapshot })
   }
 
   return transcriptResult(deps, record, snapshot, mode, params.tail_lines ?? DEFAULT_TAIL_LINES)
@@ -105,6 +105,13 @@ function scopedCandidates(
 
 function resolveTarget(candidates: readonly TaskRecord[], idOrName: string): TaskRecord | undefined {
   return candidates.find((record) => record.task_id === idOrName) ?? candidates.find((record) => record.name === idOrName)
+}
+
+// Session-level runner notices ride the status view: one line each, after the record facts, so a
+// parent reading any child sees why its children are not daemon sessions.
+function withNotices(text: string, deps: TaskOutputDeps): string {
+  const notices = deps.notices?.() ?? []
+  return notices.length === 0 ? text : [text, ...notices.map((notice) => `note: ${notice}`)].join("\n")
 }
 
 function statusText(snapshot: TaskSnapshot): string {

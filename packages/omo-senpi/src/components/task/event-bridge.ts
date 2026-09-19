@@ -1,5 +1,5 @@
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
-import { OMO_SENPI_TASK_RPC_CHILD } from "@oh-my-opencode/senpi-task"
+import { readSessionRole } from "@oh-my-opencode/senpi-task"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -49,7 +49,9 @@ export function wireEventBridge(
   pi.on("session_start", async (_payload, eventCtx) => {
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     const sessionId = engine.runtime.sessionId()
-    if (process.env[OMO_SENPI_TASK_RPC_CHILD] === "1" && sessionId === undefined) return
+    // A child session that has not reported its own id yet has nothing to reconcile: its records
+    // belong to the parent. The role comes from the session (shared daemon), else from the env.
+    if (readSessionRole(pi) !== undefined && sessionId === undefined) return
     transitions.onSessionStart(sessionId)
     const reconciliation = await engine.lifecycle.reconcileOnSessionStart(sessionId)
     const livenessRecords = new Map<string, ReturnType<typeof engine.manager.get>>()
@@ -78,6 +80,7 @@ export function wireEventBridge(
       ctx.logger.info("senpi-task ttl cleanup", { deleted: cleanup.deleted.length, retained: cleanup.retained.length })
     }
     await tickLeadPollersBestEffort(ctx, state)
+    if (sessionId !== undefined) engine.manager.workpools?.attach({ sessionId, rootSessionId: sessionId, depth: 0, cwd: engine.runtime.cwd() })
     statusUi.scheduleSync()
     taskRpc.attach()
   })

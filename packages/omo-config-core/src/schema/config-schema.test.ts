@@ -82,7 +82,9 @@ describe("omo config schema", () => {
     expect(result.success).toBe(true)
     if (!result.success) throw new Error(result.error.message)
     expect(result.data.git_master?.include_co_authored_by).toBe(false)
-    expect(result.data.task?.default_execution_mode).toBe("in-process")
+    expect(result.data.task?.default_execution_mode).toBe("auto")
+    expect(result.data.task?.process_runner).toBe("host")
+    expect(result.data.task?.host_engine_policy).toBe("upgrade")
     expect(result.data.task?.default_concurrency).toBe(5)
     expect(result.data.task?.residency_max_children).toBe(8)
     expect(result.data.categories?.deep?.max_tokens).toBe(12000)
@@ -103,7 +105,7 @@ describe("omo config schema", () => {
     // then
     expect(result.success).toBe(true)
     if (!result.success) throw new Error(result.error.message)
-    expect(result.data.git_master).toEqual({ commit_footer: true, include_co_authored_by: true })
+    expect(result.data.git_master).toEqual({ commit_footer: false, include_co_authored_by: false })
   })
 
   test("#given an unknown root key #when parsed #then the schema rejects the config", () => {

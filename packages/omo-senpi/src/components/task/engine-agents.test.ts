@@ -127,6 +127,20 @@ describe("task engine builtin agent overlay", () => {
     expect(engine.agents["explore"]?.executionMode).toBe("in-process")
   })
 
+  test("#given the daemon-backed auto default #when the engine resolves agents #then every curated read-only agent stays pinned in-process", () => {
+    // given - the shipped default is now `auto`, which routes ordinary children at the daemon
+    const cwd = tempProject()
+    writeOmoJson(cwd, { task: { default_execution_mode: "auto", process_runner: "host" } })
+
+    // when
+    const engine = composeIn(cwd)
+
+    // then
+    for (const name of ["explore", "librarian", "plan-consultant", "plan-reviewer"]) {
+      expect(engine.agents[name]?.executionMode).toBe("in-process")
+    }
+  })
+
   test("#given a process override for a reviewer agent #when the engine resolves agents #then in-process execution remains pinned", () => {
     // given
     const cwd = tempProject()

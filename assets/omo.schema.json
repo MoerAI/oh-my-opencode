@@ -807,7 +807,7 @@
       "type": "object",
       "properties": {
         "commit_footer": {
-          "default": true,
+          "default": false,
           "anyOf": [
             {
               "type": "boolean"
@@ -818,7 +818,7 @@
           ]
         },
         "include_co_authored_by": {
-          "default": true,
+          "default": false,
           "type": "boolean"
         }
       },
@@ -832,12 +832,34 @@
       "type": "object",
       "properties": {
         "default_execution_mode": {
-          "default": "in-process",
+          "default": "auto",
           "type": "string",
           "enum": [
+            "auto",
             "in-process",
             "process"
           ]
+        },
+        "process_runner": {
+          "default": "host",
+          "type": "string",
+          "enum": [
+            "host",
+            "child-process"
+          ]
+        },
+        "host_engine_policy": {
+          "default": "upgrade",
+          "type": "string",
+          "enum": [
+            "upgrade",
+            "fallback"
+          ]
+        },
+        "host_idle_exit_ms": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
         },
         "default_concurrency": {
           "default": 5,
@@ -1066,6 +1088,8 @@
       },
       "required": [
         "default_execution_mode",
+        "process_runner",
+        "host_engine_policy",
         "default_concurrency",
         "global_concurrency",
         "max_depth",
@@ -2137,6 +2161,12 @@
         "enabled"
       ],
       "additionalProperties": false
+    },
+    "disabled_skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "[opencode]": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -11811,14 +11841,14 @@
         },
         "git_master": {
           "default": {
-            "commit_footer": true,
-            "include_co_authored_by": true,
+            "commit_footer": false,
+            "include_co_authored_by": false,
             "git_env_prefix": "GIT_MASTER=1"
           },
           "type": "object",
           "properties": {
             "commit_footer": {
-              "default": true,
+              "default": false,
               "anyOf": [
                 {
                   "type": "boolean"
@@ -11829,7 +11859,7 @@
               ]
             },
             "include_co_authored_by": {
-              "default": true,
+              "default": false,
               "type": "boolean"
             },
             "git_env_prefix": {
@@ -12861,9 +12891,29 @@
             "default_execution_mode": {
               "type": "string",
               "enum": [
+                "auto",
                 "in-process",
                 "process"
               ]
+            },
+            "process_runner": {
+              "type": "string",
+              "enum": [
+                "host",
+                "child-process"
+              ]
+            },
+            "host_engine_policy": {
+              "type": "string",
+              "enum": [
+                "upgrade",
+                "fallback"
+              ]
+            },
+            "host_idle_exit_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
             },
             "default_concurrency": {
               "type": "integer",
@@ -13899,6 +13949,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "disabled_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -14718,9 +14774,29 @@
             "default_execution_mode": {
               "type": "string",
               "enum": [
+                "auto",
                 "in-process",
                 "process"
               ]
+            },
+            "process_runner": {
+              "type": "string",
+              "enum": [
+                "host",
+                "child-process"
+              ]
+            },
+            "host_engine_policy": {
+              "type": "string",
+              "enum": [
+                "upgrade",
+                "fallback"
+              ]
+            },
+            "host_idle_exit_ms": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
             },
             "default_concurrency": {
               "type": "integer",
@@ -15756,6 +15832,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "disabled_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -16581,9 +16663,29 @@
               "default_execution_mode": {
                 "type": "string",
                 "enum": [
+                  "auto",
                   "in-process",
                   "process"
                 ]
+              },
+              "process_runner": {
+                "type": "string",
+                "enum": [
+                  "host",
+                  "child-process"
+                ]
+              },
+              "host_engine_policy": {
+                "type": "string",
+                "enum": [
+                  "upgrade",
+                  "fallback"
+                ]
+              },
+              "host_idle_exit_ms": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
               },
               "default_concurrency": {
                 "type": "integer",
@@ -17619,6 +17721,12 @@
               }
             },
             "additionalProperties": false
+          },
+          "disabled_skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "[opencode]": {
             "$schema": "http://json-schema.org/draft-07/schema#",
@@ -27293,14 +27401,14 @@
               },
               "git_master": {
                 "default": {
-                  "commit_footer": true,
-                  "include_co_authored_by": true,
+                  "commit_footer": false,
+                  "include_co_authored_by": false,
                   "git_env_prefix": "GIT_MASTER=1"
                 },
                 "type": "object",
                 "properties": {
                   "commit_footer": {
-                    "default": true,
+                    "default": false,
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -27311,7 +27419,7 @@
                     ]
                   },
                   "include_co_authored_by": {
-                    "default": true,
+                    "default": false,
                     "type": "boolean"
                   },
                   "git_env_prefix": {
@@ -28343,9 +28451,29 @@
                   "default_execution_mode": {
                     "type": "string",
                     "enum": [
+                      "auto",
                       "in-process",
                       "process"
                     ]
+                  },
+                  "process_runner": {
+                    "type": "string",
+                    "enum": [
+                      "host",
+                      "child-process"
+                    ]
+                  },
+                  "host_engine_policy": {
+                    "type": "string",
+                    "enum": [
+                      "upgrade",
+                      "fallback"
+                    ]
+                  },
+                  "host_idle_exit_ms": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "default_concurrency": {
                     "type": "integer",
@@ -29381,6 +29509,12 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "disabled_skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false
@@ -30200,9 +30334,29 @@
                   "default_execution_mode": {
                     "type": "string",
                     "enum": [
+                      "auto",
                       "in-process",
                       "process"
                     ]
+                  },
+                  "process_runner": {
+                    "type": "string",
+                    "enum": [
+                      "host",
+                      "child-process"
+                    ]
+                  },
+                  "host_engine_policy": {
+                    "type": "string",
+                    "enum": [
+                      "upgrade",
+                      "fallback"
+                    ]
+                  },
+                  "host_idle_exit_ms": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "default_concurrency": {
                     "type": "integer",
@@ -31238,6 +31392,12 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "disabled_skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false

@@ -128,28 +128,43 @@ type GoalJsonCache = {
   clear(): void
 }
 
-// The footer ticks at 320ms, but the goal JSON only needs re-reading when its mtime changes.
+type GoalJsonCacheEntry = {
+  readonly mtimeMs: number
+  readonly size: number
+  readonly raw: string
+  readonly parsed: Record<string, unknown> | undefined
+}
+
+// A rewrite that lands within the filesystem's timestamp granule keeps the previous mtime, so an
+// unchanged mtime+size is trusted only once it is older than this window (git's racily-clean rule).
+const RACY_MTIME_WINDOW_MS = 2_000
+
+// The footer ticks at 320ms; an idle goal file costs one stat per tick and is parsed only when its bytes change.
 export function createGoalJsonCache(): GoalJsonCache {
-  const entries = new Map<string, { mtimeMs: number; parsed: Record<string, unknown> | undefined }>()
+  const entries = new Map<string, GoalJsonCacheEntry>()
   return {
     read(path) {
       let mtimeMs: number
+      let size: number
       try {
-        mtimeMs = statSync(path).mtimeMs
+        ;({ mtimeMs, size } = statSync(path))
       } catch {
         entries.delete(path)
         return undefined
       }
       const hit = entries.get(path)
-      if (hit !== undefined && hit.mtimeMs === mtimeMs) return hit.parsed
-      let parsed: Record<string, unknown> | undefined
+      const statUnchanged = hit !== undefined && hit.mtimeMs === mtimeMs && hit.size === size
+      if (hit !== undefined && statUnchanged && Date.now() - mtimeMs >= RACY_MTIME_WINDOW_MS) return hit.parsed
+      let raw: string
       try {
-        const value: unknown = JSON.parse(readFileSync(path, "utf8"))
-        parsed = isRecord(value) ? value : undefined
+        raw = readFileSync(path, "utf8")
       } catch {
-        parsed = undefined
+        entries.delete(path)
+        return undefined
       }
-      entries.set(path, { mtimeMs, parsed })
+      if (hit !== undefined && statUnchanged && hit.raw === raw) return hit.parsed
+      const parsed = parseGoalJson(raw)
+      entries.set(path, { mtimeMs, size, raw, parsed })
       return parsed
     },
     clear() {
@@ -158,10 +173,18 @@ export function createGoalJsonCache(): GoalJsonCache {
   }
 }
 
+function parseGoalJson(raw: string): Record<string, unknown> | undefined {
+  try {
+    const value: unknown = JSON.parse(raw)
+    return isRecord(value) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function readGoalJsonUncached(path: string): Record<string, unknown> | undefined {
   try {
-    const value: unknown = JSON.parse(readFileSync(path, "utf8"))
-    return isRecord(value) ? value : undefined
+    return parseGoalJson(readFileSync(path, "utf8"))
   } catch {
     return undefined
   }

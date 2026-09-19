@@ -77,7 +77,7 @@ export function createIdentityRuntime(
 
   let builtSandbox: SandboxTransform | undefined
   const resolveAgentDir = deps.resolveAgentDir ?? (() => resolveAgentHome({ env: process.env }))
-  const lazySandbox = (spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs => {
+  const lazySandbox = (spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs | Promise<ReflectionSpawnArgs> => {
     if (builtSandbox === undefined) {
       builtSandbox = buildSandboxTransform({
         policy: reflection.sandbox as SandboxPolicy,

@@ -4,6 +4,7 @@ import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { canonicalAgentDir } from "./agent-dir.js"
 import { packageManifest, packageRoot, readJson, resolveSenpi, updateTarget } from "./package-paths.js"
+import { daemonReportLines } from "./daemon.js"
 import { needsSetupSuggestion } from "./setup-detect.js"
 
 const NPM_DIST_TAGS_URL = "https://registry.npmjs.org/-/package/omo-ai/dist-tags"
@@ -363,6 +364,16 @@ function retiredPayloadReport(options) {
   return formatRetiredPayloadLines(classifyRetiredPayloadEngines(list(), { payloadMtimeMs, nowMs: now() }))
 }
 
+/** One line about the shared engine host; injected so tests never spawn the engine. */
+function daemonReport(options) {
+  if (options.daemonReport !== undefined) return options.daemonReport()
+  const engine = options.daemonEngine
+  if (engine === undefined) return []
+  return daemonReportLines({
+    engine, pluginRoot: join(packageRoot, "plugin"), agentDir: canonicalAgentDir(), env: process.env, platform: process.platform,
+  })
+}
+
 export function runDoctor(inventory, args = [], options = {}) {
   if (args[0] === "--reap") {
     const result = reapStaleEngines(args.slice(1), options)
@@ -416,6 +427,7 @@ export function runDoctor(inventory, args = [], options = {}) {
   lines.push(...staleEngineReport(options))
   lines.push(...retiredPayloadReport(options))
   lines.push(...transientMemoryReport(options))
+  lines.push(...daemonReport(options))
   if (needsSetupSuggestion(inventory)) {
     lines.push("INFO no credentials found; run omo setup to review sibling stores")
   }

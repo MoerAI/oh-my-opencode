@@ -200,6 +200,7 @@ class RecoveryTaskManager implements TaskManager {
   getResidentHandle(): undefined { return undefined }
   subscribeChild(): () => void { return () => undefined }
   residentTaskIds(): readonly string[] { return [] }
+  residencyChanged(): Promise<void> { return new Promise<void>(() => undefined) }
   promoteToBackground(): boolean { return false }
   wasBackground(): boolean { return true }
 }

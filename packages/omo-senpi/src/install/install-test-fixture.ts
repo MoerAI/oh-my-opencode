@@ -42,6 +42,9 @@ export async function createPluginFixture(options: { readonly runtime?: boolean 
   // Credential-gated skill: staged outside pi.skills but still a required payload artifact.
   await writeFixtureFile(join(pluginPath, "skills-conditional", "x-search", "SKILL.md"), "# x-search\n")
   await writeFixtureFile(join(pluginPath, "scripts", "install.mjs"), "#!/usr/bin/env node\n")
+  // The task daemon's launch spec is a required root-level artifact; the installer's integrity
+  // check refuses a payload without it.
+  await writeFixtureFile(join(pluginPath, "daemon-launch-spec.json"), '{"spec_version":1,"core":{"session_runtime":"in-process","multi_session":true,"extensions":["."]},"tunables":{},"env":{}}\n')
   if (options.runtime !== false) {
     const astGrepRuntime = join(pluginPath, "runtime", "ast-grep-mcp", "cli.js")
     await writeFixtureFile(astGrepRuntime, "console.log('ast-grep')\n")

@@ -14,17 +14,17 @@ export interface ReadingParagraphProps {
 }
 
 /**
- * One manifesto paragraph: its own `LitProgress` block, so the words light up as this
- * paragraph crosses the reading zone (top at 80vh → bottom at 50vh), independently of
- * the paragraphs around it. Authored line breaks survive through `white-space: pre-line`.
+ * One manifesto paragraph: its own `LitProgress` block in line mode, so every authored line
+ * is a block that lights while it crosses the fixed reading line (`--lit-line`). Only one line
+ * is ever mid-sweep, and the reveal unit is the same as the line-break unit.
  */
 export function ReadingParagraph({ text, parts, className }: ReadingParagraphProps): JSX.Element {
   return (
-    <LitProgress className="lit-read">
+    <LitProgress className="lit-read" lines>
       {parts ? (
-        <LitWords parts={parts} className={cn(READING_CLASS, className)} />
+        <LitWords lines parts={parts} className={cn(READING_CLASS, className)} />
       ) : (
-        <LitWords text={text ?? ""} className={cn(READING_CLASS, className)} />
+        <LitWords lines text={text ?? ""} className={cn(READING_CLASS, className)} />
       )}
     </LitProgress>
   )

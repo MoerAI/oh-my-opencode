@@ -1,4 +1,5 @@
-import { closeSync, openSync, rmSync, statSync, utimesSync, writeSync } from "node:fs"
+import { closeSync, mkdirSync, openSync, rmSync, statSync, utimesSync, writeSync } from "node:fs"
+import { dirname } from "node:path"
 
 const LOCK_RETRY_MS = 10
 const LOCK_WAIT_TIMEOUT_MS = 1_000
@@ -11,6 +12,7 @@ const sleeper = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMEN
 
 export function withTaskRecordLock<T>(recordPath: string, operation: () => T): T {
   const lockPath = `${recordPath}.lock`
+  mkdirSync(dirname(lockPath), { recursive: true })
   acquireLock(lockPath)
   try {
     return operation()
@@ -21,6 +23,7 @@ export function withTaskRecordLock<T>(recordPath: string, operation: () => T): T
 
 export async function withTaskRecordLockAsync<T>(recordPath: string, operation: () => Promise<T>): Promise<T> {
   const lockPath = `${recordPath}.lock`
+  mkdirSync(dirname(lockPath), { recursive: true })
   await acquireLockAsync(lockPath)
   const heartbeat = setInterval(() => refreshLock(lockPath), LOCK_STALE_MS / 2)
   heartbeat.unref()

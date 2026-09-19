@@ -6,7 +6,14 @@ import { join } from "node:path";
 import { readLedgerAt } from "./ledger.js";
 import { type UlwLoopScope, ulwLoopDir, ulwLoopStateLockPath } from "./paths.js";
 import { assertStateLockOwned, migrationEntries } from "./plan-io.js";
-import { hasCode, type PlanCommitRecord, readOptional, readRecords, reconcilePlan } from "./plan-log.js";
+import {
+	assertProjectionComplete,
+	hasCode,
+	type PlanCommitRecord,
+	readOptional,
+	readRecords,
+	reconcilePlan,
+} from "./plan-log.js";
 import { UlwLoopError, type UlwLoopLedgerEntry, type UlwLoopPlan } from "./types.js";
 
 interface CommitHooks {
@@ -91,6 +98,7 @@ function viewContents(dir: string): [string, string][] {
 	const plan = reconcilePlan(dir);
 	if (plan === undefined || readRecords(dir).length === 0) return [];
 	const ledger = readLedgerAt(dir);
+	assertProjectionComplete(plan, ledger);
 	const views: [string, string][] = [
 		["goals.json", `${JSON.stringify(plan, null, 2)}\n`],
 		["ledger.jsonl", ledger.length === 0 ? "" : `${ledger.map((entry) => JSON.stringify(entry)).join("\n")}\n`],

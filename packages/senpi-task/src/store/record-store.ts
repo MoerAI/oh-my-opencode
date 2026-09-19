@@ -133,8 +133,7 @@ export function createTaskRecordStore(config: StateDirConfig, options: TaskRecor
     },
     listExpunging() {
       const tasksDir = join(stateDir, "tasks")
-      mkdirSync(tasksDir, { recursive: true })
-      return readdirSync(tasksDir)
+      return readDirectoryNames(tasksDir)
         .filter((entry) => entry.endsWith(TOMBSTONE_SUFFIX))
         .map((entry) => entry.slice(0, entry.length - TOMBSTONE_SUFFIX.length))
         .filter(isParseableTaskId)
@@ -166,12 +165,11 @@ function removeRecord(
 
 function listRecords(stateDir: string, cache: Map<string, CacheEntry>): ListTaskRecordsResult {
   const tasksDir = join(stateDir, "tasks")
-  mkdirSync(tasksDir, { recursive: true })
   const records: TaskRecord[] = []
   const diagnostics: TaskRecordDiagnostic[] = []
   const seen = new Set<string>()
 
-  for (const file of readdirSync(tasksDir).filter((entry) => entry.endsWith(".json")).toSorted()) {
+  for (const file of readDirectoryNames(tasksDir).filter((entry) => entry.endsWith(".json")).toSorted()) {
     const path = join(tasksDir, file)
     seen.add(path)
     try {
@@ -197,6 +195,15 @@ function listRecords(stateDir: string, cache: Map<string, CacheEntry>): ListTask
   }
 
   return { records, diagnostics }
+}
+
+function readDirectoryNames(directory: string): string[] {
+  try {
+    return readdirSync(directory)
+  } catch (error) {
+    if (isEnoent(error)) return []
+    throw error
+  }
 }
 
 function readCached(path: string, cache: Map<string, CacheEntry>): TaskRecord | null {

@@ -14,15 +14,18 @@ import {
   type ChildPlanner,
   type CompletionNotifier,
   type PersistedTaskEvent,
+  type SkillInvocationState,
   type SpawnAdmission,
   type SkillLoader,
   type TaskLifecycle,
   type TaskManager,
   type TaskRecord,
+  type TaskToolDeps,
 } from "@oh-my-opencode/senpi-task"
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import type { SenpiExtensionAPI } from "../../extension/types"
+import { createEngineHostRuntime, type EngineHostRuntime } from "./host-execution-mode"
 import {
   createCategoryConfigGenerations,
   createGenerationObservingPlanner,
@@ -30,16 +33,17 @@ import {
 } from "./category-config-generation"
 import { createCategoryUnavailableWarningPlanner } from "./category-unavailable-warning"
 import { createTaskStoreChain } from "./engine-store-chain"
+import { createEngineKernelTools } from "./engine-kernel-tools"
+import { createEngineLiveness } from "./engine-liveness"
 import {
   DEFAULT_RUNNER_FACTORIES,
   resolveTaskAgents,
   type RunnerBuildContext,
   type TaskRunnerFactories,
 } from "./engine-runners"
-import { createOwnedMemberLivenessNotifier } from "./owned-member-liveness"
 import { createParentNotifier } from "./parent-notifier"
 import { createTaskChildPlanner, type ResolveModelRegistry } from "./planner"
-import { createTeamMemberLivenessNotifier, type TeamMemberLivenessNotifier } from "./member-liveness"
+import type { TeamMemberLivenessNotifier } from "./member-liveness"
 import { createManagerResidencyRegistry } from "./residency-registry"
 import { TaskRuntimeContext } from "./runtime-context"
 import { sharedTaskTerminalObservers, type TaskTerminalObservers } from "./terminal-observers"
@@ -56,10 +60,19 @@ export interface TaskEngine {
   readonly agents: Readonly<Record<string, AgentDefinition>>
   readonly omoConfig: OmoConfig
   readonly settings: OmoTaskSettings
+  // This parent session's shared-daemon wiring: the ONE answer to `task.default_execution_mode:
+  // "auto"`, and the deduped reasons the daemon could not take its children.
+  readonly host: EngineHostRuntime
   readonly stateDir: string
   readonly loadSkills: SkillLoader
   readonly memberLiveness: TeamMemberLivenessNotifier
   readonly notifyOwnedMemberLiveness: (record: TaskRecord) => Promise<void>
+  /**
+   * Everything the `task` tool resolves a spawn against, including the child tool names a parent
+   * kernel-tool grant is decided from (item 6) - assembled here because this engine owns the
+   * manager, the agent map and the shared parent tool surface they are derived from.
+   */
+  readonly taskToolDeps: (resolveSkillInvocations: (sessionId: string) => SkillInvocationState) => TaskToolDeps
   readonly appendTaskEvent: (taskId: string, event: PersistedTaskEvent) => void
   // Subscribe to every store mutation (spawn/transition/replace/remove). The UI status sync attaches
   // here so the footer/widget refresh on background task activity. Returns an unsubscribe.
@@ -79,6 +92,9 @@ export interface ComposeTaskEngineDeps {
   // Terminal status-edge ledger notified on every nonterminal -> terminal write. Defaults to the
   // process-shared ledger; tests inject an isolated one so edges cannot leak between engines.
   readonly terminalObservers?: TaskTerminalObservers
+  // This session's shared-daemon wiring. Defaults to the real one (ensure + capability check); a
+  // suite injects it whole so no test ever ensures a daemon and its notices are the engine's.
+  readonly host?: EngineHostRuntime
 }
 
 export type { RunnerBuildContext, TaskRunnerFactories } from "./engine-runners"
@@ -100,57 +116,13 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     ...(settings.state_dir !== undefined && { task: { state_dir: settings.state_dir } }),
   }
   const baseStore = createTaskRecordStore(stateDir)
-  const memberLiveness = createTeamMemberLivenessNotifier({
+  const { memberLiveness, notifyOwnedMemberLiveness } = createEngineLiveness({
     pi: deps.pi,
     ...(deps.coordinator === undefined ? {} : { coordinator: deps.coordinator }),
-    isStreaming: () => runtime.parentState().kind === "streaming",
-    wasDelivered: (record) => {
-      try {
-        const fresh = baseStore.load(record.task_id) ?? record
-        return (fresh.notification.liveness_notified_epoch ?? -1) >= record.notification.run_epoch
-      } catch (error) {
-        log("omo-senpi team liveness marker read failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return false
-      }
-    },
-    markDelivered: (record) => {
-      try {
-        const capturedEpoch = record.notification.run_epoch
-        baseStore.mutate(record.task_id, (fresh) => {
-          if (fresh.status !== record.status || fresh.notification.run_epoch !== capturedEpoch) return fresh
-          if ((fresh.notification.liveness_notified_epoch ?? -1) >= capturedEpoch) return fresh
-          return {
-            ...fresh,
-            notification: { ...fresh.notification, liveness_notified_epoch: capturedEpoch },
-          }
-        })
-      } catch (error) {
-        log("omo-senpi team liveness marker write failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    },
-    onError: (error) => {
-      log("omo-senpi team liveness delivery failed", {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
-  })
-  const notifyOwnedMemberLiveness = createOwnedMemberLivenessNotifier({
+    runtime,
+    store: baseStore,
     stateDir,
     settings,
-    runtime,
-    notifier: memberLiveness,
-    onError: (error, record) => {
-      log("omo-senpi team liveness ownership check failed", {
-        taskId: record.task_id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
   })
   const agents = resolveTaskAgents(deps.omoConfig)
 
@@ -191,6 +163,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   }
 
   const categoryConfigGenerations = createCategoryConfigGenerations()
+  const kernelTools = createEngineKernelTools(deps.sharedParentTools)
+  const kernelToolBindings = kernelTools.bindings
   const storeChain = createTaskStoreChain({
     baseStore,
     runtime,
@@ -204,7 +178,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
 
   const registry = createManagerResidencyRegistry(getManager)
-  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings,
+  const lifecycle = createTaskLifecycle({ store: storeChain.store, registry, config: settings, kernelToolBindings,
     revivePolicy: {
       currentGeneration: () => {
         const modelRegistry = runtime.modelRegistry()
@@ -219,7 +193,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
-  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings }
+  const host = deps.host ?? createEngineHostRuntime(settings)
+  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings, agentDir: host.agentDir, onHostWarning: host.notices.add }
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
   const basePlanner = createGenerationObservingPlanner({
     planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
@@ -237,8 +212,11 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   const manager = createTaskManager({
     store: storeChain.store,
     runners: { "in-process": factories.inProcess(runnerContext), process: factories.process(runnerContext) },
+    kernelToolBindings,
+    resolveChildToolNames: kernelTools.childToolNames,
     planner,
     config: settings,
+    executionModeGate: host.executionModeGate,
     cwd: deps.cwd,
     destruction: {
       destroyResidentTask: (taskId, cause) =>
@@ -266,18 +244,37 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     agents,
     omoConfig: deps.omoConfig,
     settings,
+    host,
     stateDir: baseStore.stateDir,
     loadSkills,
     memberLiveness,
     notifyOwnedMemberLiveness,
+    taskToolDeps: (resolveSkillInvocations) => ({
+      manager,
+      omoConfig: deps.omoConfig,
+      agents,
+      loadSkills,
+      resolveSkillInvocations,
+      resolveChildToolNames: kernelTools.childToolNames,
+      executionModeGate: host.executionModeGate,
+    }),
     appendTaskEvent,
     onStoreMutation: storeChain.onMutation,
   }
 }
 
-async function admitAdapter(lifecycle: TaskLifecycle, parentSessionId: string): Promise<SpawnAdmission> {
+// Exported for scripts/qa/dag-cross-run-residency-qa.ts, which composes the real lifecycle +
+// manager + scheduler graph through this exact seam.
+export async function admitAdapter(lifecycle: TaskLifecycle, parentSessionId: string): Promise<SpawnAdmission> {
   const admission = await lifecycle.admitResident(parentSessionId)
   if (admission.kind === "admitted") return { kind: "admitted" }
   if (admission.kind === "evicted") return { kind: "evicted", evicted_task_id: admission.evicted_task_id }
-  return { kind: "rejected", message: admission.error.message }
+  // #8396: keep the residents on the rejection so a residency-denied DAG node can tell "held by
+  // live siblings, wait" from "nothing can free a slot".
+  return {
+    kind: "rejected",
+    message: admission.error.message,
+    max_children: admission.error.max_children,
+    residents: admission.error.residents,
+  }
 }

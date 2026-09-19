@@ -1,11 +1,12 @@
 {
-  "_comment": "Derived from @code-yeongyu/senpi 2026.9.13 builtinProviders(). Hosted gateways remain excluded; ollama/radius are dynamic providers without static model modules. Re-derive builtin provider ids and mappings whenever that pin changes.",
+  "_comment": "Derived from @code-yeongyu/senpi 2026.9.19-2 builtinProviders(). Hosted gateways remain excluded; ollama/radius are dynamic providers without static model modules. Re-derive builtin provider ids and mappings whenever that pin changes.",
   "builtinProviderIds": [
     "alibaba-token-plan",
     "amazon-bedrock",
     "ant-ling",
     "anthropic",
     "azure-openai-responses",
+    "bai",
     "baseten",
     "cerebras",
     "cloudflare-ai-gateway",

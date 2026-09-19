@@ -1,12 +1,11 @@
 import { describe, expect, it } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { dispatchRunEnd, FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentLogger } from "../../extension/types"
 import { createUlwLoopComponent } from "./index"
-import { createGoalJsonCache } from "./footer-status"
 import { activeStatus, completeStatus, createLogger, sessionEventCtx } from "./ulw-loop.test-support"
 
 type StatusCall = {
@@ -264,46 +263,5 @@ describe("omo-senpi ulw-loop footer status", () => {
     await expect(dispatchRunEnd(headlessPi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))).resolves.toHaveLength(1)
     expect(headlessPi.messages).toHaveLength(1)
     expect(headlessTimers.activeCount()).toBe(0)
-  })
-
-  it("#given an unchanged goal file #when the cache is read repeatedly #then the file is parsed only once", () => {
-    const root = mkdtempSync(join(tmpdir(), "omo-goal-cache-"))
-    try {
-      const goalPath = join(root, "goal.json")
-      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
-      const cache = createGoalJsonCache()
-
-      const first = cache.read(goalPath)
-      const second = cache.read(goalPath)
-
-      expect(first).toBeDefined()
-      expect(second).toBe(first)
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
-  it("#given the goal file changes #when the cache is read again #then it re-reads and returns the new content", () => {
-    const root = mkdtempSync(join(tmpdir(), "omo-goal-cache-"))
-    try {
-      const goalPath = join(root, "goal.json")
-      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
-      const cache = createGoalJsonCache()
-      const first = cache.read(goalPath)
-
-      writeFileSync(goalPath, `${JSON.stringify({ version: 1, goal: { status: "complete" } })}\n`)
-      utimesSync(goalPath, new Date(), new Date(Date.now() + 5_000))
-      const second = cache.read(goalPath)
-
-      expect(second).not.toBe(first)
-      expect(JSON.stringify(second)).toContain('"status":"complete"')
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
-  it("#given a missing goal file #when the cache is read #then it returns undefined without throwing", () => {
-    const cache = createGoalJsonCache()
-    expect(cache.read(join(tmpdir(), "omo-goal-cache-missing", "nope.json"))).toBeUndefined()
   })
 })

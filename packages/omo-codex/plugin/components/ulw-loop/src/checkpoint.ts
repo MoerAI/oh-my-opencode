@@ -6,6 +6,7 @@ import {
 	combineCheckpointValidationErrors,
 	validateCheckpointCodexGoal,
 } from "./checkpoint-codex-validation.js";
+import { acknowledgeDriverObjective } from "./driver-objective-ack.js";
 import { requireAllCriteriaPass, requireAllPlanCriteriaPass, requireEssentialCriteriaPass } from "./evidence.js";
 import { codexGoalMode, isFinalRunCompletionCandidate } from "./goal-status.js";
 import type { UlwLoopScope } from "./paths.js";
@@ -190,6 +191,7 @@ export async function checkpointUlwLoop(
 				codexGoal = validation.raw;
 				nextActions = validation.nextActions;
 				warnings = validation.warnings;
+				acknowledgeDriverObjective(plan, validation.unacknowledgedObjective);
 			} catch (error) {
 				if (!(error instanceof UlwLoopError)) throw error;
 				codexValidationError = error;

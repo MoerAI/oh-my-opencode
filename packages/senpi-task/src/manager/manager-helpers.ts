@@ -1,11 +1,28 @@
 import { join } from "node:path"
 
 import { isSpawnSpecV1, type BackgroundMode, type SpawnSpecV1, type TaskRecord, type TaskRecordInput } from "../state"
-import type { ManagedStartSpec, ManagerStartSpec, ResolvedChildPlan } from "./types"
+import type { ManagedChildHandle } from "./child-handle"
+import type { ManagedStartSpec, ManagerStartSpec, ResolvedChildPlan, StartResult } from "./types"
 import type { ExecutionMode } from "./execution-mode"
 
 export function nowIso(now: () => number): string {
   return new Date(now()).toISOString()
+}
+
+/**
+ * The manager's floor for parent kernel tools: a TEAM MEMBER runs out of process and can never
+ * reach a parent JavaScript kernel, so a member spec that carries a grant is refused before a
+ * record exists - never spawned silently without the tools its caller believes it has.
+ */
+export function memberKernelToolRefusal(spec: ManagerStartSpec): Extract<StartResult, { kind: "plan_unresolved" }> | undefined {
+  if (spec.team_role !== "member" || spec.kernelTools === undefined) return undefined
+  return {
+    kind: "plan_unresolved",
+    error: {
+      code: "invalid_target",
+      message: "Team members run out of process and cannot reach a parent JavaScript kernel, so they never receive parent kernel tools.",
+    },
+  }
 }
 
 export function buildRecordInput(input: {
@@ -99,6 +116,7 @@ export function buildManagedSpec(input: {
     ...(spec.memberScopedTools !== undefined
       ? { memberScopedToolNames: spec.memberScopedTools.map((tool) => tool.name) }
       : {}),
+    ...(spec.kernelTools !== undefined ? { kernelTools: spec.kernelTools } : {}),
     ...(spec.extensions !== undefined ? { extensions: spec.extensions } : {}),
     ...(memberEnv !== undefined ? { memberEnv } : {}),
   }
@@ -176,6 +194,28 @@ export function inSession(record: TaskRecord, sessionId: string): boolean {
 export function recordSpawnedPid(record: TaskRecord, pid: number | undefined): TaskRecord | undefined {
   if (pid === undefined || isTerminalRecord(record)) return undefined
   return { ...record, pid }
+}
+
+// Fold a DAEMON SESSION child's identity onto its record: the socket, routing id and session path a
+// later process reattaches (or parks) that session through. Every other child leaves the field
+// absent - a per-child process is already identified by its pid, and an in-process child by
+// nothing - and an already-terminal record is left untouched so a settled task is never resurrected.
+export function recordSpawnedRunner(
+  record: TaskRecord,
+  kind: ManagedChildHandle["kind"],
+  hostSession: ManagedChildHandle["hostSession"],
+): TaskRecord | undefined {
+  if (isTerminalRecord(record) || kind !== "host-session" || hostSession === undefined) return undefined
+  return {
+    ...record,
+    runner_kind: "host-session",
+    host_session: {
+      socket: hostSession.socket,
+      routing_id: hostSession.routingId,
+      session_path: hostSession.sessionPath,
+      instance_id: hostSession.instanceId,
+    },
+  }
 }
 
 // Fold the spawned child's own session id onto its record. External readers join a grandchild

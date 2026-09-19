@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type UlwLoopScope, ulwLoopDir } from "./paths.js";
-import type { UlwLoopLedgerEntry, UlwLoopPlan } from "./types.js";
+import { UlwLoopError, type UlwLoopLedgerEntry, type UlwLoopPlan } from "./types.js";
 
 export interface PlanCommitRecord {
 	readonly version: 1;
@@ -76,7 +76,35 @@ export function reconcilePlan(dir: string): UlwLoopPlan | undefined {
 		}
 	}
 	const latest = readNewestRecord(dir);
-	return latest !== undefined && latest.revision >= (cached?.revision ?? 0) ? latest.plan : cached;
+	if (latest === undefined) return cached;
+	if (cached === undefined) return latest.plan;
+	if ((cached.revision ?? 0) > latest.revision) return cached;
+	// A goals.json written outside the commit log (the removed tool path rewrote it wholesale, never
+	// stamping `revision`) can hold goals no snapshot has. Serving the snapshot would drop them, so the
+	// cache wins and is stamped with the snapshot's revision: the next publish derives N+1 from it and
+	// folds the whole plan into a real record instead of colliding with an existing revision file.
+	// A cache that names an OLDER revision is a lagging view of a force-recreate and never wins.
+	if (cached.revision === undefined || cached.revision === latest.revision) {
+		const published = new Set(latest.plan.goals.map((goal) => goal.id));
+		if (Array.isArray(cached.goals) && cached.goals.some((goal) => !published.has(goal.id)))
+			return { ...cached, revision: latest.revision };
+	}
+	return latest.plan;
+}
+// Goals are never removed from a plan, so every `goal_added` the reconciled ledger still carries must
+// have a goal in the projection. A projection that lacks one is truncated and must not become goals.json.
+export function assertProjectionComplete(plan: UlwLoopPlan, ledger: readonly UlwLoopLedgerEntry[]): void {
+	const present = new Set(plan.goals.map((goal) => goal.id));
+	const missing = new Set<string>();
+	for (const entry of ledger)
+		if (entry.kind === "goal_added" && entry.goalId !== undefined && !present.has(entry.goalId))
+			missing.add(entry.goalId);
+	if (missing.size === 0) return;
+	throw new UlwLoopError(
+		`Refusing to rewrite goals.json: the ledger records goals the plan projection lacks (${[...missing].join(", ")}). Restore those goals into the newest revisions/ record (keeping plan.revision equal to its file number) before mutating this run.`,
+		"ULW_LOOP_PROJECTION_TRUNCATED",
+		{ details: { missingGoalIds: [...missing] } },
+	);
 }
 export function planExists(repoRoot: string, scope?: UlwLoopScope): boolean {
 	const dir = ulwLoopDir(repoRoot, scope);

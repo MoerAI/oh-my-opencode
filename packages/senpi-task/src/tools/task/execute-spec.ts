@@ -1,5 +1,6 @@
 import { resolveExecutionMode } from "../../manager"
 import type { ExecutionMode, ManagerStartSpec } from "../../manager"
+import type { KernelToolGrant } from "../../kernel-tools/resolve"
 import type { TaskToolParamsStatic } from "./params"
 import { createFsSkillLoader } from "./skills"
 import { taskSkillSummary } from "./skill-result"
@@ -8,7 +9,9 @@ import type { ResolvedSpawnItem, TaskSkillSummary, TaskToolDeps } from "./types"
 type SingleSpawnParams = Omit<TaskToolParamsStatic, "prompt" | "tasks"> & { readonly prompt: string }
 
 export type ResolvedManagerStartSpec = ManagerStartSpec & {
-  readonly execution_mode: ExecutionMode
+  // Absent only when omo.json says `auto` and the parent session's daemon check has not settled
+  // yet: the manager then resolves it (awaiting that check) instead of the tool guessing here.
+  readonly execution_mode?: ExecutionMode
   readonly skills?: TaskSkillSummary
 }
 
@@ -18,6 +21,7 @@ export function buildStartSpec(
   parentSessionId: string,
   deps: TaskToolDeps,
   cwd: string,
+  kernelTools?: KernelToolGrant,
 ): ResolvedManagerStartSpec {
   const ancestry = deps.resolveAncestry?.(parentSessionId)
   const loadSkills = deps.loadSkills ?? createFsSkillLoader()
@@ -32,12 +36,34 @@ export function buildStartSpec(
     root_session_id: ancestry?.rootSessionId ?? parentSessionId,
     depth: (ancestry?.depth ?? 0) + 1,
     ...("category" in target ? { category: target.category } : { subagent_type: target.subagentType }),
-    execution_mode: executionMode,
+    ...(executionMode === undefined ? {} : { execution_mode: executionMode }),
     ...(params.model !== undefined && { model: params.model }),
     ...(params.name !== undefined && { name: params.name }),
     ...(params.description !== undefined && { description: params.description }),
     ...(params.run_in_background !== undefined && { run_in_background: params.run_in_background }),
+    ...(kernelTools !== undefined && { kernelTools }),
   }
+}
+
+// The child's execution mode for a target, resolved exactly as buildStartSpec resolves it. The
+// kernel-tool grant is decided against this same value BEFORE any child session is created, so the
+// caller awaits `ensureAutoExecutionMode` first and an unresolved `auto` can only read as the
+// conservative in-process (a grant is never widened by an unsettled daemon check).
+export function taskExecutionModeFor(
+  target: { readonly category: string } | { readonly subagentType: string },
+  deps: TaskToolDeps,
+): ExecutionMode {
+  return resolvedTaskExecutionMode(target, deps) ?? "in-process"
+}
+
+/**
+ * The parent session's ONE `auto` resolution, asked only when omo.json really says `auto`: a
+ * user-set mode must never make a session ensure the shared daemon. Awaited at the tool's async
+ * entry so every synchronous resolution below reads a settled value.
+ */
+export async function ensureAutoExecutionMode(deps: TaskToolDeps): Promise<ExecutionMode | undefined> {
+  if (deps.omoConfig.task?.default_execution_mode !== "auto") return undefined
+  return await deps.executionModeGate?.ensure()
 }
 
 function toExecutionMode(value: string | undefined): ExecutionMode | undefined {
@@ -61,11 +87,15 @@ function resolvedAgentMode(
 function resolvedTaskExecutionMode(
   target: { readonly category: string } | { readonly subagentType: string },
   deps: TaskToolDeps,
-): ExecutionMode {
+): ExecutionMode | undefined {
   const agentMode = resolvedAgentMode(target, deps)
+  const configMode = deps.omoConfig.task?.default_execution_mode
+  const autoMode = deps.executionModeGate?.current()
+  if (configMode === "auto" && agentMode === undefined && autoMode === undefined) return undefined
   return resolveExecutionMode({
     ...(agentMode !== undefined && { agentMode }),
-    configMode: deps.omoConfig.task?.default_execution_mode,
+    configMode,
+    ...(autoMode === undefined ? {} : { autoMode }),
   })
 }
 

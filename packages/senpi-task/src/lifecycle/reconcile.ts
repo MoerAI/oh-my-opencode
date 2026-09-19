@@ -1,6 +1,8 @@
 import { markRecordLostForReconciliation, type TaskRecord } from "../state"
 import { nowIso, TERMINAL_STATUSES, type LifecycleContext } from "./context"
 import { destroyResidentTask } from "./destroy"
+import { isHostSessionRecord } from "./host-session"
+import { reconcileHostSessionOrphan } from "./host-session-revive"
 import { getLifecycleReattachPorts } from "./port"
 import { beginLocalReclamation, reconcileScopedRevival } from "./reconcile-revival"
 import { reclaimOrphanedResident } from "./residency"
@@ -18,6 +20,9 @@ export async function reconcileOnSessionStart(
 ): Promise<ReconcileResult> {
   const outcomes: ReconcileOutcome[] = []
   const candidates: TaskRecord[] = []
+  // ONE daemon snapshot per pass: every host-session record below is matched against it by session
+  // path, so a hundred children still cost one probeHost and one list_sessions.
+  context.hostSessionProbe.refresh()
 
   // Ownership is checked before terminality, residency, or mode. A live sibling owns the record in
   // every status and this process must not mutate it.
@@ -111,6 +116,10 @@ async function reconcileLegacyRecordExclusive(context: LifecycleContext, observe
   }
 
   if (TERMINAL_STATUSES.has(record.status)) return reconcileLegacyTerminal(context, record)
+
+  // A daemon-hosted child has no pid at all. Its liveness is the daemon plus its session path, and
+  // "the daemon is gone" parks it - the pid-shaped path below would mark it lost for having no pid.
+  if (isHostSessionRecord(record)) return reconcileHostSessionOrphan(context, record)
 
   if (record.execution_mode !== "process") {
     await markLost(context, record.task_id, "in-process task from a previous process cannot be reattached")

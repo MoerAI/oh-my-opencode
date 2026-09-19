@@ -141,7 +141,13 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     store,
     taskManager,
     materializeSkills,
-    executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
+    executionMode: {
+      agents: deps.engine.agents,
+      config: deps.engine.omoConfig,
+      // Live read: a DAG node dispatched before the session resolved `auto` names no mode and the
+      // manager decides, so no run is pinned to a guess.
+      autoMode: () => deps.engine.host.executionModeGate.current(),
+    },
     ...(deps.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: deps.nodeSpawnPolicy }),
     ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
   }

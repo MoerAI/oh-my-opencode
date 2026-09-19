@@ -18,7 +18,6 @@ function isActiveSurface(path: string): boolean {
   if (path.includes("/dist/")) return false
   if (path.startsWith("packages/lsp-tools-mcp/")) return false
   if (path.includes("/__snapshots__/")) return false
-  if (path.includes("work-with-pr-workspace/")) return false
   if (path.endsWith(".test.ts") || path.endsWith(".test.mts") || path.endsWith(".test.mjs")) return false
   if (path.endsWith(".snap")) return false
   if (ALLOWED_LEGACY_REFERENCES.has(path)) return false

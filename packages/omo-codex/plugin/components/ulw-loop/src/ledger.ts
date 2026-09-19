@@ -6,11 +6,16 @@ import type { UlwLoopLedgerEntry } from "./types.js";
 export function readLedgerAt(dir: string): UlwLoopLedgerEntry[] {
 	const entries = new Map<string, UlwLoopLedgerEntry>();
 	const lines = (readOptional(join(dir, "ledger.jsonl")) ?? "").split(/\r?\n/);
+	// A materialized view is sorted by revision, so a line that carries no revision (or revision 0)
+	// AFTER a published revision was appended out-of-band (the removed tool path) and belongs to the
+	// newest revision before it - not to the pre-store past a later ledgerResetRevision would discard.
+	let reached = 0;
 	for (const [index, line] of lines.entries()) {
 		if (line.trim().length === 0) continue;
 		try {
 			const entry: UlwLoopLedgerEntry = JSON.parse(line);
-			entry.revision ??= 0;
+			entry.revision = entry.revision || reached;
+			reached = Math.max(reached, entry.revision);
 			entry.id ??= `legacy-${index + 1}`;
 			entries.set(entry.id, entry);
 		} catch (error) {

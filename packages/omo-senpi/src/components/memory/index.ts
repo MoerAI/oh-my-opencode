@@ -154,7 +154,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           identity: identity.id,
           identityPaths: identity.paths,
           memoryRoot: resolveMemoryRoot(env, cwd),
-          oneShot: isOneShotSurface({ hasUI: surface.hasUI, env }),
+          oneShot: isOneShotSurface({ hasUI: surface.hasUI, env, pi }),
         })
         state.run = run
         state.context = createMemoryIdentityContext({

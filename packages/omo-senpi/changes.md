@@ -1,3 +1,204 @@
+## `task-host-e2e.mjs`: live QA for daemon-hosted task children
+
+`scripts/qa/task-host-e2e.mjs` drives a REAL compiled omo binary against a throwaway sandbox and asks
+whether a `process` child actually lives as a session of `omo daemon`. It follows `task-rpc-e2e.mjs`'s
+isolation model with two additions the compiled binary forces: all THREE agent-dir names are pointed at
+the sandbox (the binary reads `OMO_` first, so setting only `SENPI_` hands it the real agent dir), and
+`HOME` is a sandbox dir before the FIRST call, because the binary provisions its runtime under
+`$HOME/.omo/binary-runtime/<ver>/`. The daemon loads extensions only from its launch spec, and the spec
+refuses absolute paths, so the keyless mock provider is copied into the sandbox's provisioned plugin
+root and added there - the repo and every real install are untouched.
+
+Scenarios A (two parents x 16 children on one daemon), B (detach/attach), C/C2 (team members, parking),
+D (DAG child toolset), E/E2/E3/E4 (generation handoff), F (zombie budget), G (CLI exit codes + a tmux
+pty attach), H/H2 (a pre-wave-2 host, a fail-closed legacy client) and I (the default-mode rule) each
+write a JSON result, a transcript and a cleanup receipt. A scenario whose input this machine does not
+have - a second build of a newer epoch, a spec-less newer senpi, a pre-change engine CLI, a DAG-run
+driver - reports `skipped` with the exact command that would run it, never a pass. `--baseline` records
+what the current mainline omob does instead, and `--self-test` proves the harness itself without a
+binary.
+
+## daemon-launch-spec.json ships in every payload
+
+The task daemon's launch spec was generated at build time but reached only the source tree: the
+native payload copies root-level files from an allowlist, the npm plugin publishes from `files`, and
+neither listed it, so every installed `omo daemon run` exited 5 with "launch spec missing". It is on
+both lists now and on `REQUIRED_PLUGIN_ARTIFACTS`, so a payload without it fails the build.
+
+## 2026-09-17 — Process children go to the shared daemon, and the plugin gates itself per session
+
+`DEFAULT_RUNNER_FACTORIES.process` now builds an `RpcHostRunner` (children as sessions of the
+machine-wide daemon) with the per-child `RpcProcessRunner` as its loud fallback. `process_runner:
+"child-process"` and win32 keep the per-child runner; both inputs are injectable on
+`RunnerBuildContext` (`platform`, `agentDir`, `env`, `onHostWarning`) so the selection is testable
+without pretending to run on Windows.
+
+`host-execution-mode.ts` owns this session's daemon wiring: the gate that answers
+`default_execution_mode: "auto"` (ensure once, read the capabilities, fail closed to in-process) and
+the deduped notice list the gate and the runner share. Each distinct `host_unavailable:<reason>` is
+logged once and appears once in `task_output`, so the parent learns why its children are not daemon
+sessions without reading a log file.
+
+Session-role gating replaces the process-wide env checks: the task component registers nothing for a
+`dag_child` (parity with the per-child launch, which drops omo's own `-e` entry for DAG children) or
+a `member` session, the session-start process sweep skips any child session, and a memory run is
+one-shot when the session says it is a child. Every one of them falls back to the old environment
+variables for the per-child process runner.
+
+## 2026-09-17 — the residency registry reads the runner's kind, not the pid
+
+`components/task/residency-registry.ts` used to derive a resident's kind from `handle.pid`
+(`undefined` meant in-process). A child that is a SESSION of the shared daemon also has no pid, so
+it was classified in-process — and `terminate()` for an in-process resident is a deliberate no-op.
+Cancel, eviction and the TTL sweep therefore left the daemon session running with nobody attached.
+The kind now comes from `ManagedChildHandle.kind`, which the runner adapters set; a handle from
+before that field shipped is in-process by construction.
+
+## 2026-09-17 — the thread surface reads the shared task-daemon socket resolver
+
+`components/thread/live-surface.ts` no longer spells out its own socket-name list. `THREAD_SOCKET_ENV_NAMES`
+is now the list exported by `senpi-task`'s `runners/rpc-host/daemon.ts`, and `resolveThreadSocket`
+delegates to `resolveTaskHostSocket(env, resolveAgentHome({ env }))`. Precedence and the
+`<agentDir>/rpc/rpc.sock` fallback are unchanged; the point is that the thread tools and the shared
+task daemon can no longer disagree about which socket the machine's engine host listens on.
+
+## 2026-09-17 — the absent-path bwrap rebind is synchronous again, and exit-time containment blocks
+
+Making the session-reachable probes async left two contracts of the memory component broken.
+
+`defaultProbe` in `sandbox-platform.ts` became `async`, so it returned a Promise even for the
+branch that deliberately spawns nothing: an executable a test's injected `which` resolved to a
+path that does not exist on this machine. `buildPathSandboxTransform` reads the probe's
+Promise-ness as "defer the verdict", so a Linux transform built over a runtime write dir that
+does not exist yet stopped returning its `--bind` arguments and returned a Promise instead - the
+rebind of the absent path was no longer in the built arguments at all. Only the branch that
+actually spawns bwrap is async now; the existence gate answers synchronously, so a seam-resolved
+executable keeps a synchronous transform while a real `/usr/bin/bwrap` is still probed off the
+event loop.
+
+The supervisor's hard termination lost its synchronous form, and with it the `process.once("exit")`
+containment. `spawnTerminationCommand` in `worker/supervisor-process-identity.ts` takes
+`synchronous` again and `runSupervisor` passes it from the exit handler alone. An exit handler
+cannot await, and the "error" event of an async child is queued on a loop that never turns again:
+measured on bun 1.4.2, a taskkill spawned there finishes only after the supervisor is gone, and one
+that cannot be spawned at all (`ENOENT`) writes nothing anywhere. The blocking form finishes before
+the supervisor exits and throws that `ENOENT` into the containment's own `catch`, which is what puts
+it on the run's stderr. Every other caller - the signal handlers, the deadline hard kill, the
+injected posix signal command - stays async. That branch is also the second spawn call
+`worker/windows-console-hide.test.ts` audits for `windowsHide: true`; without it the audit had
+nothing left to check in that file and would have passed on a chain with no taskkill spawn at all.
+
+
+## 2026-09-17 - Defer plugin startup work past the first paint
+
+### What changed
+
+- `src/extension/startup-deferral.ts` (new): `createLazyValue` (construct on first use, with a
+  `constructed` flag a test can assert on) and `createStartupDeferral` (queue work, retire it on
+  session_shutdown), plus `createFirstPaintScheduler` and the `deferUntilAfterFirstPaint` call-site
+  helper.
+- `src/extension/compose.ts` / `types.ts`: compose builds one deferral per activation, hands it to
+  every component as `ComponentContext.deferStartupWork`, and retires it on `session_shutdown`
+  beside the idle coordinator.
+- `src/components/lsp/index.ts`: the mutation formatter is a lazy accessor built on the first
+  `tool_result`; the project-config notice moved onto the deferral. Tools, flags and all four hooks
+  still register eagerly.
+- `src/components/init-deep-advisor/component.ts`, `src/components/telemetry/omo-native-session.ts`:
+  the `session_start` bodies moved onto the deferral; the telemetry one refuses to build a client
+  once `session_shutdown` has landed.
+- `src/components/telemetry/index.ts`: the legacy product config resolves the package version on
+  first capture instead of at module scope.
+
+### Why
+
+- `session_start` is dispatched from inside the engine's `interactiveMode.init`, so everything a
+  handler does synchronously is billed to the phase before the first paint. A plain
+  `setTimeout(…, 0)` does NOT escape it — that phase awaits I/O, so the macrotask fires before init
+  returns (measured: 0 ms saved, where a scheduler that never fired saved 34 ms). The gate opens on
+  the first post-paint host edge or a 750 ms backstop instead.
+
+### Why an extension could not handle it
+
+- This IS the extension; the work is the plugin's own registration and session-binding path.
+
+### Expected merge conflict zones
+
+- LOW: `compose.ts`'s activation sequence (upstream edits the same block when adding seams) and the
+  `ComponentContext` shape in `types.ts`.
+
+## 2026-09-17 — ulw-execute continuation repairs a work its session abandoned
+
+`findContinuableBoulderWork` reads `.omo/boulder.json` on every user input and on
+`agent_settled`, and it used to accept whatever status it found there. A work whose
+session ended abnormally kept `status: "active"` forever, because `completeBoulder`
+is the only transition away from it and it runs only on an explicit completion
+(#8413). The read now starts with `reconcileStaleWorks`, which demotes such a work
+to `paused` and stamps `stale_since` once its last activity - the newest of its
+sessions' transcript mtimes, `updated_at` and `started_at` - is six hours old
+(`OMO_BOULDER_STALE_WORK_THRESHOLD_MS`). A healthy work is never rewritten, and the
+continuation itself is unchanged: `active` and `paused` were both continuable
+before this change and still are.
+
+The transcripts are found through this package's own agent-home resolver, which
+gained `resolveAgentSessionsDirectory(options)` beside `resolveAgentHome` and is now
+reachable as the `@oh-my-opencode/omo-senpi/agent-home` subpath, so the OpenCode
+ulw-execute hook resolves the same directory rather than re-deriving it.
+`boulder-state` takes the directory as an option and resolves no home path itself.
+
+## 2026-09-16 — Kibitzer nudges are reference-only
+
+A recalled note used to arrive with no stated posture, and 54% of the hints
+Kibitzer delivered this month were written as orders to the primary agent
+("verify these before ...", "하지 말아야 합니다"), which is advice the agent did
+not ask for and cannot audit. The injected block now names its sender and its
+posture in the header itself - Kibitzer, a background memory advisor, surfaced
+this stored note; it may or may not apply, reference only, the current task
+stands - in English or Korean according to the hint
+(`packages/memory-core/src/recall/render.ts`). The persona's sample block and the
+renderer are pinned to each other byte for byte by `render.test.ts`, so the judge
+is never shown a block the harness does not produce.
+
+The persona asks for the other half of the contract: a hint states what the
+stored note records ("the note records that ..."), and an instruction to the
+agent joins commentary-only and topical-only nudges as a worked bad example
+(`packages/memory-core/src/recall/assets/kibitzer-persona.md`).
+
+The rule is enforced where nudges are admitted instead of being left to the
+model. `describeInvalidHint` in `packages/memory-core/src/recall/gate.ts` answers
+`addresses-agent` for a hint that carries the second person, opens with an
+imperative or negated imperative, or ends in a Korean request form, next to the
+existing `empty`, `too-long`, `multiline` and `decision-commentary` reasons.
+`validateNudges` drops such a hint on the parent side and the sidecar's `nudge`
+tool refuses it at call time with the reason and the fix - restate what the note
+records as a plain observation - keeping the single correction the tool contract
+allows. Only the opening of the sentence is scanned for imperatives, so an
+observation that quotes a rule mid-sentence ("the release note records that
+publish must follow the green-main guard") is still accepted, as are Korean
+plain-form endings. `isValidHint` deliberately keeps its older shape-only
+meaning: pending payloads and stored `omo-kibitzer:nudged` entries were admitted
+under the contract of their own day, and replaying them must not retroactively
+drop a nudge that is already on screen (#8355).
+
+## 2026-09-16 — memory_notice reports only messages compacted out of the live context
+
+`<memory_notice>` told every session that N previous messages had left the live context, with N read
+off `sessionManager.getBranch().length`. The branch is the whole path to the leaf, not what the
+compaction dropped, so a fresh session of fifteen entries and zero compactions announced that twelve
+of its own live messages were gone. The count now comes from the branch's latest compaction entry:
+the `message` entries positioned before its `firstKeptEntryId` - or before the compaction entry
+itself when that id is no longer on the branch - are the ones senpi no longer sends. A branch that
+never compacted counts zero, and a zero count prints no line at all.
+
+The notice is now strictly session-volatile. When the compaction count is zero and there is no save
+nudge and no soul update, the `before_agent_start` handler returns its `systemPrompt` with no message
+at all, so an uncompacted session spends no tokens on a notice that has nothing to report.
+
+The reason the old line existed survives where it belongs. That relevant stored memory arrives on its
+own as `<recalled-memory>` blocks and that there is no recall tool to call are standing facts about
+the toolset, not facts about this turn, so they are one sentence at the end of memory-core's compiled
+REMINDER, present in every prompt whether or not anything compacted. Models still learn there is
+nothing to search for, and they learn it from the block that is always there.
+
 ## 2026-09-13 — Project persisted reflection reports into TUI and RPC
 
 Recap projection requires an explicit positive outcome attempt matching the

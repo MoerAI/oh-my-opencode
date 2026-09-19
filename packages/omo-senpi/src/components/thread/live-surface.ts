@@ -2,6 +2,7 @@ import { createConnection } from "node:net"
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
+import { resolveTaskHostSocket, TASK_HOST_SOCKET_ENV_NAMES } from "../../../../senpi-task/src/runners/rpc-host/daemon"
 import type { SenpiExtensionAPI } from "../../extension/types"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import type { ThreadTranscriptEntry, ThreadHost, ThreadHostSession } from "./tools"
@@ -32,22 +33,14 @@ async function request(socketPath: string, command: Record<string, unknown>): Pr
 /**
  * Socket overrides, most specific first: the engine's own brand-prefixed `RPC_SOCKET` names
  * (`envValue("RPC_SOCKET")` in senpi), then `OMO_RPC_SOCKET_PATH`, which the desktop sets on the
- * host it spawns so that host binds beside the CLI host instead of replacing it.
+ * host it spawns so that host binds beside the CLI host instead of replacing it. The list and the
+ * precedence live ONCE, beside the task daemon that attaches to the same socket.
  */
-export const THREAD_SOCKET_ENV_NAMES = [
-  "OMO_RPC_SOCKET",
-  "SENPI_RPC_SOCKET",
-  "PI_RPC_SOCKET",
-  "OMO_RPC_SOCKET_PATH",
-] as const
+export const THREAD_SOCKET_ENV_NAMES = TASK_HOST_SOCKET_ENV_NAMES
 
 /** Client for Senpi's existing supervisor-owned unix socket. It never starts or replaces a host. */
 export function resolveThreadSocket(env: Readonly<Record<string, string | undefined>> = process.env): string {
-  for (const name of THREAD_SOCKET_ENV_NAMES) {
-    const configured = env[name]?.trim()
-    if (configured) return configured
-  }
-  return join(resolveAgentHome({ env }), "rpc", "rpc.sock")
+  return resolveTaskHostSocket(env, resolveAgentHome({ env }))
 }
 
 export function createLiveThreadSurface(_pi: SenpiExtensionAPI, options: { readonly env?: Readonly<Record<string, string | undefined>>; readonly exists?: (path: string) => boolean } = {}): ThreadHost {

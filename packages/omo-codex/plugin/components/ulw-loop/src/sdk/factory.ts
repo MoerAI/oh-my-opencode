@@ -5,6 +5,7 @@ import {
 	normalizeUlwLoopSessionId,
 	type UlwLoopScope,
 	ulwLoopAttemptEvidenceDir,
+	ulwLoopEvidenceRoot,
 	ulwLoopGoalsRelativePath,
 } from "../paths.js";
 import { addUlwLoopGoal, createUlwLoopPlan, startNextUlwLoop, summarizeUlwLoopPlan } from "../plan-crud.js";
@@ -86,9 +87,10 @@ function unreachable(value: never): never {
 	throw new UlwLoopError(`Unhandled operation: ${String(value)}`, "ULW_LOOP_OPERATION_UNHANDLED");
 }
 
-function nextActionsFrom(result: object): readonly string[] {
-	if (!("nextActions" in result) || !Array.isArray(result.nextActions)) return [];
-	return result.nextActions.filter((action): action is string => typeof action === "string").slice(0, 8);
+function stringsFrom(result: object, key: "nextActions" | "warnings"): readonly string[] {
+	if (!(key in result)) return [];
+	const value = Object.entries(result).find(([name]) => name === key)?.[1];
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 8) : [];
 }
 
 function checkpointWithValidatedSnapshot(
@@ -116,8 +118,15 @@ export function createAgentToolkit(context: ToolkitContext, deps: AgentToolkitDe
 	): Promise<ToolkitResponseFor<Operation>> => {
 		try {
 			const result = await fn();
-			const nextActions = typeof result === "object" && result !== null ? nextActionsFrom(result) : [];
-			return await notify(operation, { ok: true, operation, result, nextActions });
+			const nextActions = typeof result === "object" && result !== null ? stringsFrom(result, "nextActions") : [];
+			const warnings = typeof result === "object" && result !== null ? stringsFrom(result, "warnings") : [];
+			return await notify(operation, {
+				ok: true,
+				operation,
+				result,
+				nextActions,
+				...(warnings.length === 0 ? {} : { warnings }),
+			});
 		} catch (error) {
 			if (error instanceof UlwLoopError && error.code === "ULW_LOOP_PLAN_MISSING" && context.surface === "omo-senpi")
 				return notify(
@@ -177,6 +186,7 @@ export function createAgentToolkit(context: ToolkitContext, deps: AgentToolkitDe
 					plan,
 					summary: summarizeUlwLoopPlan(plan),
 					nextActions: statusNextActions(plan, context.surface),
+					evidenceRoot: ulwLoopEvidenceRoot(scope),
 					// Attempt directories are an evidence-layout v2 concept; a v1 plan must not advertise one.
 					...(active === undefined || plan.evidenceLayoutVersion !== 2
 						? {}
@@ -190,8 +200,8 @@ export function createAgentToolkit(context: ToolkitContext, deps: AgentToolkitDe
 					? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface })
 					: checkpointWithValidatedSnapshot(context, scope, args),
 			),
-		steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope)),
-		addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope)),
+		steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope, context.surface)),
+		addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope, context.surface)),
 		criteria: (args) =>
 			invoke("criteria", async () => {
 				const plan = await readUlwLoopPlan(context.cwd, scope);

@@ -312,7 +312,8 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join4("runtime", "lsp-daemon", "dist", "daemon-client.d.ts"),
   join4("runtime", "lsp-daemon", "dist", "package.json"),
   join4("runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"),
-  join4("scripts", "install.mjs")
+  join4("scripts", "install.mjs"),
+  "daemon-launch-spec.json"
 ];
 async function ensurePluginArtifacts(context) {
   if (context.allowBuild) {

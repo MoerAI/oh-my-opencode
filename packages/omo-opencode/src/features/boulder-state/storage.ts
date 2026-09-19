@@ -20,6 +20,7 @@ export {
   getWorkResumeOptions,
   normalizeSessionId,
   readBoulderState,
+  reconcileStaleWorks,
   resolveBoulderPlanPath,
   resolveBoulderPlanPathForWork,
   selectActiveWork,

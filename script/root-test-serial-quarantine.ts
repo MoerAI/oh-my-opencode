@@ -55,6 +55,18 @@ export const ROOT_TEST_SERIAL_QUARANTINE: readonly SerialQuarantineEntry[] = [
     path: "script/build-omo-binary.test.ts",
     reason: "runs a real omo-native plugin staging build against the same shared plugin tree",
   },
+  {
+    path: "packages/senpi-task/src/team/member-extension/residency.test.ts",
+    reason: "cold real-process member revival is starved by concurrent Windows filesystem load under --parallel (run 34958448646)",
+  },
+  {
+    path: "script/omob-refresh.test.ts",
+    reason: "each case runs a real `bun build --compile` behind two spawned processes; identical work measured 11.6s/12.1s/12.8s/14.3s/15.5s/21.3s and then blew its 30s spawn budget at 38.3s and 54.6s inside one Windows --parallel leg (runs 34980957714, 34962017319)",
+  },
+  {
+    path: "script/release-version.test.ts",
+    reason: "five sequential Git Bash spawns of the publish workflow's metadata step; one spawn exhausted its 10s budget under Windows --parallel while the test's own work is string parsing (run 34962017319)",
+  },
 ] as const
 
 /** Quarantined paths in workflow/bunfig order. */

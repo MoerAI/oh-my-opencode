@@ -31,6 +31,24 @@ export const BACKGROUND_MODES = ["foreground", "background", "promoted"] as cons
 
 export type BackgroundMode = (typeof BACKGROUND_MODES)[number]
 
+export const RUNNER_KINDS = ["child-process", "host-session"] as const
+
+export type RunnerKind = (typeof RUNNER_KINDS)[number]
+
+// Why a record is parked at a non-resident residency. Absent for the ordinary "resumes with the
+// session" suspension; set only when the daemon path gave up on a reachable host.
+export const SUSPENSION_REASONS = ["daemon_unavailable", "host_draining"] as const
+
+export type SuspensionReason = (typeof SUSPENSION_REASONS)[number]
+
+export type HostSessionIdentity = {
+  readonly socket: string
+  readonly routing_id: string
+  readonly session_path: string
+  readonly instance_id: string
+  readonly daemon_pid?: number
+}
+
 export type ResolvedModelRecord = {
   readonly provider: string
   readonly model_id: string
@@ -138,6 +156,13 @@ export type PendingSteeringEntry = {
   readonly id: string
   readonly message: string
   readonly deliver_as: "steer" | "followUp"
+  readonly workpool?: {
+    readonly pool_id: string
+    readonly item_id: string
+    readonly key: string
+    readonly generation: number
+    readonly run_epoch: number
+  }
 }
 
 export type TaskRecordInput = {
@@ -180,6 +205,15 @@ export type TaskRecordInput = {
   // background, or promoted to background mid-run. `notify_on_terminal` alone cannot tell the
   // last two apart. Absent on records persisted before the mode shipped.
   readonly background_mode?: BackgroundMode
+  // Kind of runner that spawned this child. child-process means the old rpc-process runner,
+  // host-session means a session of the shared daemon. Absent on records persisted before this
+  // field shipped.
+  readonly runner_kind?: RunnerKind
+  // Host session identity, present only when runner_kind is "host-session". Contains the socket
+  // path, routing id, and session path needed to reattach or probe the session. instance_id is
+  // informational (rotates on daemon handoff) - liveness and revival key on session_path +
+  // routing_id while attached.
+  readonly host_session?: HostSessionIdentity
 }
 
 export type TaskRecord = TaskRecordInput & {
@@ -213,6 +247,14 @@ export type TaskRecord = TaskRecordInput & {
   readonly run_stats?: TaskRunStats
   readonly notification: TaskNotification
   readonly revive_delivery_uncertain?: ReviveDeliveryUncertainty
+  // Why this record is suspended, when the reason is NOT "its session went away": the daemon was
+  // unreachable for the whole bounded reconcile, or an old generation never finished draining.
+  // Cleared by the revival that succeeds.
+  readonly suspension_reason?: SuspensionReason
+  // Kind of runner that spawned this child. Absent on records persisted before this field shipped.
+  readonly runner_kind?: RunnerKind
+  // Host session identity when runner_kind is "host-session". Absent otherwise.
+  readonly host_session?: HostSessionIdentity
 }
 
 export type TaskTransition =
@@ -221,6 +263,8 @@ export type TaskTransition =
       readonly timestamp: string
       readonly pid?: number
       readonly child_session_id?: string
+      readonly runner_kind?: RunnerKind
+      readonly host_session?: HostSessionIdentity
     }
   | {
       readonly type: "complete"

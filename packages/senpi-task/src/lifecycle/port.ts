@@ -3,6 +3,8 @@ import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 import type { ManagedChildHandle } from "../manager/child-handle"
 import type { TaskRecord } from "../state"
 import type { TaskRecordStore } from "../store"
+import type { KernelToolBindingRegistry } from "../kernel-tools/bindings"
+import type { HostSessionCloser, HostSessionProbe, HostSessionRetryPolicy } from "./host-session"
 import type { BatchAdmissionOptions } from "./residency"
 import type { RevivePolicyPort } from "./revive-policy"
 
@@ -24,13 +26,16 @@ export type DestroyCause =
 // code ever calls abort/dispose/terminate on it - that is the single-writer rule.
 export type ResidentHandle = {
   readonly task_id: string
-  readonly kind: "in-process" | "rpc"
+  // "host-session" is a SESSION of the shared daemon: it has no pid, so nothing may signal it.
+  readonly kind: "in-process" | "rpc" | "host-session"
   readonly pid: number | undefined
   // Interrupt an in-flight turn. Safe to call on an already-idle child.
   abort(): Promise<void>
   // In-process: tear down the child session. Rpc: detach the protocol client + heartbeat.
+  // Host-session: DETACH - the session keeps running on the daemon and the record parks.
   dispose(): Promise<void>
-  // Rpc only: SIGTERM then SIGKILL escalation. In-process: no-op (no OS process to signal).
+  // Rpc: SIGTERM then SIGKILL escalation. Host-session: abort + close_session, never a signal.
+  // In-process: no-op (no OS process to signal).
   terminate(): Promise<void>
 }
 
@@ -64,6 +69,9 @@ export type RespawnFailureCode =
   | "spawn_spec_unavailable"
   | "session_unavailable"
   | "team_inactive"
+  // A previous generation of the daemon still holds this session path while it drains. Retryable
+  // by construction: the child is NEVER lost for it.
+  | "host_draining"
   | "respawn_failed"
 
 export type RespawnResult =
@@ -73,6 +81,8 @@ export type RespawnResult =
       readonly disposition: "retryable" | "unrecoverable"
       readonly code: RespawnFailureCode
       readonly reason: string
+      // How long the host asked the caller to wait before retrying (`host_draining` only).
+      readonly retryAfterMs?: number
     }
 
 export type ReattachResult =
@@ -177,6 +187,14 @@ export type LifecycleDeps = {
   readonly reconcileAdmission?: BatchAdmissionOptions
   // Injectable timer seam keeps lifecycle tests deterministic and prevents test-created timers.
   readonly idleReclaimerScheduler?: IdleReclaimerScheduler
+  // The engine's runtime-only parent kernel-tool map. Destruction and expunge release a child's
+  // binding through it; idle parking keeps the binding so a same-host revive still reaches it.
+  readonly kernelToolBindings?: KernelToolBindingRegistry
+  // Daemon-hosted children: liveness, the single close writer, and the two bounded waits. Defaults
+  // never reach a daemon, so a deployment without one behaves exactly as it does today.
+  readonly hostSessionProbe?: HostSessionProbe
+  readonly hostSessionClose?: HostSessionCloser
+  readonly hostRetry?: HostSessionRetryPolicy
 }
 
 export function injectedLifecycleReattachPorts(deps: LifecycleDeps): LifecycleReattachPorts | undefined {

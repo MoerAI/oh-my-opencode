@@ -209,6 +209,8 @@
     --lit-follow-fade: 22vh;
     --lit-follow-gap: 1.25em;
     --lit-follow-rise: var(--space-6);
+    --lit-line: 50vh;
+    --lit-band: 1vh;
 
     /* Legacy shadcn variables remapped onto the ledger tokens */
     --background: var(--ink-0);
@@ -822,12 +824,24 @@
     white-space: pre-line;
     view-timeline: --lit-body block;
   }
+  /* Line mode (`lit-lines`): each authored line is a block with its own view timeline, and its
+     words light while the line crosses the reading line (--lit-line ± --lit-band). Lines do not
+     overlap vertically, so at most one line (plus a few words of its neighbour) is ever mid-sweep. */
+  .lit-line {
+    display: block;
+  }
   @supports (animation-timeline: view()) {
-    .lit-progress.lit-scroll {
+    .lit-progress.lit-scroll:not(.lit-lines) {
       animation: lit-progress linear both;
       animation-timeline: --lit-body;
       animation-range-start: cover 20vh;
       animation-range-end: cover calc(100% - 50vh);
+    }
+    .lit-lines.lit-scroll .lit-line {
+      animation: lit-progress linear both;
+      animation-timeline: view();
+      animation-range-start: cover calc(100vh - var(--lit-line) - var(--lit-band));
+      animation-range-end: cover calc(100% - var(--lit-line) + var(--lit-band));
     }
     .lit-scroll .lit-follow {
       animation: lit-follow linear both;
@@ -1148,7 +1162,8 @@
       display: none;
     }
     .lit-progress,
-    .lit-progress.lit-scroll {
+    .lit-progress.lit-scroll,
+    .lit-lines.lit-scroll .lit-line {
       --lit-p: 1;
       animation: none;
     }
@@ -1158,7 +1173,8 @@
       opacity: 1;
       transform: none;
     }
-    .lit-word {
+    .lit-word,
+    .lit-read .lit-word {
       background-image: none;
       color: var(--text-hi);
       filter: none;

@@ -42,6 +42,8 @@ export const REQUIRED_PLUGIN_ARTIFACTS: readonly string[] = [
   join("runtime", "lsp-daemon", "dist", "package.json"),
   join("runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"),
   join("scripts", "install.mjs"),
+  // The task daemon's launch spec: without it `omo daemon run` fails closed on every install.
+  "daemon-launch-spec.json",
 ]
 
 export async function ensurePluginArtifacts(context: {

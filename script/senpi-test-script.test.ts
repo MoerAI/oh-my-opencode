@@ -60,6 +60,9 @@ describe("Senpi compatibility test script", () => {
       "node packages/omo-senpi/plugin/scripts/stage-ast-grep-mcp-runtime.mjs",
       "node packages/omo-senpi/plugin/scripts/stage-x-search-skill.mjs",
       "node packages/omo-senpi/plugin/scripts/build-extension.mjs",
+      // The daemon launch spec is generated at build time so the plugin payload ships the only
+      // argv source the task daemon has; it sits between the extension build and skill sync.
+      "node packages/omo-senpi/plugin/scripts/build-daemon-launch-spec.mjs",
       "node packages/omo-senpi/plugin/scripts/sync-skills.mjs",
       "node packages/omo-senpi/plugin/scripts/embed-directive.mjs --check",
       "node packages/omo-senpi/plugin/scripts/build-install.mjs",
@@ -128,6 +131,8 @@ describe("Senpi compatibility test script", () => {
       await writeFile(join(pluginRoot, "extensions", "dream-persona.md"), "# dream persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "facts-persona.md"), "# facts persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "kibitzer-persona.md"), "# kibitzer persona fixture\n")
+      // The daemon launch spec is a required root-level artifact; the installer refuses a payload without it.
+      await writeFile(join(pluginRoot, "daemon-launch-spec.json"), '{"spec_version":1,"core":{"session_runtime":"in-process","multi_session":true,"extensions":["."]},"tunables":{},"env":{}}\n')
       // The memory run supervisor ships as its own executable artifact beside the bundle, so a
       // packed root without it is genuinely incomplete and the installer is right to reject it.
       await writeFile(join(pluginRoot, "extensions", "memory-run-supervisor.mjs"), "#!/usr/bin/env node\n")

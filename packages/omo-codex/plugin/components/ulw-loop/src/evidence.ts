@@ -1,3 +1,4 @@
+import { resolveEvidenceArtifacts } from "./evidence-artifacts.js";
 import { essentialCriteriaOf, hasAllCriteriaPass, hasEssentialCriteriaPass } from "./goal-status.js";
 import type { UlwLoopScope } from "./paths.js";
 import { commit } from "./plan-commit.js";
@@ -12,6 +13,7 @@ type RecordEvidenceArgs = {
 	readonly status: EvidenceStatus;
 	readonly evidence: string;
 	readonly notes?: string;
+	readonly artifacts?: readonly string[];
 };
 
 function ulwLoopFail(message: string, code: string, details: Record<string, unknown>): never {
@@ -67,6 +69,7 @@ export async function recordEvidence(
 		const goal = findGoal(plan, args.goalId);
 		const criterion = findCriterion(goal, args.criterionId);
 		const evidence = nonEmptyEvidence(args.evidence);
+		const artifacts = resolveEvidenceArtifacts(repoRoot, args.artifacts);
 		const kind = ledgerKind(args.status);
 		const prevStatus = criterion.status;
 		const capturedAt = iso();
@@ -74,6 +77,8 @@ export async function recordEvidence(
 		criterion.capturedEvidence = evidence;
 		criterion.capturedAt = capturedAt;
 		if (args.notes !== undefined) criterion.notes = args.notes;
+		if (artifacts !== undefined) criterion.artifacts = artifacts;
+		else delete criterion.artifacts;
 		goal.updatedAt = capturedAt;
 		plan.updatedAt = capturedAt;
 		const ledgerEntry: UlwLoopLedgerEntry = {
@@ -84,6 +89,7 @@ export async function recordEvidence(
 			criterionStatus: args.status,
 			evidence,
 			capturedEvidence: evidence,
+			...(artifacts === undefined ? {} : { artifacts }),
 			before: { status: prevStatus },
 			after: { goalId: goal.id, criterionId: criterion.id, status: args.status, evidence, capturedAt, prevStatus },
 		};
@@ -112,6 +118,7 @@ export async function markCriteriaPendingResetForGoal(
 			criterion.capturedEvidence = null;
 			delete criterion.capturedAt;
 			delete criterion.notes;
+			delete criterion.artifacts;
 		}
 		goal.updatedAt = now;
 		plan.updatedAt = now;

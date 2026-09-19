@@ -5,95 +5,17 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { bunBinShimScript, ensureBunBinShim } from "../bin/lib/bun-bin-shim.js"
+import {
+  baseInput,
+  bunTreePackage,
+  NON_POSIX_HOST,
+  POSIX_HOME,
+  recorder,
+  stockLinkTarget,
+} from "./bun-bin-shim.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
-const POSIX_HOME = "/home/dev"
 const roots: string[] = []
-
-type Options = {
-  scriptPath?: string
-  env?: Record<string, string | undefined>
-  homedir?: () => string
-  platform?: string
-  versions?: Record<string, string | undefined>
-  exists?: (path: string) => boolean
-  realpath?: (path: string) => string
-  lstat?: (path: string) => { isSymbolicLink(): boolean; isFile(): boolean }
-  readFile?: (path: string, encoding: "utf8") => string
-  write?: (path: string, content: string, options: { mode: number }) => void
-  rename?: (from: string, to: string) => void
-  chmod?: (path: string, mode: number) => void
-  pid?: number
-  warn?: (message: string) => void
-}
-
-const identityRealpath = (path: string): string => path
-
-function existsOnly(...present: string[]): (path: string) => boolean {
-  const set = new Set(present)
-  return (path) => set.has(path)
-}
-
-function bunTreePackage(bunRoot: string): string {
-  return join(bunRoot, "install", "global", "node_modules", "omo-ai", "bin", "omo.js")
-}
-
-/** The stock shape bun links: a relative symlink from <root>/bin/omo into the global tree. */
-function stockLinkTarget(): string {
-  return join("..", "install", "global", "node_modules", "omo-ai", "bin", "omo.js")
-}
-
-/** Drives the unit surface with recorded filesystem operations, so no assertion touches the host. */
-function recorder(files: Record<string, string> = {}) {
-  const written: Array<{ path: string; content: string; mode: number }> = []
-  const renamed: Array<{ from: string; to: string }> = []
-  const chmodded: Array<{ path: string; mode: number }> = []
-  const links = new Set<string>()
-  return {
-    written,
-    renamed,
-    chmodded,
-    markLink: (path: string) => links.add(path),
-    lstat: (path: string): { isSymbolicLink(): boolean; isFile(): boolean } => {
-      if (!links.has(path) && !(path in files)) throw new Error(`ENOENT: ${path}`)
-      return {
-        isSymbolicLink: () => links.has(path),
-        isFile: () => !links.has(path) && path in files,
-      }
-    },
-    readFile: (path: string): string => {
-      if (!(path in files)) throw new Error(`ENOENT: ${path}`)
-      return files[path] ?? ""
-    },
-    write: (path: string, content: string, options: { mode: number }) => {
-      written.push({ path, content, mode: options.mode })
-      files[path] = content
-    },
-    rename: (from: string, to: string) => {
-      renamed.push({ from, to })
-      files[to] = files[from] ?? ""
-      delete files[from]
-    },
-    chmod: (path: string, mode: number) => chmodded.push({ path, mode }),
-  }
-}
-
-function baseInput(scriptPath: string, overrides: Partial<Options> = {}) {
-  const bunRootDir = join(POSIX_HOME, ".bun")
-  const bunPath = join(bunRootDir, "bin", "bun")
-  const options: Required<Pick<Options, "scriptPath" | "env" | "homedir" | "platform" | "versions" | "exists" | "realpath">> = {
-    scriptPath,
-    env: {},
-    homedir: () => POSIX_HOME,
-    platform: "linux",
-    versions: {},
-    exists: existsOnly(bunPath),
-    realpath: identityRealpath,
-    pid: 4242,
-    ...overrides,
-  }
-  return { options, bunRootDir, bunPath }
-}
 
 /** bun test runs on bun; node ships as its sibling on CI and dev machines, and its absence skips. */
 function nodeInterpreter(): string | undefined {
@@ -106,12 +28,6 @@ function nodeInterpreter(): string | undefined {
 
 const NODE = nodeInterpreter()
 const POSIX_ONLY = process.platform === "win32" || !NODE
-// The unit surface drives the module with `platform: "linux"`, so the module spells its paths with
-// posix.join while the fixtures below spell theirs with the HOST's path.join. On Windows those two
-// spellings never meet - `/home/dev/.bun/bin/bun` against `\home\dev\.bun\bin\bun` - and every
-// lookup misses. Mirroring the module's own darwin/linux gate is the honest fix: the repair itself
-// returns `skipped-platform` on Windows, so there is no Windows behaviour here left to cover.
-const NON_POSIX_HOST = process.platform === "win32"
 
 type Fixture = {
   root: string
@@ -257,7 +173,7 @@ describe("bun launcher bin shim", () => {
         ...fs,
       })
       // then
-      expect(result).toEqual({ action: "repaired" })
+      expect(result.action).toBe("repaired")
       expect(fs.written).toEqual([
         { path: `${binPath}.4242.tmp`, content: bunBinShimScript(scriptPath, bunPath), mode: 0o755 },
       ])
@@ -274,7 +190,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "current" })
+      expect(result.action).toBe("current")
       expect(fs.written).toHaveLength(0)
       expect(fs.renamed).toHaveLength(0)
     })
@@ -290,7 +206,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "repaired" })
+      expect(result.action).toBe("repaired")
       expect(fs.written[0]?.content).toBe(bunBinShimScript(scriptPath, bunPath))
     })
   })
@@ -310,7 +226,7 @@ describe("bun launcher bin shim", () => {
         ...fs,
       })
       // then
-      expect(result).toEqual({ action: "foreign-link" })
+      expect(result.action).toBe("foreign-link")
       expect(fs.written).toHaveLength(0)
     })
 
@@ -322,7 +238,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "foreign-file" })
+      expect(result.action).toBe("foreign-file")
       expect(fs.written).toHaveLength(0)
     })
 
@@ -334,7 +250,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "absent-bin" })
+      expect(result.action).toBe("absent-bin")
       expect(fs.written).toHaveLength(0)
     })
   })
@@ -350,7 +266,7 @@ describe("bun launcher bin shim", () => {
       const result = ensureBunBinShim({ ...options, ...fs })
       // then - npm's .cmd/.ps1 shims exec the bin file through its shebang, so on Windows the file
       // must stay exactly what bun/npm linked
-      expect(result).toEqual({ action: "skipped-platform" })
+      expect(result.action).toBe("skipped-platform")
       expect(fs.written).toHaveLength(0)
     })
 
@@ -361,7 +277,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then - bun arrived through the shim already; the hot path pays nothing
-      expect(result).toEqual({ action: "skipped-runtime" })
+      expect(result.action).toBe("skipped-runtime")
     })
 
     test("#then an npm-layout install skips the check entirely", () => {
@@ -371,7 +287,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "skipped-install" })
+      expect(result.action).toBe("skipped-install")
     })
 
     test("#then a machine without bun has nothing to optimize with", () => {
@@ -381,7 +297,7 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...fs })
       // then
-      expect(result).toEqual({ action: "skipped-no-bun" })
+      expect(result.action).toBe("skipped-no-bun")
       expect(fs.written).toHaveLength(0)
     })
   })
@@ -404,7 +320,8 @@ describe("bun launcher bin shim", () => {
       // when
       const result = ensureBunBinShim({ ...options, ...failing })
       // then
-      expect(result).toEqual({ action: "failed", error: "EACCES: permission denied" })
+      expect(result.action).toBe("failed")
+      expect(result.error).toBe("EACCES: permission denied")
     })
 
     test("#then OMO_DEBUG narrates the swallowed failure", () => {

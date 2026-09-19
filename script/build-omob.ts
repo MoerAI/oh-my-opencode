@@ -13,6 +13,7 @@ import { versionLines, type OmoBuildInfo } from "../packages/omo-native/build-in
 import { RELEASE_BINARY_TARGETS } from "./build-omo-binary"
 import { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
 import { pruneOmobRuntimes } from "./omob-runtime-prune"
+import { resetSenpiWorkspaceInstalls } from "./omob-senpi-workspace-reset"
 export { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
 
 export interface OmobOptions {
@@ -279,6 +280,10 @@ function buildSenpiPackage(senpiDir: string, cacheDir: string, commit: string): 
 		console.error(`[omob] reusing senpi artifact ${commit}`)
 		return cached
 	}
+	// The clone is reused and `git clean -ffd` keeps ignored dirs, so the previous build's publish
+	// staging would shadow the workspace links this build's bundler resolves.
+	const discarded = resetSenpiWorkspaceInstalls(senpiDir)
+	if (discarded.length > 0) console.error(`[omob] discarded senpi publish staging: ${discarded.join(", ")}`)
 	run("bun", ["install"], senpiDir)
 	materializeNestedLockDeps(senpiDir)
 	run("bun", ["run", "build:bun"], senpiDir)

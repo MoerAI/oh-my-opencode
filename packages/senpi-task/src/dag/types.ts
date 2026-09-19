@@ -245,6 +245,10 @@ export const DAG_NODE_TRANSITION_REASONS = [
 export type DagNodeTransitionReason =
   | (typeof DAG_NODE_TRANSITION_REASONS)[number]
   | { readonly kind: "task_queued"; readonly queuePosition: number }
+  // #8396: journaled once when a scheduled node first parks behind the session's residency cap,
+  // naming how many resident children hold it and how many belong to OTHER owners (a sibling
+  // run, a team, a task spawn) - the only explanation the /dag view has for a quiet run.
+  | { readonly kind: "residency_queued"; readonly residents: number; readonly heldByOtherOwners: number }
 
 // The journaled payload union. EXACTLY 17 members; every member is written to the WAL with a
 // WAL-assigned seq. Live activity telemetry is NOT here - see DagActivityEvent below.

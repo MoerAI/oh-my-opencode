@@ -44,7 +44,14 @@ export function resolveSenpi(options = {}) {
   }
 
   const distDir = dirname(indexPath)
-  const cliPath = join(distDir, "cli.js")
+  // A senpi that ships `dist/bundle/cli.js` hands the launcher one pre-linked esbuild bundle in
+  // place of the module graph `dist/cli.js` pulls in, so the engine boot skips every one of those
+  // resolutions. It is the engine's artifact, not this launcher's: an installed engine without it
+  // resolves exactly as it always did, and the pin can move in either direction without a
+  // launcher change.
+  const bundlePath = join(distDir, "bundle", "cli.js")
+  const unbundledPath = join(distDir, "cli.js")
+  const cliPath = existsSync(bundlePath) ? bundlePath : unbundledPath
   if (!existsSync(cliPath)) {
     throw new Error(`senpi CLI is missing at ${cliPath}; reinstall with: ${updateTarget().command}`)
   }

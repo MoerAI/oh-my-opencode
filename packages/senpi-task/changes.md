@@ -1,3 +1,275 @@
+## The launch profile no longer depends on how the spec's path is spelled
+
+The compiled entry reaches `daemon-launch-spec.json` through the install prefix; the in-process
+runner reaches the same file through the bundle's real location. On macOS `/tmp` is a symlink, so
+the two spellings hashed to two profile ids, the parent's ensure judged the healthy daemon foreign
+and handed the socket over to itself - dropping every live child session. The spec directory is
+now canonicalized before extension paths are resolved into the profile.
+
+## The daemon runner creates the child session directory before opening
+
+The first live run of daemon-hosted children failed every `open_session` with `ENOENT ... lstat
+<stateDir>/sessions/<taskId>`: the host checks the JSONL's directory before it opens the session,
+and on the daemon path nobody had created it (a child process used to do that for itself).
+`RpcHostRunner.openChild` now creates the directory for a fresh child. The fake host gained an
+`enforceSessionDir` option that mirrors the host's check, so the regression test fails for the
+right reason.
+
+## 2026-09-17 — The shared daemon is where a process child runs by default
+
+`task.default_execution_mode` ships as `auto`. A parent session answers it ONCE, at the first spawn
+that needs an answer: `process` when the platform is not win32, `task.process_runner` is `host`, and
+the ensured daemon advertises `session_context` + `generation_handoff`; `in-process` otherwise. The
+answer is a SESSION fact (`manager/execution-mode.ts` `createExecutionModeGate`) - a daemon that dies
+later never changes the mode of the next child, and the daemon is asked exactly once per session.
+
+Precedence is unchanged where it matters: `spec.execution_mode ?? agentDef.executionMode ?? config`,
+with `auto` contributing only the resolved value. A user-set `in-process`/`process` wins and never
+even ensures a daemon, and curated read-only agents stay in-process. A spec that names no mode
+because `auto` has not resolved yet reaches the manager WITHOUT `execution_mode`, and the manager
+resolves it (awaiting that one resolution) instead of anyone guessing in-process.
+
+Two new seams carry the decision outward. `ensureTaskDaemon` returns the daemon's `capabilities`
+(probed for a host that was already up, asked once for one it just started) so the mode decision has
+the facts it needs without a second connection. `ManagedChildHandle` carries `hostSession`, and
+`recordSpawnedRunner` stamps `runner_kind: "host-session"` plus that identity onto the record at
+spawn - the fields the lifecycle already branches on now have a production writer.
+
+`readSessionRole` (`runners/rpc-host/session-role.ts`) is the reader half of `buildChildContext`:
+one extension set serves every session of the daemon, so a component asks what THIS session is
+(`pi.sessionContext.role`) and only falls back to `OMO_SENPI_TASK_RPC_CHILD` / `SENPI_TASK_MEMBER`
+for the per-child process runner. The member extension follows: `resolveMemberExtensionConfig` takes
+its identity from the session context when there is one, a session with no member identity now
+registers nothing instead of throwing `missing_env`, and while the run is live the member publishes
+a `wake_source_state` source so the host never parks it mid-run.
+
+## 2026-09-17 — Session-aware lifecycle for daemon-hosted children
+
+The lifecycle now knows the difference between a child that owns an OS process and one that is a
+SESSION of the shared daemon. The seam is `lifecycle/host-session.ts`: `hostSessionProbe`
+(`daemonAlive` / `sessionLive`), the `hostSessionClose` writer, and `hostRetry` — the two bounded
+waits the daemon path owns. `createHostSessionProbe` takes ONE `probeHost` and ONE
+`list_sessions { include_workers: true }` per pass, per socket, and matches records against it by
+`session_path`; `refresh()` is what starts the next pass. Reconciliation and the TTL sweep each call
+it once, so a hundred daemon children still cost one round trip, never one per record.
+
+| event | child-process child | daemon-hosted child |
+| --- | --- | --- |
+| parent session shutdown | terminate (SIGTERM/SIGKILL), then dispose | DETACH — the session keeps running, record parks `rpc_detached` |
+| cancel / evict / TTL orphan | signal `record.pid` | `abort` + `close_session` via `runners/rpc-host/close.ts`, only when the session is still live |
+| reconcile liveness | `record.pid` alive | `daemonAlive && sessionLive` (`host_pid` stays the omo PARENT's pid) |
+| resume path | newest JSONL in the child's session dir | `host_session.session_path` from the record |
+| daemon/host gone | mark lost | park `rpc_detached`, bounded reconcile 1 s / 4 s / 16 s, then stay parked |
+
+Nothing signals a pid for a host-session record, and nothing can: `ResidentHandle.kind` gained
+`"host-session"`, and every teardown branches on it (`destroy.ts`, `shutdown.ts`, `ttl.ts`). The
+kind now comes from the RUNNER — `ManagedChildHandle.kind`, set by `adaptInProcessHandle` and
+`adaptRpcHandle` — because `pid === undefined` cannot tell an in-process child from a daemon session,
+and reading it wrong silently turned `terminate()` into a no-op that leaked the session.
+
+Two failures are explicitly NOT losses. `session_path_in_use` from a generation that is still
+draining after a handoff becomes `RespawnResult{ code: "host_draining", retryAfterMs }`, retried on
+the host's own delay (2 s default) up to 10 attempts and then deferred as `deferred/host_draining`.
+A daemon that stops answering parks the child and retries three times on a fixed backoff. Both leave
+a durable `suspension_reason` on the record (`host_draining` / `daemon_unavailable`), which is what
+`task_output` reports instead of the generic "resumes with session" line.
+
+Parked children stay reachable. `isColdRevivalCandidate` and `messageability` treat an
+`rpc_detached` host-session record as revivable in every non-`pending` state — including `running`,
+because a parked session names no live process anyone could talk over — so a `task_send` or team
+mail reopens it (`open_session { sessionPath }`, no prompt replay) and delivers, instead of refusing
+with `not_continuable`. Revival also stops reading the disk for that record's transcript: a
+host-session child NAMES its session path, so the "terminal with no transcript, dispose it" rule can
+no longer throw away a session the daemon still holds.
+
+Respawn follows the same rule. `manager/manager-respawn.ts` resumes `host_session.session_path`, and
+when the daemon answers `attached` it skips BOTH `switch_session` and the interrupted-turn nudge —
+the session never stopped, so re-opening it or injecting a continuation prompt would duplicate a
+turn that is still running. A session the daemon EVICTED is reopened from JSONL and still gets the
+nudge when its tail shows an unanswered turn.
+
+The legacy pid path is untouched: a record with a bare `pid` and no `runner_kind` reconciles,
+terminates and TTL-sweeps exactly as before, and `src/__adversarial__/chaos-host.test.ts` pins the
+new branches against a seeded mix of `hostKill` / `daemonRestart` / `idleEvict` / `handoff`.
+
+Two files were split to stay under the size ceiling while absorbing this: `manager-reattach.ts`
+(out of `manager-respawn.ts`) and `revive-rollback.ts` (out of `reconcile-reclamation.ts`).
+
+CAVEAT, pinned engine: omo pins `@code-yeongyu/senpi` 2026.9.17, whose `RpcClient.listSessions()`
+takes no options, so `include_workers` does not reach the wire yet and worker rows stay hidden. The
+probe therefore reads "no session is live", which is the conservative answer everywhere — the
+lifecycle reopens from JSONL instead of attaching, and closes nothing. It starts attaching for real
+once the pin moves to an engine whose client forwards the flag.
+
+## 2026-09-17 — Process-mode children as daemon sessions (`RpcHostRunner`)
+
+`runners/rpc-host.ts` is the runner that turns a `process`-mode child into a SESSION of the shared
+daemon. It composes what the previous todos built and adds nothing of its own: `rpc-host/daemon.ts`
+for attach-or-create, `rpc-host/session-context.ts` for the child's `kind`/`context` and its JSONL
+path, `rpc-host/session-client.ts` for the per-child connection, `rpc-host/handle.ts` for the
+steerable handle, and `rpc/model-admission.ts` + `rpc/start-cleanup.ts` unchanged from the
+child-process runner. It spawns nothing, signals nothing, and holds no pid.
+
+One start, in order: inherited parent extensions are applied to a spec that carries none (same rule
+as `rpc-process.ts`), `modelAdmission(spec)` runs FIRST so a model the child profile cannot resolve
+never reaches the daemon, then `ensureTaskDaemon` decides whether there is a daemon to use, and only
+then is a session opened - `retain_on_disconnect: true`, `auto_title: false`, `kind: "worker"`, the
+child context, the parent's cwd, `provider`/`modelId` split off `spec.model`, and the thinking level
+from `reasoning ?? variant`.
+
+Resume semantics are the reason a daemon child is cheaper than a process child:
+
+| start | session path | what the runner sends |
+| --- | --- | --- |
+| fresh child | `<stateDir>/sessions/<taskId>/<iso>_<uuid>.jsonl` | `startInitialPrompt(spec.prompt)` |
+| resume, host still holds it | `spec.resumeSessionPath` | nothing (re-joined under a new routing handle) |
+| resume, reopened from JSONL | `spec.resumeSessionPath` | nothing (the transcript IS the state) |
+
+No `switch_session` is ever issued for a resume: the session is OPENED at that path, so the handle's
+`switchSession(target)` answers `{ cancelled: false }` for the path it already owns and only a
+different path reaches the wire. That keeps `manager/manager-respawn.ts` working unchanged.
+
+The fallback is loud and narrow. Whether a refusal may run the child as its own process is NOT
+re-decided here: `HostUnavailableError.fallbackAllowed` (set in `rpc-host/daemon.ts` from the
+engine's own verdict - `capability`, `engine_mismatch`, `win32`, `runtime`) is the single source of
+truth, and the runner additionally requires a `fallback` runner to delegate to. The reason is warned
+ONCE per runner, carrying the `host_unavailable:<reason>` token so a surface can show it; everything
+else - including `ensure_failed` WITH a fallback present - fails closed as
+`RunnerError{ kind: "host_unavailable" }`, which is the new `RunnerFailure` kind this change adds.
+A refused client never starts a second host beside the daemon (invariant I1).
+
+Failure cleanup mirrors the child-process runner exactly: the exit outcome is captured BEFORE
+cleanup, `discardUnstartedRpcHandle` aborts and closes the session (never a signal), and the throw is
+`child-prompt-failed` with `rejected_while`. An `open_session` that fails for any other reason
+(`session_path_in_use`, `invalid_launch_profile`) becomes `session_unavailable` with the typed engine
+error preserved as `cause`, so the lifecycle work can branch on it without re-parsing a message.
+
+## 2026-09-17 — The steerable child handle over a daemon session
+
+`runners/rpc-host/handle.ts` (`createHostSessionHandle`) is the `RpcChildHandle` a daemon-hosted
+child is driven through. Turn semantics are the child-process runner's, unchanged and reused rather
+than re-derived: `rpc/delivery-semantics.ts` for the steer → followUp fallback, `rpc/turn-outcome.ts`
+for `agent_end` classification, terminal assistant facts, prompt failures and exit-to-outcome
+mapping. The heartbeat is `get_state`, which records `lastSeen` and the durable session id exactly
+as the process handle does.
+
+What a session does NOT have is a process. `pid` is `undefined` ALWAYS — the daemon's pid is not
+this child's, and writing it into a record would arm `lifecycle/destroy.ts`'s `record.pid` signal
+against a machine-wide host (invariant I1). Nothing in this module sends a signal: `terminate()` is
+`abort` (≤ 2 s) then `close_session` (≤ `closeGraceMs`), each bounded on its own, so a daemon that
+answers nothing still lets a parent shut down. `close()` is the same teardown without the abort.
+`detach()` drops the connection and leaves the session running; `dispose()` IS `detach()`, because
+a parent going away must never end a child that outlives it.
+
+`runners/rpc-host/exit-mapping.ts` is the session-shaped sibling of `runners/rpc/exit-mapping.ts`:
+the same `ChildExitOutcome` vocabulary, with `pid`/`code`/`signal` absent and the host's reason
+riding `stderrTail` so the lifecycle's error text is identical for both runners. The classifier reads
+one fact this client owns — what it last asked for (`running` / `closed` / `terminated`) — and one
+the host names:
+
+| what happened | intent | outcome |
+| --- | --- | --- |
+| `session_closed` (any reason) | `closed` | `clean` |
+| `session_closed` (any reason) | `terminated` | `killed` |
+| `session_closed{host_shutdown,error,…}` | `running` | `crashed`, `stderrTail` = reason |
+| transport gone | `running` | `crashed`, `stderrTail` = `transport_gone` |
+| open refused | any | `spawn_error` carrying the code |
+| `session_parked`, `session_closed{handoff_parked,idle_evicted}` | any | NOT an exit |
+
+Parking wins over intent on purpose: a suspended session is reopenable, so calling it an exit would
+end a child the manager is supposed to park (`rpc_detached`) and wake. A parked handle fires
+`onParked`, flips `attached` to false, stops its heartbeat and produces NO outcome — and from then
+on nothing the host says (a late `session_closed`, the daemon dying) can turn that child into a
+crash. A teardown this client asks for is the one exception: `terminate()` ends a parked child as
+`killed`, because cancel/TTL is the manager's decision, not the daemon's.
+
+The seam is `handle-port.ts` (`HostSessionPort`), which `HostSessionClient` satisfies structurally.
+Turn delivery and outcome tracking are therefore proven against an in-memory session, while park,
+transport loss, close, terminate and detach are proven through the REAL engine client against the
+unix-socket fake host — the same fixture `session-client.test.ts` uses.
+
+## 2026-09-17 — One senpi RpcClient per daemon-hosted child
+
+`runners/rpc-host/session-client.ts` is a child's whole view of the daemon: `HostSessionClient`
+holds ONE engine `RpcClient` for ONE child. A connection is never shared between children, so a
+sibling's records, its UI requests and its transport loss can never reach this child, and `detach()`
+drops only this child's socket.
+
+`open()` probes the daemon per child (never a cached ensure answer), then opens the session with
+`kind: "worker"`, the child context, `retain_on_disconnect` and `auto_title`. The probe rides its
+OWN short-lived connection to the same socket because the engine's `RpcClient` exposes no
+raw-command seam: `get_protocol_info` cannot be sent on the session connection through the public
+API. That is acceptable precisely because `instance_id` is informational — records key liveness on
+the session path, never on the instance — and it keeps the identity per child instead of per
+process. When the engine grows a connection-level protocol-info call, only `session-transport.ts`
+changes.
+
+Admission reuses the ensure path's vocabulary on purpose: the probe is checked against
+`TASK_DAEMON_PROTOCOL_VERSION` and `TASK_DAEMON_REQUIRED_CAPABILITIES`, and a narrower daemon throws
+the SAME `HostUnavailableError{ reason: "capability", fallbackAllowed: true }` the ensure path
+throws, so one branch in the runner covers both. Anything else fails closed (`protocol`,
+`fallbackAllowed: false`) — a refused client never starts a second host beside the daemon (I1).
+
+`session-wire.ts` owns the boundary: every frame is parsed before anything acts on it, records
+tagged for another routing handle are dropped, `session_parked` / `session_closed{reason}` release
+the handle and fire typed callbacks, and an `open_session` refusal becomes `SessionHeldElsewhereError
+{ owner, retryAfterMs }` (`session_path_in_use`) or `HostSessionOpenError{ code }`
+(`invalid_launch_profile`, `open_failed`, …). The client NEVER retries a held path: the backoff and
+the `deferred/host_draining` decision belong to the lifecycle, which is the only place that knows
+whether the record should wait at all.
+
+UI requests are answered through `runners/rpc/ui-auto-answer.ts` and the answer is written, never
+awaited, so a headless child cannot block on a human; `buildAutoUiResponse` now takes the wire
+minimum (`type`/`id`/`method`) because a frame parsed off a socket carries no compile-time variant.
+
+The transport is a port (`createClient`, `probeProtocolInfo`) for ONE reason: the suites run the
+REAL engine client against a unix-socket fake host (`__fixtures__/fake-host.ts`, which todo 33
+grows), so open, routing, park, close, detach and transport loss are proven on the wire rather than
+against a mock of the engine.
+
+## 2026-09-17 — Attach-or-create the shared task daemon from the launch spec
+
+`lazy/senpi-barrel.ts` gains the host-daemon accessors (`senpiEnsureHost`, `senpiProbeHost`,
+`senpiStopHost`, `senpiHandoffHost`, `senpiDecideHostAction`, `senpiEngineBuildIdentity`,
+`senpiRpcClient`) plus omo's own structural view of that surface. Each accessor duck-types the
+loaded barrel exactly as `kernel-tools/contract.ts` duck-types the JS kernel capability — the
+pinned engine can predate the release that exports them — and fails closed with
+`SenpiHostSymbolMissingError` naming the symbol. Nothing is imported statically; the lazy boundary
+and its guard are unchanged.
+
+`runners/rpc-host/daemon.ts` is the attach-or-create client. `resolveTaskHostSocket(env, agentDir)`
+is now the ONE resolver for the public socket (`OMO_RPC_SOCKET`, `SENPI_RPC_SOCKET`,
+`PI_RPC_SOCKET`, `OMO_RPC_SOCKET_PATH`, then `<agentDir>/rpc/rpc.sock`); omo-senpi's thread surface
+imports it instead of keeping a second copy. `ensureTaskDaemon({ agentDir, env, policy })` probes
+the socket, asks the engine's `decideHostAction`, and runs `start` / `reuse` / `handoff` through
+`ensureHost`; a `refuse` becomes a typed `HostUnavailableError` and never starts a second host.
+`fallbackAllowed` is set only for the loud fallbacks to the per-child runner: `capability`,
+`engine_mismatch` under policy `fallback`, `win32`, and `runtime` (a Node host cannot arm the
+engine's child reaper, so a machine-wide daemon would accumulate zombies — todo 13's matrix). The
+ensured result is cached for 5 s; a refusal is never cached.
+
+`runners/rpc-host/launch-options.ts` derives the daemon's launch from the spec alone:
+`hostArgs` = `--session-runtime <runtime>` plus one `--extension` per spec path resolved against the
+spec's directory, `env` = the spec's env with the child, member and workpool identity names nulled
+and `SENPI_RPC_SESSION_IDLE_EVICTION_MS` raised to at least the idle-exit window, plus the cold-start
+policy and the `upgrade` marker. `__fixtures__/daemon-launch.ts` is the ONE expectation fixture both
+this package's suite and `omo daemon run`'s suite import, so the two launch paths cannot drift.
+
+## 2026-09-16 — Scope a child's kernel-tool grant with the engine's per-call invoke scope
+
+`kernel-tools/contract.ts` gained the optional per-call execution scope the producer accepts
+(`invoke(request, signal | { signal?, scope? })`), the `kernel_tool_host_denied` code, and
+`supportsInvokeScope(capability)` — a runtime duck-type of `capabilities.invokeScope === true`, so
+the package still compiles and behaves against an engine pin that predates senpi#1731. When the
+marker is present, `resolveKernelToolGrant` no longer refuses a child whose allow/deny narrows the
+parent: it attaches `childInvokeScope(...)` to the grant, `buildChildKernelTools` recomputes that
+scope against the child's REAL installed surface, and every wrapper invoke carries
+`{ scope: { tools: { allow, deny? } } }` beside the turn's signal. Without the marker the grant is
+refused exactly as before and the wrapper posts the bare signal it always did.
+`TaskKernelToolsDetail` reports `scoped: true` plus the allow/deny summary so the caller can see a
+grant is child-permissioned, and a nested call the engine refuses arrives on the child's own tool
+channel as a `kernel_tool_host_denied` envelope instead of failing the parent's cell. Curated
+read-only agents, team members, process children and non-JavaScript parents are untouched.
 
 ## 2026-09-14 — Re-mirror the curated agent chains from model-core and guard the mirror
 

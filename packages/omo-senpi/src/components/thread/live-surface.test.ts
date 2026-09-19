@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { join, resolve } from "node:path"
-import { createLiveThreadSurface, resolveThreadSocket } from "./live-surface"
+import { TASK_HOST_SOCKET_ENV_NAMES } from "../../../../senpi-task/src/runners/rpc-host/daemon"
+import { createLiveThreadSurface, resolveThreadSocket, THREAD_SOCKET_ENV_NAMES } from "./live-surface"
 
 describe("live thread socket discovery", () => {
+  test("#given the thread surface and the task daemon #when the socket names are compared #then both read the ONE shared list", () => {
+    // given / when / then
+    expect(THREAD_SOCKET_ENV_NAMES).toBe(TASK_HOST_SOCKET_ENV_NAMES)
+  })
   test("operator override wins", () => {
     expect(resolveThreadSocket({ SENPI_RPC_SOCKET: "/tmp/override.sock" })).toBe("/tmp/override.sock")
   })

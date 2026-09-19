@@ -163,7 +163,7 @@ export function createMemoryRunSupervisorIc8Harness() {
     for (const pid of groups) {
       if (!processGroupIsAlive(pid)) continue
       try {
-        terminateProcessGroup(pid)
+        await terminateProcessGroup(pid)
       } catch (error) {
         if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") {
           cleanupError ??= asError(error)

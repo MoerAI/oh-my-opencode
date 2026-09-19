@@ -40,3 +40,8 @@ Behavior:
   executable instead of a launcher; the launcher uses this internally to refresh
   its cached executable. Windows retains the bare-binary installation path.
   `--launcher` explicitly requests the managed POSIX installation.
+
+A dev binary participates in the shared engine host like any other build: its
+build epoch gives it an ordinal, so `omo daemon run` from a newer `omob` hands off
+from an older release and vice versa never happens on an uncomparable pair. See
+[omo daemon](./omo-daemon.md).

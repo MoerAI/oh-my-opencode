@@ -110,7 +110,23 @@ describe("compiled omo entry launcher parity", () => {
   })
 
   test("version line reads the sibling package version and pinned engine", () => {
-    expect(versionLine({ version: "9.2.1" }, "2026.8.28")).toBe("omo 9.2.1 (engine: senpi 2026.8.28)")
+    expect(versionLine({ version: "9.2.1" }, "2026.8.28")).toBe(
+      "omo 9.2.1 (engine: senpi 2026.8.28; scheme nodef)",
+    )
+  })
+
+  test("version line records the senpi-package epoch path when engineBuild is stamped", () => {
+    expect(versionLine({
+      version: "9.2.1",
+      engineBuild: {
+        scheme: "epoch",
+        epoch: 1788486552,
+        sha7: "7fd18df",
+        source: "senpi-package",
+      },
+    }, "2026.9.17")).toBe(
+      "omo 9.2.1 (engine: senpi 2026.9.17+1788486552.7fd18df; scheme epoch)",
+    )
   })
 
   test("realpath-equivalent executable and expected paths skip re-exec", () => {
@@ -153,7 +169,7 @@ describe("pre-provisioning fast paths", () => {
   test("answers --version from the embedded manifest before provisioning", () => {
     const { handled, output } = captureLog(() => answerCompiledFastPath(["--version"], manifest))
     expect(handled).toBe(true)
-    expect(output).toEqual(["omo 9.9.9 (engine: senpi 2026.1.1)"])
+    expect(output).toEqual(["omo 9.9.9 (engine: senpi 2026.1.1; scheme nodef)"])
   })
 
   test("-v answers while --version with extra arguments falls through", () => {
@@ -321,7 +337,7 @@ describe("embedded runtime provisioning", () => {
       process.exitCode = originalExitCode
     }
     expect(output.join("\n")).toContain("PASS plugin manifest: plugin/package.json")
-    expect(output.join("\n")).toContain("INFO omo 9.2.1 (engine: senpi 2026.8.28)")
+    expect(output.join("\n")).toContain("INFO omo 9.2.1 (engine: senpi 2026.8.28; scheme nodef)")
   })
 
   test("version uses the manifest engine pin without a provisioned senpi package", async () => {
@@ -335,7 +351,7 @@ describe("embedded runtime provisioning", () => {
     } finally {
       console.log = originalLog
     }
-    expect(output).toEqual(["omo 9.2.1 (engine: senpi 2026.8.28)"])
+    expect(output).toEqual(["omo 9.2.1 (engine: senpi 2026.8.28; scheme nodef)"])
   })
 
   test("materializes files whose embedded names carry the omo-runtime prefix", async () => {
@@ -403,6 +419,8 @@ describe("omob branded build labels", () => {
     expect(line).toContain("7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7")
     expect(line).toContain("(dev)")
     expect(line).toContain("(main)")
+    expect(line).toContain("+1788486552.7fd18df")
+    expect(line).toContain("scheme epoch")
   })
 
   test("remapSenpiEnvironment brands dev builds with the label and command", () => {
@@ -439,7 +457,7 @@ describe("omob provenance degrades sanely", () => {
 
   test("versionLine falls back to the release one-liner for malformed build info", () => {
     expect(versionLine({ version: "5.0.0-beta.40", omoBuild: malformed }, "2026.9.4")).toBe(
-      "omo 5.0.0-beta.40 (engine: senpi 2026.9.4)",
+      "omo 5.0.0-beta.40 (engine: senpi 2026.9.4; scheme nodef)",
     )
   })
 
@@ -471,6 +489,7 @@ describe("compiledBannerLines", () => {
       "omob dev build",
       "omo   c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc 2026-09-04T10:17:49+09:00 (dev)",
       "senpi 7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7 2026-09-04T10:49:12+09:00 (main)",
+      "engine-build +1788486552.7fd18df (scheme epoch)",
     ])
     // guards against a regression to short SHAs / a missing date or branch
     expect(lines.join("\n")).toContain("c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc")

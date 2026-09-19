@@ -3,6 +3,8 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
 import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 
 import type { DagTaskOwner, DagTaskOwnerKey, OwnedStartResult } from "../dag/owner"
+import type { KernelToolBindingRegistry } from "../kernel-tools/bindings"
+import type { KernelToolGrant } from "../kernel-tools/resolve"
 import type { ResolvedModelRecord, TaskRecord, TaskRunStats, TaskStatus } from "../state"
 import type {
   CancelOptions,
@@ -14,9 +16,12 @@ import type {
 } from "../steering"
 import type { TaskRecordStore } from "../store"
 import type { ManagedChildHandle, ManagedChildListener } from "./child-handle"
-import type { ExecutionMode } from "./execution-mode"
+import type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
+import type { TaskConcurrency } from "./concurrency"
+import type { RunnerFailure } from "../runners/in-process/child-handle"
+import type { WorkpoolEngine } from "../workpool/engine"
 
-export type { ExecutionMode } from "./execution-mode"
+export type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 
 // The unified spec both runner adapters accept. A superset: the rpc adapter uses the subset it
 // needs (task_id, cwd, state_dir, prompt); the in-process adapter also consumes model/tools/agent.
@@ -45,6 +50,9 @@ export type ManagedStartSpec = {
   // the executable definitions against the live parent registries.
   readonly memberScopedToolNames?: readonly string[]
   readonly memberScopedTools?: readonly ToolDefinition[]
+  // TRANSIENT parent kernel-tool grant (item 6). Process-lifetime only: never persisted onto the
+  // record or the v1 spawn_spec, which carry plain launch data exclusively.
+  readonly kernelTools?: KernelToolGrant
   readonly extensions?: readonly string[]
   readonly memberEnv?: Readonly<Record<string, string>>
 }
@@ -77,6 +85,8 @@ export type ManagerStartSpec = {
   readonly allowed_subagents?: readonly string[]
   readonly run_in_background?: boolean
   readonly memberScopedTools?: readonly ToolDefinition[]
+  // TRANSIENT parent kernel-tool grant resolved by the caller against its LIVE capability.
+  readonly kernelTools?: KernelToolGrant
   readonly extensions?: readonly string[]
   readonly memberEnv?: Readonly<Record<string, string>>
 }
@@ -121,6 +131,8 @@ export type StartResult =
   | {
       readonly kind: "started"
       readonly task_id: string
+      // Emitted by the manager; optional for existing host implementations of TaskManager.
+      readonly run_epoch?: number
       readonly status: "running" | "pending"
       readonly name: string
       readonly resolved_model?: ResolvedModelRecord
@@ -145,8 +157,35 @@ export type StartResult =
       readonly resolved_model?: ResolvedModelRecord
       readonly run_in_background: boolean
       readonly error_message: string
+      // The runner's typed failure kind (RunnerFailure["kind"]) when the runner rejected the start,
+      // so a caller can classify the refusal without parsing the sanitized message.
+      readonly failure_kind?: RunnerFailure["kind"]
     }
-  | { readonly kind: "residency_denied"; readonly reason: string }
+  | ResidencyDenied
+
+// A resident child named by a residency rejection: enough for the caller to tell whether the cap
+// is held by live work (wait for it) or by nothing that could ever free a slot (give up).
+export type ResidentSummary = {
+  readonly task_id: string
+  readonly name: string
+  readonly status: TaskStatus
+}
+
+// #8396: a residency denial states WHY admission failed so the caller can decide whether waiting
+// helps. `residents` = the session's resident children occupy the cap; every one of them frees its
+// slot on settlement, eviction, or when its pending sends drain, so a caller parks and re-probes
+// after `TaskManager.residencyChanged(parentSessionId)`. A denial that names NO resident can never
+// be helped by waiting. `lease` = the per-session admission lease was contended or displaced; the
+// lease acquisition itself is a bounded wait, so the caller simply probes again.
+export type ResidencyDenied =
+  | {
+      readonly kind: "residency_denied"
+      readonly reason: string
+      readonly cause: "residents"
+      readonly max_children?: number | "unlimited"
+      readonly residents: readonly ResidentSummary[]
+    }
+  | { readonly kind: "residency_denied"; readonly reason: string; readonly cause: "lease" }
 
 export type ContinueDelivery = "steer" | "followUp" | "revive"
 
@@ -174,7 +213,14 @@ export type ListedTask = {
 export type SpawnAdmission =
   | { readonly kind: "admitted" }
   | { readonly kind: "evicted"; readonly evicted_task_id: string }
-  | { readonly kind: "rejected"; readonly message: string }
+  | {
+      readonly kind: "rejected"
+      readonly message: string
+      // The residents that hold the cap (lifecycle AgentLimitReached). Omitted = the adapter could
+      // not name them, which the manager reports as a denial nothing can free (#8396).
+      readonly max_children?: number | "unlimited"
+      readonly residents?: readonly ResidentSummary[]
+    }
 
 export type AdmitResident = (parentSessionId: string) => Promise<SpawnAdmission>
 
@@ -186,6 +232,7 @@ export type TrustedRespawnLaunch = {
 export type TrustedRespawnLaunchResolver = (record: TaskRecord) => Promise<TrustedRespawnLaunch | undefined>
 
 export type TaskManagerOptions = {
+  readonly concurrency?: TaskConcurrency
   readonly store: TaskRecordStore
   readonly runners: Readonly<Record<ExecutionMode, ManagedRunner>>
   readonly planner: ChildPlanner
@@ -204,9 +251,19 @@ export type TaskManagerOptions = {
   // Pid recorded as host_pid on every claimed record so sibling processes sharing the project store
   // can tell a live owner from a dead one. Defaults to process.pid; injectable for tests.
   readonly hostPid?: number
+  // The parent engine's RUNTIME-ONLY kernel-tool capability map (item 6). Shared with the runner so
+  // a same-host parked child revives onto the same live parent closures; absent = no kernel tools.
+  readonly kernelToolBindings?: KernelToolBindingRegistry
+  // The names a child of this parent already carries (same list the task tool grant reads).
+  readonly resolveChildToolNames?: () => readonly string[]
+  // Resolves `task.default_execution_mode: "auto"` ONCE per parent session (the shared-daemon
+  // capability check). Absent -> `auto` reads as in-process, which is what a wiring without a
+  // daemon (tests, a pinned engine without the host surface) must do.
+  readonly executionModeGate?: ExecutionModeGate
 }
 
 export type TaskManager = {
+  readonly workpools?: WorkpoolEngine
   start(spec: ManagerStartSpec): Promise<StartResult>
   startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult>
   findOwnedTask(owner: DagTaskOwnerKey): TaskRecord | undefined
@@ -236,6 +293,12 @@ export type TaskManager = {
   // Subscribe at the runner-agnostic handle seam now or when a queued task is promoted.
   subscribeChild(taskId: string, listener: ManagedChildListener): () => void
   residentTaskIds(): readonly string[]
+  // #8396: session-scoped residency wake. Resolves the next time the parent session's residency
+  // picture changes - a resident child reaches a terminal status, is forgotten (evicted, suspended,
+  // destroyed), or has its last pending send drained - so a caller denied for residency can park
+  // and re-probe instead of judging the SESSION by its own bookkeeping. Repeatable: each call arms
+  // the NEXT change, so arm it BEFORE the probe whose denial you intend to wait out.
+  residencyChanged(parentSessionId: string): Promise<void>
   // Promote a foreground task when the tool stops waiting inline. The completion bridge reads this
   // state live at terminal transition, so promotion makes the eventual completion notify normally.
   promoteToBackground(taskId: string): boolean

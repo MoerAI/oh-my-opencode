@@ -29,6 +29,9 @@ export type RunnerFailure = {
     | "model_unavailable"
     | "tools_unavailable"
     | "session_unavailable"
+    // The shared task daemon cannot host this child and no per-child fallback was allowed
+    // (`runners/rpc-host/daemon.ts`): the client fails closed instead of starting a second host.
+    | "host_unavailable"
   readonly message: string
   readonly cause?: unknown
   /**

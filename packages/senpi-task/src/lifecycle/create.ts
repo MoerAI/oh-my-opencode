@@ -1,5 +1,6 @@
 import { resolveContext } from "./context"
 import { destroyResidentTask } from "./destroy"
+import { parkHostSessionOnDaemonLoss, type HostSessionParkOptions } from "./host-session-revive"
 import { registerLifecycleDetachedRevival, registerLifecycleDetachedRevivalRollback, type DestroyCause, type LifecycleDeps } from "./port"
 import { admitResident, reclaimIdleResidents, startIdleResidentReclaimer } from "./residency"
 import { reconcileOnSessionStart } from "./reconcile"
@@ -23,9 +24,16 @@ export function createTaskLifecycle(deps: LifecycleDeps): TaskLifecycle {
     destroyResidentTask: (taskId: string, cause: DestroyCause) => destroyResidentTask(context, taskId, cause),
     rollbackDetachedRevival: (prior) => rollbackDetachedRevival(context, prior),
     reclaimIdleResidents: () => reclaimIdleResidents(context),
-    dispose: stopIdleReclaimer,
+    // Parent shutdown: the kernel that owns every granted closure dies with this engine, so the
+    // whole runtime binding map goes too - no strong reference to a disposed kernel survives.
+    dispose: () => {
+      stopIdleReclaimer()
+      context.kernelToolBindings?.releaseAll()
+    },
     admitResident: (parentSessionId: string) => admitResident(context, parentSessionId),
     reconcileOnSessionStart: (parentSessionId?: string) => reconcileOnSessionStart(context, parentSessionId),
+    parkHostSessionOnDaemonLoss: (taskId: string, options?: HostSessionParkOptions) =>
+      parkHostSessionOnDaemonLoss(context, taskId, options),
     cleanupExpiredRecords: cleanup,
     suspendOnSessionShutdown: (input: SuspendInput) => suspendOnSessionShutdown(context, input),
   }

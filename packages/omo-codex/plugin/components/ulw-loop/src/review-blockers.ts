@@ -6,6 +6,7 @@ import {
 	readCodexGoalSnapshotInput,
 	reconcileCodexGoalSnapshot,
 } from "./codex-goal-snapshot.js";
+import { acknowledgeDriverObjective, acknowledgedDriverObjectives } from "./driver-objective-ack.js";
 import { compatibleCodexObjectives, expectedCodexObjective, isFinalRunCompletionCandidate } from "./goal-status.js";
 import type { UlwLoopScope } from "./paths.js";
 import { commit } from "./plan-commit.js";
@@ -40,12 +41,13 @@ function nextGoalId(plan: UlwLoopPlan): string {
 
 function appendBlockerGoal(plan: UlwLoopPlan, args: RecordFinalReviewBlockersArgs, now: string): UlwLoopItem {
 	const index = plan.goals.length;
+	const id = nextGoalId(plan);
 	const goal: UlwLoopItem = {
-		id: nextGoalId(plan),
+		id,
 		title: args.title,
 		objective: args.objective,
 		status: "pending",
-		successCriteria: seedDefaultSuccessCriteria(index, args.objective),
+		successCriteria: seedDefaultSuccessCriteria(index, args.objective, { goalId: id }),
 		attempt: 0,
 		createdAt: now,
 		updatedAt: now,
@@ -70,8 +72,10 @@ export async function recordFinalReviewBlockers(
 		const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
 			expectedObjective: expectedCodexObjective(plan, goal),
 			acceptedObjectives: compatibleCodexObjectives(plan),
+			acknowledgedObjectives: acknowledgedDriverObjectives(plan),
 		});
 		if (!reconciliation.ok) throw new CodexGoalSnapshotError(formatCodexGoalReconciliation(reconciliation));
+		acknowledgeDriverObjective(plan, reconciliation.unacknowledgedObjective);
 
 		const now = iso();
 		for (const field of BLOCKER_FIELDS) Reflect.deleteProperty(goal, field);
@@ -95,8 +99,8 @@ export async function recordFinalReviewBlockers(
 			blockedGoal: goal,
 			newGoal,
 			ledgerEntries,
-			nextActions: reconciliation.warnings,
-			warnings: reconciliation.warnings.filter((warning) => warning.startsWith("driver_objective_differs")),
+			nextActions: reconciliation.nextActions,
+			warnings: reconciliation.warnings,
 		};
 	});
 }

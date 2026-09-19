@@ -8,6 +8,7 @@ import {
 import { beforePlanMutation, commit } from "./plan-commit.js";
 import { appendGoalToPlan, deriveGoalCandidates, makeGoal } from "./plan-goal-factory.js";
 import { planExists, readUlwLoopPlan, withUlwLoopMutationLock } from "./plan-io.js";
+import type { SuccessCriterionInput } from "./success-criteria-input.js";
 import type { UlwLoopToolkitSurface } from "./surface.js";
 import type {
 	UlwLoopCodexGoalMode,
@@ -20,6 +21,7 @@ import { iso, UlwLoopError } from "./types.js";
 import { parseValidationBatches } from "./validation-batch.js";
 
 export { deriveGoalCandidates, seedDefaultSuccessCriteria } from "./plan-goal-factory.js";
+export type { SuccessCriterionInput } from "./success-criteria-input.js";
 
 export type UlwLoopPlanSummary = {
 	readonly total: number;
@@ -81,7 +83,7 @@ export async function createUlwLoopPlan(
 		}
 		const now = iso();
 		const goals = deriveGoalCandidates(args.brief).map((goal, index) =>
-			makeGoal(goal.title, goal.objective, index, now),
+			makeGoal(goal.title, goal.objective, index, now, { surface }),
 		);
 		const plan: UlwLoopPlan = {
 			version: 1,
@@ -128,13 +130,17 @@ function completedPlanExistsError(scope: UlwLoopScope | undefined, surface: UlwL
 
 export async function addUlwLoopGoal(
 	repoRoot: string,
-	args: { title: string; objective: string },
+	args: { title: string; objective: string; successCriteria?: readonly SuccessCriterionInput[] },
 	scope?: UlwLoopScope,
+	surface: UlwLoopToolkitSurface = "lazycodex",
 ): Promise<{ plan: UlwLoopPlan; goal: UlwLoopItem }> {
 	return withUlwLoopMutationLock(repoRoot, scope, async () => {
 		const plan = await readUlwLoopPlan(repoRoot, scope);
 		const now = iso();
-		const goal = appendGoalToPlan(plan, args.title, args.objective, now);
+		const goal = appendGoalToPlan(plan, args.title, args.objective, now, {
+			surface,
+			...(args.successCriteria === undefined ? {} : { successCriteria: args.successCriteria }),
+		});
 		await commit(repoRoot, scope, {
 			plan,
 			entries: [{ at: now, kind: "goal_added", goalId: goal.id, status: goal.status, message: goal.title }],

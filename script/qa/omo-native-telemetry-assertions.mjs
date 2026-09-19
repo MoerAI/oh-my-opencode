@@ -16,8 +16,15 @@ const expectedNativeEvents = new Set([
   "delegation_completed",
   "category_config",
   "feature_used",
+  "kibitzer_summary",
   "parallelism_summary",
 ])
+
+// Session-conditional events the scripted scenario cannot produce: `kibitzer_summary` is emitted only
+// when the memory sidecar actually woke, which needs recall enabled and a committed memory corpus. They
+// stay in the coverage check above (a dropped or misspelled event still fails) but are not required to
+// appear in a capture, because demanding one here would only be satisfiable by faking the emission.
+const conditionalNativeEvents = new Set(["kibitzer_summary"])
 
 export function assertAllowlistCoverage(allowlists) {
   const actual = new Set(Object.keys(allowlists))
@@ -70,7 +77,10 @@ export function assertEnabled(events) {
   check("first-prompt-ulw-classification", first !== undefined && first.properties.is_effective_ultrawork_invocation === true && first.properties.keyword_variant === "ulw" && first.properties.keyword_occurrence_bucket === "1" && first.properties.invocation_stage === "first_arm", JSON.stringify(first?.properties ?? null))
   const controls = realPrompts.filter((event) => event !== first)
   check("two-keyword-negative-controls", controls.length === 2 && controls.every((event) => event.properties.keyword_any === false), controls.map((event) => JSON.stringify(event.properties)).join(" | "))
-  for (const name of nativeEvents) check(`event-present-${name}`, native.some((event) => event.event === name), `captured ${name}`)
+  for (const name of nativeEvents) {
+    if (conditionalNativeEvents.has(name)) continue
+    check(`event-present-${name}`, native.some((event) => event.event === name), `captured ${name}`)
+  }
   check("turn-completed-positive-tokens", native.some((event) => event.event === "turn_completed" && Number(event.properties.total_tokens) > 0), "at least one turn_completed has total_tokens > 0")
   check("feature-goal-tool", native.some((event) => event.event === "feature_used" && event.properties.feature === "goal_tool"), "captured feature_used goal_tool")
   check("legacy-dual-emit-presence-only", events.some((event) => event.event === "omo_senpi_daily_active"), "legacy event present and excluded from all scans")

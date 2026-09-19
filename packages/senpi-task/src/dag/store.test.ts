@@ -33,6 +33,10 @@ afterEach(() => {
 function tempProject(): string {
   const directory = fs.mkdtempSync(join(tmpdir(), "senpi-dag-store-"))
   cleanupRoots.push(directory)
+  const dagRoot = join(directory, ".omo", "senpi-task", "dag")
+  for (const name of ["keys", "runs", "events", "results", "locks"]) {
+    fs.mkdirSync(join(dagRoot, name), { recursive: true })
+  }
   return directory
 }
 

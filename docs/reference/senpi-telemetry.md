@@ -64,6 +64,30 @@ The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `
 | `delegation_started` | `name` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep`, `quick`, `unspecified-low`, `unspecified-high`, `architect`, `writing`, `explore`, `librarian`, `plan-consultant`, `plan-reviewer`, `custom` |
 | `feature_used` | `$session_id` | `string` | - |
 | `feature_used` | `feature` | `string` | `goal_tool`, `team_create`, `memory_tool` |
+| `kibitzer_summary` | `$session_id` | `string` | - |
+| `kibitzer_summary` | `buffered_cooldown` | `number` | - |
+| `kibitzer_summary` | `buffered_no_new_candidate` | `number` | - |
+| `kibitzer_summary` | `cache_read_tokens` | `number` | - |
+| `kibitzer_summary` | `cache_write_tokens` | `number` | - |
+| `kibitzer_summary` | `candidates_total` | `number` | - |
+| `kibitzer_summary` | `first_nudge_wake` | `number` | - |
+| `kibitzer_summary` | `generations` | `number` | - |
+| `kibitzer_summary` | `input_tokens` | `number` | - |
+| `kibitzer_summary` | `model_top` | `string` | - |
+| `kibitzer_summary` | `nudge_gap_ms_median` | `number` | - |
+| `kibitzer_summary` | `nudge_gap_ms_p90` | `number` | - |
+| `kibitzer_summary` | `nudges_delivered` | `number` | - |
+| `kibitzer_summary` | `offers_total` | `number` | - |
+| `kibitzer_summary` | `output_tokens` | `number` | - |
+| `kibitzer_summary` | `slot_wait_ms_total` | `number` | - |
+| `kibitzer_summary` | `tool_calls_total` | `number` | - |
+| `kibitzer_summary` | `wake_duration_ms_total` | `number` | - |
+| `kibitzer_summary` | `wake_span_ms` | `number` | - |
+| `kibitzer_summary` | `wakes_deadline` | `number` | - |
+| `kibitzer_summary` | `wakes_failed` | `number` | - |
+| `kibitzer_summary` | `wakes_tool_budget` | `number` | - |
+| `kibitzer_summary` | `wakes_total` | `number` | - |
+| `kibitzer_summary` | `wakes_with_nudge` | `number` | - |
 | `parallelism_summary` | `$session_id` | `string` | - |
 | `parallelism_summary` | `clock_anomalies` | `number` | - |
 | `parallelism_summary` | `dropped_calls` | `number` | - |

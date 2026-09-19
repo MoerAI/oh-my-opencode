@@ -154,9 +154,6 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
   const maxRunsPerSession = config.task?.dag?.max_runs_per_session ?? DAG_SETTINGS_DEFAULTS.max_runs_per_session
   const retentionDays = config.task?.dag?.retention_days ?? DAG_SETTINGS_DEFAULTS.retention_days
 
-  for (const directory of [paths.keys, paths.runs, paths.events, paths.results, paths.locks]) {
-    fs.mkdirSync(directory, { recursive: true })
-  }
   inspectExistingEventLogs(paths, diagnosticLog, recoveredPaths, now)
 
   const store: DagFileStore = {

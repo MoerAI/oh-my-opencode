@@ -1,7 +1,12 @@
 import {
   RESOLVED_MODEL_SOURCES,
+  RUNNER_KINDS,
+  SUSPENSION_REASONS,
+  type HostSessionIdentity,
   type PendingSteeringEntry,
   type ResolvedModelRecord,
+  type RunnerKind,
+  type SuspensionReason,
   type TaskNotification,
   type TaskSpawnSpec,
 } from "../state"
@@ -16,7 +21,63 @@ import {
 } from "./scalar-read"
 
 // Parsers for the nested blocks of a persisted task record: ownership, spawn spec, prelaunch
-// steering queue, resolved-model chain, and notification epochs.
+// steering queue, resolved-model chain, notification epochs, host session identity, and runner kind.
+
+function readOptionalLiteral(
+  record: Record<string, unknown>,
+  key: string,
+  validValues: readonly string[],
+): string | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (typeof value !== "string") throw new Error(`${key} is not a string`)
+  if (!validValues.includes(value)) throw new Error(`${key} has an invalid value: ${value}`)
+  return value
+}
+
+export function readOptionalRunnerKind(
+  record: Record<string, unknown>,
+): RunnerKind | undefined {
+  const val = readOptionalLiteral(record, "runner_kind", RUNNER_KINDS)
+  return val as RunnerKind | undefined
+}
+
+export function readOptionalSuspensionReason(
+  record: Record<string, unknown>,
+): SuspensionReason | undefined {
+  return readOptionalLiteral(record, "suspension_reason", SUSPENSION_REASONS) as SuspensionReason | undefined
+}
+
+export function parseOptionalHostSession(
+  record: Record<string, unknown>,
+): HostSessionIdentity | undefined {
+  const value = record["host_session"]
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new Error("host_session is not an object")
+
+  const socket = readString(value, "socket")
+  const routingId = readString(value, "routing_id")
+  const sessionPath = readString(value, "session_path")
+  const instanceId = readString(value, "instance_id")
+  const daemonPid = readOptionalNumber(value, "daemon_pid")
+
+  return {
+    socket,
+    routing_id: routingId,
+    session_path: sessionPath,
+    instance_id: instanceId,
+    ...(daemonPid === undefined ? {} : { daemon_pid: daemonPid }),
+  }
+}
+
+export function validateHostSessionConsistency(
+  runnerKind: RunnerKind | undefined,
+  hostSession: HostSessionIdentity | undefined,
+): void {
+  if (hostSession !== undefined && runnerKind !== "host-session") {
+    throw new Error("host_session present but runner_kind is not 'host-session'")
+  }
+}
 
 export function parseOptionalOwner(record: Record<string, unknown>): DagTaskOwner | undefined {
   const value = record["owner"]
@@ -89,7 +150,20 @@ export function parseOptionalPendingSteering(
       warnings?.push(`pending_steering[${index}] at ${path}: entry has invalid deliver_as, dropped`)
       continue
     }
-    entries.push({ id, message, deliver_as: deliverAs })
+    const pool = candidate["workpool"]
+    if (pool !== undefined) {
+      if (!isRecord(pool) || typeof pool["pool_id"] !== "string" || !/^wp_[0-9a-f]{32}$/.test(pool["pool_id"]) ||
+        typeof pool["item_id"] !== "string" || pool["item_id"] !== id || !/^wi_[0-9a-f]{32}$/.test(id) ||
+        typeof pool["key"] !== "string" || pool["key"].trim().length === 0 ||
+        typeof pool["generation"] !== "number" || !Number.isSafeInteger(pool["generation"]) || pool["generation"] < 1 ||
+        typeof pool["run_epoch"] !== "number" || !Number.isSafeInteger(pool["run_epoch"]) || pool["run_epoch"] < 0) {
+        warnings?.push(`pending_steering[${index}] at ${path}: invalid workpool correlation, dropped`)
+        continue
+      }
+      entries.push({ id, message, deliver_as: deliverAs, workpool: {
+        pool_id: pool["pool_id"], item_id: pool["item_id"], key: pool["key"], generation: pool["generation"], run_epoch: pool["run_epoch"],
+      } })
+    } else entries.push({ id, message, deliver_as: deliverAs })
   }
   return entries
 }

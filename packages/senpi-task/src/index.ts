@@ -1,4 +1,29 @@
 // allow: SIZE_OK - package-root public API barrel contains re-exports only and intentionally preserves one stable root import surface.
+export { createWorkpoolTool, createWorkpoolWorkerTool, buildWorkpoolExecute } from "./tools/workpool"
+export { WorkpoolParams, WorkpoolYieldParams } from "./tools/workpool-schema"
+export { WorkpoolCommandSchema, WorkpoolCreateSchema } from "./workpool/schema"
+export { createWorkpoolStore } from "./workpool/store"
+export { WorkpoolError, WORKPOOL_ERROR_CODES } from "./workpool/types"
+export type { WorkpoolEngine } from "./workpool/engine"
+export { createKernelToolBindings, type KernelToolBindingRegistry } from "./kernel-tools/bindings"
+export { childInvokeScope, escalatingHostTools, isWriteCapableHostTool } from "./kernel-tools/nested-host-scope"
+export {
+  KERNEL_TOOL_ERROR_CODES,
+  KernelToolError,
+  createKernelToolWrappers,
+  isReservedKernelToolName,
+  kernelToolKey,
+  normalizeKernelToolName,
+  readKernelToolsCapability,
+  resolveKernelToolGrant,
+  supportsInvokeScope,
+  type KernelToolDescriptor,
+  type KernelToolErrorCode,
+  type KernelToolGrant,
+  type KernelToolInvokeScope,
+  type KernelToolsCapability,
+} from "./kernel-tools"
+export type { PoolId, ItemId, WorkpoolRecord, WorkpoolCaller, WorkpoolCreate, WorkpoolEvent, WorkpoolErrorCode } from "./workpool/types"
 export {
   BACKGROUND_MODES,
   COST_REPORT_STATUSES,
@@ -109,10 +134,13 @@ export {
   InProcessRunner,
   RunnerError,
   buildSubagentPrompt,
+  childStructuralToolNames,
+  childVisibleToolNames,
   createChildResourceLoader,
   filterSharedParentTools,
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,
+  SENPI_SESSION_BUILTIN_NAMES,
 } from "./runners"
 export type {
   ChildCompletionPolicy,
@@ -130,7 +158,15 @@ export type {
   SubagentPromptInput,
 } from "./runners"
 export {
+  ensureTaskDaemon,
+  HostUnavailableError,
+  isHostSessionHandle,
+  readMemberSessionIdentity,
+  readSessionContext,
+  readSessionRole,
+  resolveTaskHostSocket,
   RpcCommandError,
+  RpcHostRunner,
   RpcProcessRunner,
   RpcProtocolClient,
   buildAutoUiResponse,
@@ -154,15 +190,27 @@ export type {
   ChildExitFacts,
   ChildExitInput,
   ChildExitOutcome,
+  CreateHostSessionChannel,
   CreateRpcChildHandleOptions,
+  EnsuredTaskDaemon,
+  EnsureTaskDaemonInput,
+  EnsureTaskDaemonPort,
+  FallbackChildRunner,
+  HostUnavailableReason,
+  HostSessionChannel,
+  HostSessionChildHandle,
+  HostSessionFacts,
   MalformedLineHandler,
+  MemberSessionIdentity,
   RpcChildHandle,
+  RpcHostRunnerOptions,
   RpcProcessRunnerOptions,
   RpcProtocolClientOptions,
   RpcRunnerSpec,
   RpcSpawnDescriptor,
   RpcSpawnRuntime,
   SenpiLauncher,
+  SessionRole,
   RunnerErrorFacts,
   TerminateOptions,
 } from "./runners"
@@ -175,8 +223,10 @@ export {
   createParentRegistrySessionContext,
   createRpcManagedRunner,
   createTaskManager,
+  createExecutionModeGate,
   decideDepthPolicy,
   findModelReference,
+  resolveAutoExecutionMode,
   resolveExecutionMode,
 } from "./manager"
 export type {
@@ -187,7 +237,9 @@ export type {
   ContinueResult,
   DepthDecision,
   DepthPolicyInput,
+  ConfiguredExecutionMode,
   ExecutionMode,
+  ExecutionModeGate,
   ExecutionModeSources,
   InProcessRunnerLike,
   InProcessSessionContext,
@@ -363,6 +415,7 @@ export type {
   TaskAgentInfo,
   TaskAncestry,
   TaskCategoryInfo,
+  TaskHandleDetails,
   TaskTargetError,
   TaskTargetErrorCode,
   TaskTargetSelection,

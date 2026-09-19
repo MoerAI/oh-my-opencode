@@ -76,7 +76,7 @@ No default profiles ship. A profile exists only when you write one under `profil
     }
   },
   "task": {
-    "default_execution_mode": "in-process",
+    "default_execution_mode": "auto",
     "default_concurrency": 5
   },
   "teams": {
@@ -103,8 +103,9 @@ No default profiles ship. A profile exists only when you write one under `profil
   "model_profiles": {}, // record<string, ModelProfile>, named model chains picked by intent (Senpi harness)
   "model_profile": "",  // active profile id or a literal provider/model pin (Senpi harness)
   "memory": {},         // MemorySettings, Senpi memory subsystem
-  "git_master": { "commit_footer": true, "include_co_authored_by": true }, // commit attribution (Senpi harness)
+  "git_master": { "commit_footer": false }, // opt-in commit footer (Senpi harness); no Co-authored-by trailer is ever emitted
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
+  "disabled_skills": [], // skill names hidden on every harness, unioned across layers
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
   "[senpi]": {},        // Senpi-only overrides, typed base keys
   "[codex]": {},        // Codex-only overrides, typed base keys
@@ -118,7 +119,18 @@ Source: `packages/omo-config-core/src/schema/config.ts`.
 
 ### Harness blocks
 
-`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`), so a harness-specific override stays schema-checked.
+`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`, `disabled_skills`), so a harness-specific override stays schema-checked.
+
+### `disabled_skills` (every harness)
+
+The one supported way to turn a skill off. A name listed here is absent from the run: on OmO Native / Senpi it never enters the `<available_skills>` index, the `/skill:` commands, or `get_commands`; on the OpenCode plugin it is dropped from the builtin set and the skill tool. Unlike other arrays, layers are unioned: the shared base, the `[harness]` block, the user file, the project file, and the active profile all add names, and a project cannot re-enable a skill the user file disabled by omitting it.
+
+```jsonc
+// ~/.omo/omo.jsonc
+{
+  "disabled_skills": ["frontend", "visual-qa"]
+}
+```
 
 Security invariant: the OpenCode plugin honors `mcp_env_allowlist` and `browser_automation_engine.playwright_mcp_args` only from the user layer, including the user layer's own active profile block. Project layers cannot extend them.
 
@@ -144,19 +156,21 @@ The optional `memory` block configures the Senpi memory subsystem (`schema/memor
 
 ### `git_master` (Senpi harness)
 
-The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-attribution directive to the skill content based on these settings.
+The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-footer directive to the skill content only when you opt in.
+
+Commit-identity contract: commits omo causes in your repository carry your own git `user.name` / `user.email` as author and committer, and omo never adds a `Co-authored-by` trailer or any other GitHub-resolvable automation identity. A default install appends nothing.
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `commit_footer` | boolean \| string | `true` | Adds the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer to commit messages. A string replaces the builtin footer text; `false` disables the footer. |
-| `include_co_authored_by` | boolean | `true` | Adds the `Co-authored-by: sisyphus-dev-ai <sisyphus-dev-ai@users.noreply.github.com>` trailer ([sisyphus-dev-ai](https://github.com/sisyphus-dev-ai)) to commit messages. |
+| `commit_footer` | boolean \| string | `false` | Opt in to the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer in the commit body. A string replaces the builtin footer text. |
+| `include_co_authored_by` | boolean | `false` | Deprecated no-op, accepted so existing configs keep validating. omo does not emit a `Co-authored-by` trailer regardless of this value. |
 
-Both attributions ship enabled by default. To opt out of the co-author trailer:
+To opt in to the body footer:
 
 ```jsonc
 {
   "git_master": {
-    "include_co_authored_by": false
+    "commit_footer": true
   }
 }
 ```
@@ -305,11 +319,16 @@ Team members always spawn in `process` mode, which cannot carry the curated pers
 
 ### `task`
 
-Task engine settings. The whole object is optional, but `provider_concurrency`, `model_concurrency`, `state_dir`, and `reattach_on_reconcile` are optional and remain unset when omitted (`schema/task.ts`).
+Task engine settings. The whole object is optional, but `provider_concurrency`, `model_concurrency`, `state_dir`, `host_idle_exit_ms`, and `reattach_on_reconcile` are optional and remain unset when omitted (`schema/task.ts`).
+
+`default_execution_mode: "auto"` (the default) defers the in-process/process choice to the shared engine daemon: children run as daemon sessions when the platform is not Windows, `process_runner` is `host`, and the ensured daemon advertises `session_context` + `generation_handoff`; otherwise they run in-process. The decision is made ONCE per parent session, so a child's mode never changes because the daemon died later, and an explicit `in-process`/`process` always wins over it. Curated read-only agents (`explore`, `librarian`, `plan-consultant`, `plan-reviewer`) stay in-process regardless. `process_runner: "child-process"` keeps every process child in its own OS process (the only behaviour on Windows), `host_engine_policy` decides whether a daemon running a different engine build is handed over (`upgrade`) or left alone while children run as their own processes (`fallback`), and `host_idle_exit_ms` overrides the idle lifetime of a daemon this client starts. There is no socket key: one daemon, one public socket under the agent dir.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `default_execution_mode` | `in-process \| process` | `in-process` |
+| `default_execution_mode` | `auto \| in-process \| process` | `auto` |
+| `process_runner` | `host \| child-process` | `host` |
+| `host_engine_policy` | `upgrade \| fallback` | `upgrade` |
+| `host_idle_exit_ms` | positive int | unset (the launch profile's tunable) |
 | `default_concurrency` | non-negative int (0 = unlimited) | `5` |
 | `provider_concurrency` | record<string, non-negative int (0 = unlimited)> | unset |
 | `model_concurrency` | record<string, non-negative int (0 = unlimited)> | unset |
@@ -403,7 +422,7 @@ The migration engine rewrites the persisted config in place, and doctor reports 
 // .omo/omo.jsonc
 {
   "task": {
-    "default_execution_mode": "in-process",
+    "default_execution_mode": "auto",
     "default_concurrency": 4,
     "wait": { "default_ms": 90000 }
   },

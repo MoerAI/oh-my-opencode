@@ -71,6 +71,10 @@ export type TaskOutputDetails =
 export type TaskOutputDeps = {
   readonly manager: OutputManager
   readonly stateDir: string
+  // Session-level notices about HOW children run - today the shared task daemon's loud, deduped
+  // fallback reasons (`host_unavailable:<reason>`). Read on every status view so the parent learns
+  // why its children are not daemon sessions without digging through logs.
+  readonly notices?: () => readonly string[]
   readonly transcriptReader?: TranscriptReader
   readonly resolveCallerSessionId?: CallerSessionResolver
   readonly now?: () => number

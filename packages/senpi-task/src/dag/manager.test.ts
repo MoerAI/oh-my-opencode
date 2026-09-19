@@ -58,7 +58,9 @@ function manager(projectDir: string, options: { readonly now?: () => number } = 
 }
 
 function runFiles(store: ReturnType<typeof createDagFileStore>): readonly string[] {
-  return fs.readdirSync(store.paths.runs).filter((entry) => entry.endsWith(".json"))
+  return fs.existsSync(store.paths.runs)
+    ? fs.readdirSync(store.paths.runs).filter((entry) => entry.endsWith(".json"))
+    : []
 }
 
 function raceWorkerSource(projectDir: string, prompt: string, barrierDir: string): string {
@@ -267,8 +269,8 @@ describe("createDagManager start", () => {
       expect((error as DagManagerError).errors.map((entry) => entry.code)).toEqual(["cycle"])
     })
     expect(runFiles(store)).toEqual([])
-    expect(fs.readdirSync(store.paths.keys)).toEqual([])
-    expect(fs.readdirSync(store.paths.events)).toEqual([])
+    expect(fs.existsSync(store.paths.keys) ? fs.readdirSync(store.paths.keys) : []).toEqual([])
+    expect(fs.existsSync(store.paths.events) ? fs.readdirSync(store.paths.events) : []).toEqual([])
   })
 
   test("#given a configured node ceiling #when a definition exceeds it #then invalid_definition names the configured bound", async () => {

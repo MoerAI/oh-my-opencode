@@ -302,10 +302,23 @@ export async function acquireLock(
 
   for (;;) {
     options.signal?.throwIfAborted()
-    if (await publishExclusive(lockPath, record)) return
-    options.signal?.throwIfAborted()
-    const owner = await readOwner(lockPath)
-    if (owner === null) continue
+    // Read before publishing. `publishExclusive` creates a candidate file, writes it, FSYNCS it,
+    // hard-links it and unlinks it - six filesystem operations, one of them durable - and while
+    // another process visibly holds the lock every one of them is doomed. A waiter that retried
+    // the publish instead of the read produced that whole cycle on every tick of its retry delay:
+    // at the 5ms delay the two-process writer test uses, ~200 fsynced create/unlink cycles per
+    // second, aimed at the same volume the lock holder was committing to. That is the load that
+    // starved the Windows shard-1 writer test out of its 30s budget (#8323); the read costs one
+    // open+read and cannot block the holder.
+    let owner = await readOwner(lockPath)
+    if (owner === null) {
+      if (await publishExclusive(lockPath, record)) return
+      options.signal?.throwIfAborted()
+      // Lost the publish race: re-read so the contention error and the dead-owner check still see
+      // the holder that won, exactly as the read-after-failed-publish order always did.
+      owner = await readOwner(lockPath)
+      if (owner === null) continue
+    }
     if (await recoverDeadOwner(lockPath, owner, record)) continue
     options.signal?.throwIfAborted()
     if (Date.now() >= deadline) throw new LockContentionError(lockPath, owner.record)
