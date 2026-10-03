@@ -73,6 +73,12 @@ export interface HookInput {
 export interface CheckResult {
 	readonly hasComments: boolean;
 	readonly message: string;
+	readonly failure?: CheckFailure;
+}
+
+export interface CheckFailure {
+	readonly exitCode: number | null;
+	readonly stderr: string;
 }
 
 export type SpawnSignal = "SIGTERM" | "SIGKILL";
@@ -95,6 +101,15 @@ export interface ResolveCommentCheckerBinaryInput {
 	readonly existsSync: (path: string) => boolean;
 	readonly importMetaUrl?: string;
 	readonly packageName?: string;
+}
+
+export interface FindCommentCheckerPackageBinaryInput {
+	readonly packageJsonPath: string;
+	readonly binaryName: string;
+	readonly existsSync: (path: string) => boolean;
+	readonly packageName?: string;
+	readonly platform?: string;
+	readonly arch?: string;
 }
 
 export interface RunCommentCheckerInput {
@@ -146,6 +161,11 @@ export function resolveCommentCheckerReleaseAsset(
 ): CommentCheckerReleaseAsset | null;
 export function commentCheckerBinaryName(platform: string): string;
 export function commentCheckerCacheDir(input: CommentCheckerCacheDirInput): string;
+export const COMMENT_CHECKER_VERSION_MARKER: string;
+export function isCachedCommentCheckerCurrent(cacheDir: string, readFile?: (path: string) => string): boolean;
+export function recordCachedCommentCheckerRelease(cacheDir: string): void;
+export const COMMENT_CHECKER_PACKAGE_NAME: string;
+export function findCommentCheckerPackageBinary(input: FindCommentCheckerPackageBinaryInput): string | null;
 export function resolveCommentCheckerBinary(input: ResolveCommentCheckerBinaryInput): string | null;
 export function runCommentChecker(input: RunCommentCheckerInput, options: RunCommentCheckerOptions): Promise<CheckResult>;
 export function sendAndCloseStdin(stdin: {
