@@ -8,11 +8,13 @@ export const SCENARIOS = [
   "background-type-sole-window",
   "background-type-multiwindow-refused",
   "foreground-restores",
+  "background-scroll-once",
   "killswitch-real-hid",
   "tcc-diagnostic",
   "screenshot-budget",
   "capabilities-truth",
   "canary",
+  "canary-off",
 ] as const
 
 export type ScenarioName = (typeof SCENARIOS)[number]
