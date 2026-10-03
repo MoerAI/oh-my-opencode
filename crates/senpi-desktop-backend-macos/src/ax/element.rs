@@ -9,7 +9,7 @@ use std::sync::LazyLock;
 use objc2_application_services::{AXError, AXIsProcessTrusted, AXUIElement, AXValue, AXValueType};
 use objc2_core_foundation::{CFArray, CFBoolean, CFRetained, CFString, CFType, CGPoint, CGSize};
 use senpi_desktop_core::ax::{AxBounds, AxHandle};
-use senpi_desktop_core::error::{CoreResult, DesktopError};
+use senpi_desktop_core::error::{CoreResult, DesktopError, TccPermission};
 
 const AX_TIMEOUT_SECONDS: f32 = 2.0;
 
@@ -44,9 +44,7 @@ pub(super) fn ensure_trusted() -> CoreResult<()> {
     if is_trusted() {
         Ok(())
     } else {
-        Err(DesktopError::permission_denied(
-            "macOS Accessibility permission is not granted for this process",
-        ))
+        Err(crate::backend::permissions::permission_denied(TccPermission::Accessibility))
     }
 }
 
@@ -91,6 +89,15 @@ pub(crate) fn window_id(element: &AXUIElement) -> Option<u32> {
     let mut id = 0u32;
     // SAFETY: `id` is writable and the retained element outlives the call.
     (unsafe { get_id(element, &mut id) } == AXError::Success).then_some(id)
+}
+
+/// The CGWindowID of the window owning `element`: the element itself when
+/// it is a window, else its `AXWindow`.
+pub(super) fn owner_window_id(element: &AXUIElement) -> Option<u32> {
+    if copy_string(element, "AXRole").as_deref() == Some("AXWindow") {
+        return window_id(element);
+    }
+    window_id(&*copy_element(element, "AXWindow")?)
 }
 
 pub(super) fn copy_attribute_result(

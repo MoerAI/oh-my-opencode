@@ -13,7 +13,7 @@ import { parseArgs } from "node:util"
 import { selfTestBinary, selfTestSandbox } from "./macos/agent"
 import { quitTextEdit, workDir } from "./macos/fixtures"
 import {
-  backgroundClickKeepsFocus, backgroundTypeMultiwindowRefused,
+  backgroundClickKeepsFocus, backgroundScrollOnce, backgroundTypeMultiwindowRefused,
   backgroundTypeSoleWindow, foregroundRestores,
 } from "./macos/scenarios-input"
 import {
@@ -32,11 +32,13 @@ function runScenario(name: ScenarioName, options: RunOptions): Promise<ScenarioR
     case "background-type-sole-window": return backgroundTypeSoleWindow(options)
     case "background-type-multiwindow-refused": return backgroundTypeMultiwindowRefused(options)
     case "foreground-restores": return foregroundRestores(options)
+    case "background-scroll-once": return backgroundScrollOnce(options)
     case "killswitch-real-hid": return killswitchRealHid(options)
     case "tcc-diagnostic": return tccDiagnostic(options)
     case "screenshot-budget": return screenshotBudget(options)
     case "capabilities-truth": return capabilitiesTruth(options)
-    case "canary": return canary(options)
+    case "canary": return canary(options, "session")
+    case "canary-off": return canary(options, "off")
     default: return assertNever(name)
   }
 }
