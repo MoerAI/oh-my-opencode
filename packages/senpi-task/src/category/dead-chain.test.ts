@@ -46,6 +46,9 @@ describe("dead-chain category disabling", () => {
         "anthropic-subscription",
         "anthropic-api",
         "github-copilot",
+        "zai",
+        "zai-coding-cn",
+        "xiaomi",
       ])
     })
 
@@ -149,7 +152,7 @@ describe("dead-chain category disabling", () => {
   })
 
   describe("#given a gateway-prefixed registry id", () => {
-    test("#when the unwrapped id matches a rung #then the category stays available", () => {
+    test("#when the gateway is not a rung provider #then its copy keeps the chain dead", () => {
       // given
       const models = registry([model("vercel", "openai/gpt-5.6-sol")])
 
@@ -157,8 +160,8 @@ describe("dead-chain category disabling", () => {
       const result = resolveCategory("deep-low", {}, models)
 
       // then
-      expect(result.kind).toBe("resolved")
-      expect(result.availableCategories).toContain("deep-low")
+      expect(result.kind).toBe("model_unavailable")
+      expect(result.availableCategories).not.toContain("deep-low")
     })
   })
 

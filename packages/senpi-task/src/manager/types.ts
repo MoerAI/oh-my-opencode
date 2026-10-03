@@ -28,6 +28,7 @@ import type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 import type { TaskConcurrency } from "./concurrency"
 import type { InheritedExtensions } from "../runners/rpc/parent-extensions"
 import type { WorkpoolEngine } from "../workpool/engine"
+import type { ChildExtensionEvent } from "../runners/child-extension-events"
 
 export type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 
@@ -54,6 +55,7 @@ export type ManagedStartSpec = {
   // Names of tools the child must NOT get (the agent definition's disallowedTools), applied through
   // senpi's excludeTools so a resumed child never comes back with a wider tool surface.
   readonly toolDenylist?: readonly string[]
+  readonly includeTaskTools?: boolean
   // Names of the member-scoped ToolDefinitions, persisted on spawn_spec so a respawn can re-resolve
   // the executable definitions against the live parent registries.
   readonly memberScopedToolNames?: readonly string[]
@@ -130,6 +132,7 @@ export type PlanResolutionError = {
   readonly category?: string
   readonly attempted_chain?: readonly DelegateFallbackEntry[]
   readonly missing_providers?: readonly string[]
+  readonly unlisted_provider_model?: string
 }
 
 export type PlanResolution =
@@ -247,6 +250,7 @@ export type TrustedRespawnLaunch = {
 export type TrustedRespawnLaunchResolver = (record: TaskRecord) => Promise<TrustedRespawnLaunch | undefined>
 
 export type TaskManagerOptions = {
+  readonly onChildExtensionEvent?: (event: ChildExtensionEvent, owner: TaskRecord) => void
   readonly concurrency?: TaskConcurrency
   // Injected by row 17. Absent, `isolated` children are refused rather than silently run against the
   // parent checkout, so a wiring that forgot it can never break the isolation promise.
