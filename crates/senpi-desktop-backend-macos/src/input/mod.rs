@@ -126,6 +126,7 @@ impl MacInput {
                     }
                     DeliveryMode::Foreground => skylight::with_foreground(pid, || {
                         crate::ax::prepare_foreground_input(&window)?;
+                        crate::ax::ensure_points_owned(&window, pid, wid, &event)?;
                         global::pointer(&self.source, &mut self.held, event)
                     }),
                 }
