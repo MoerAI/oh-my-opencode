@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
 import { fileURLToPath } from "node:url"
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 
 import { spawnFakeChild } from "./__fixtures__/spawn-fake"
 import { terminateRpcChild } from "./terminate"
@@ -104,6 +104,34 @@ describe("terminateRpcChild", () => {
       }
     }
   })
+
+  test.skipIf(isWin32)(
+    "#given the OS denies the process-group signal #when terminating #then it escalates on the owned child instead of throwing",
+    async () => {
+      // given
+      const child = spawnFakeChild({ ...process.env, FAKE_IGNORE_TERM: "1" })
+      await once(child.stdout!, "data")
+      const exited = onExit(child)
+      const realKill = process.kill.bind(process)
+      const killSpy = spyOn(process, "kill").mockImplementation(((pid: number, signal?: number | NodeJS.Signals) => {
+        if (pid < 0 && signal !== 0) {
+          throw Object.assign(new Error("operation not permitted"), { code: "EPERM" })
+        }
+        return realKill(pid, signal as NodeJS.Signals)
+      }) as typeof process.kill)
+
+      try {
+        // when
+        await terminateRpcChild(child, { sigkillDelayMs: 150 })
+
+        // then
+        const { signal } = await exited
+        expect(signal).toBe("SIGKILL")
+      } finally {
+        killSpy.mockRestore()
+      }
+    },
+  )
 })
 
 async function waitUntilStopped(pid: number): Promise<void> {
