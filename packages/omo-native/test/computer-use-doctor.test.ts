@@ -271,7 +271,6 @@ describe("computer use doctor probe", () => {
       platform: "darwin",
       arch: "arm64",
       launchEngine: runEngineScript,
-      timeoutMs: 1_000,
     })
 
     // then
