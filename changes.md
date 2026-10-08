@@ -1,3 +1,13 @@
+## 2026-10-08 - The configuration reference documents the Anthropic 1-hour prompt cache and the cache keep-alive (#9770)
+
+`docs/reference/configuration.md` gains an "Anthropic Prompt Cache Lifetime" section. The engine already supported both settings, but the docs never mentioned them, so users with long gaps between turns paid a full cache rewrite on every turn and asked for a feature that already existed. The section covers:
+- **Two switches:** `PI_CACHE_RETENTION=long` for every Anthropic model, and a per-model `providers.<provider>.modelOverrides.<id>.cacheRetention` in `~/.omo/agent/models.json`, which wins over the variable. A `cacheRetention` set directly on a built-in provider is rejected.
+- **Where it applies:** the 1-hour lifetime is sent only to the Anthropic API base URL.
+- **Cost trade-off:** 1-hour writes cost 2x base input against 1.25x for 5 minutes, and reads cost 0.1x.
+- **`promptCache.keepAlive`** in `settings.json`, with its defaults.
+
+The environment variable table lists `PI_CACHE_RETENTION`.
+
 ## 2026-10-08 - Install guide lists the community AUR package (#9584)
 
 `docs/guide/install.md` gains an "Arch Linux: community AUR package" section for `omo-bin`, a package maintained by @sTiKyt outside the OmO team. The section says what it installs (our official release binary for its version, checked against that release's `SHA256SUMS`, as `/usr/bin/omo`), and to update it with the AUR helper, because `omo update` and the install command don't recognize a pacman install yet (#9585). It also says the package can trail the `latest` channel.
@@ -53,6 +63,10 @@ A task child whose first prompt was rejected reported only "Child prompt failed 
 ## 2026-10-07 - Memory secret scanning handles format characters outside the BMP; doctor and receipts say when they fall back (#9653, #9689 follow-ups)
 
 The memory secret scanner strips Unicode format characters before matching, but it walked text one UTF-16 code unit at a time, so a format character outside the Basic Multilingual Plane survived the strip and could split a secret-like value past the commit gate and the injection-time masking. The scanner now walks by code point and maps matches back to the exact original span, and it also scans a copy where format characters become a separator, so a format character gluing a word character to a secret no longer hides the secret's word boundary (this also closes the older zero-width-space variant of that gap); a match from that second scan is kept unless the first scan already covers all of it, so a token joined to a following credential by such a character masks both (the split-key pass follows the same rule, so a glued credential whose value holds such a character is masked whole), and control characters gluing a word to a secret are handled the same way. `/doctor` reports when commit times cannot be read and the memory file list falls back to name order, facts receipts that cannot be written because a run's ledger is missing now log a warning instead of skipping silently, and `invalid_generation_timestamps` is removed from the quarantine reasons because nothing writes it. New tests cover the out-of-BMP split, a `/doctor --json` value with a quote next to a credential, the preserved reservation evidence of a quarantine, and a facts run whose ledger is gone.
+
+## 2026-10-09 - Adopt senpi 2026.10.10-9
+
+Every `@code-yeongyu/senpi` pin moves from 2026.10.10-8 to 2026.10.10-9: the root devDependency, `omo-native` and its provider map comment, the `omo-senpi` and `senpi-task` peer and dev pins (with their `senpi-tui` and `senpi-ai` aliases), the pin tests and the engine named in `senpi-task`'s coverage test. The engine carries the cap on engine-originated turns (senpi#2967), the required ask-user question gate (senpi#2949), the merged `anthropic-beta` header (senpi#2957) and a refreshed model catalog. The generated plugin bundle is regenerated for it on Linux.
 
 ## 2026-10-08 - Adopt senpi 2026.10.10-8
 

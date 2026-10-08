@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.1.27] - 2026-10-08
+
+**omo runs on senpi 2026.10.10-9, which stops automatic turns from running without bound.** After one message from you, stream-rule nudges, goal continuations and other automatic follow-ups pause after 150 turns, or once 12 automatic turns in a minute do no work, and each stream rule corrects a message at most once. When it pauses, the session says so, and your next message picks it back up. Full engine notes: [senpi 2026.10.10-9](https://github.com/code-yeongyu/senpi/releases/tag/v2026.10.10-9). ([senpi#2967](https://github.com/code-yeongyu/senpi/issues/2967), [senpi#2969](https://github.com/code-yeongyu/senpi/pull/2969), [#9772](https://github.com/code-yeongyu/oh-my-openagent/pull/9772))
+
+**A required question can't be read as permission.** senpi's `ask_user_question` accepts `required: true` for a question that gates an action, such as an approval before an irreversible step: if it times out, is dismissed or can't be shown, the model is told not to take that action. ([senpi#2949](https://github.com/code-yeongyu/senpi/issues/2949), [senpi#2959](https://github.com/code-yeongyu/senpi/pull/2959))
+
+**The configuration guide documents the Anthropic 1-hour prompt cache and the cache keep-alive.** ([#9770](https://github.com/code-yeongyu/oh-my-openagent/issues/9770), [#9771](https://github.com/code-yeongyu/oh-my-openagent/pull/9771))
+
+### Fixed
+
+**Memory locks stop churning on machines with many sessions.** A session waiting on a memory lock no longer republishes a recovery lock on every retry: it reads first, and lock polls back off with jitter instead of a fixed 25 ms. Locks and candidate files left by processes that died are reclaimed, so the lock directory stops growing. ([#9749](https://github.com/code-yeongyu/oh-my-openagent/issues/9749), [#9750](https://github.com/code-yeongyu/oh-my-openagent/pull/9750))
+
+**Single-turn answers no longer carry the progress-ledger block.** Hephaestus and Sisyphus keep the Now/Next ledger for multi-step work tracked in todos; a request finished in one turn gets a plain answer, without lines such as `Next: none`. Thanks to @cynkai. ([#9616](https://github.com/code-yeongyu/oh-my-openagent/issues/9616), [#9676](https://github.com/code-yeongyu/oh-my-openagent/pull/9676))
+
+**A provider that sets its own `anthropic-beta` header keeps the betas a request needs**, so Claude 5.5 models through such a route no longer fail their first call. ([senpi#2957](https://github.com/code-yeongyu/senpi/issues/2957), [senpi#2963](https://github.com/code-yeongyu/senpi/pull/2963))
+
+**Deprecating platform packages for a release that never shipped rechecks the registry before failing**, so a deprecation that is still propagating no longer fails the workflow. ([#9769](https://github.com/code-yeongyu/oh-my-openagent/pull/9769))
+
 ## [5.1.26] - 2026-10-08
 
 5.1.25 was not released: its Linux x64 binaries went over the 150 MiB per-binary size budget during publishing, so no `omo-ai`, `lazycodex-ai`, `oh-my-opencode` or `oh-my-openagent` 5.1.25 exists. Everything planned for it ships here. Some 5.1.25 platform packages did reach npm and are deprecated; nothing installs them.
