@@ -99,6 +99,14 @@ export {
 } from "./progress"
 export { createMinimalSenpiResourceLoader } from "./senpi/minimal-resource-loader"
 export type { MinimalSenpiResourceLoaderOptions } from "./senpi/minimal-resource-loader"
+export { readSettingsDefaultRoute, resolveExplicitTaskPin, splitModelDecorators } from "./senpi/explicit-pin"
+export type {
+  ExplicitPinFailure,
+  ExplicitPinResolution,
+  ExplicitPinRuntime,
+  ResolvedExplicitPin,
+  SettingsDefaultRoute,
+} from "./senpi/explicit-pin"
 export {
   MEMBER_IDENTITY_ENV,
   SenpiTeamSpecError,

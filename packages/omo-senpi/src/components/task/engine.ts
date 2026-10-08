@@ -9,6 +9,7 @@ import {
   createTeamMemberRespawnLaunchResolver,
   createTaskRecordStore,
   readSessionAncestry,
+  readSettingsDefaultRoute,
   resolveMemberExtensionEntryPath,
   TASK_CHILD_EXTENSION_EVENT,
   type AgentDefinition,
@@ -27,6 +28,7 @@ import {
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import type { SenpiExtensionAPI } from "../../extension/types"
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import type { EngineHostRuntime } from "./host-execution-mode"
 import {
   createCategoryConfigGenerations,
@@ -214,8 +216,13 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
+  // The default route a pin-less child would ride, named in model_unavailable refusals (#9722) so
+  // the caller sees the substitution the failure prevented. Read lazily per plan: a mid-session
+  // default change reaches the next spawn's message.
+  const resolveDefaultRoute = () =>
+    readSettingsDefaultRoute({ cwd: runtime.cwd(), agentDir: host.agentDir ?? resolveAgentHome({ env: deps.env ?? process.env }) })
   const basePlanner = createGenerationObservingPlanner({
-    planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
+    planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier(), resolveDefaultRoute),
     omoConfig: deps.omoConfig,
     resolveRegistry,
     generations: categoryConfigGenerations,

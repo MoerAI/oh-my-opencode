@@ -9,6 +9,39 @@ The chain never holds a start up. If the engine refuses `set_retry_fallback`, or
 An engine without the capability gets nothing new and the user is told once. A child without a chain sends nothing, so its command stream is unchanged.
 
 `rpc-process-fallback-chain.test.ts` covers the chain sent before the prompt, the chain sent before `switch_session` on a resume, a chainless child unchanged, and an older engine warned once. Three of the four fail on `dev`. The fake RPC child (`rpc/__fixtures__/fake-child.mjs`) answers `get_protocol_info` with `FAKE_CAPABILITIES` and can log every command it receives (`FAKE_COMMAND_LOG`).
+
+## 2026-10-08 - Explicit task model pins are honoured or fail typed, and the record names the child's model (#9722)
+
+A `provider/model:level` pin was planned verbatim, the in-process registry
+context dropped the unresolvable id silently, and the child rode the settings
+default while the record kept claiming the pin. `senpi/explicit-pin.ts` parses
+the pin once with senpi's `resolveCliModel` and `manager/parent-registry-context.ts`
+`provide()` now asserts the spec model instead of filtering it, matching resume;
+`runners/rpc/model-admission.ts` and `rpc-host/open-session.ts` strip the suffix
+with the same grammar, so a valid pin admits and sends the base id plus the
+level. After start, the in-process runner and the host opener compare the
+child's effective model with the pin and fail typed on a substitution, the
+in-process mismatch disposes its session, and an unreadable host state fails
+closed. A pinned child starts with `initialModelProvenance: "cli"`, and a
+`:<service-tier>` pin is a typed `invalid_target` instead of a silently dropped
+tier. Legacy records whose ids still carry a `:level` suffix resolve by their
+canonical base on respawn.
+
+`manager/manager.ts` start-time and runtime fallback specs refresh `resolvedModel`
+to the attempt's own rung, so the post-start check no longer rejects the
+fallback child it asked for. The record's new `effective_model` is stamped from
+the child itself (`effectiveModel` on the managed handle: the in-process
+session's model, the host's `get_state` model), kept current from the child's
+assistant-message observations (`manager/observed-model.ts`), and surfaced on
+the `started` result and in `task_output`.
+
+Tests: `runners/explicit-pin.integration.test.ts` drives the real manager plus
+in-process child against a fake provider whose isolated settings default is a
+different model (honoured pin with record truth, typed refusal naming the pin
+and the default route, late same-provider registration, tier rejection).
+Mutation-verified: removing either post-start check or either suffix split
+fails its test.
+
 ## 2026-10-07 - Resumed children retry deferred revival and settle unowned failures (#9498)
 
 `lifecycle/host-session-revive.ts` extends the existing per-child single-flight

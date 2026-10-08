@@ -1,3 +1,27 @@
+## 2026-10-08 - ulw-plan and mass-ulw ask through the question prompt (#9735)
+
+`ulw-plan` delivered its approval gate as chat text and ended the turn, so a user away from the screen never saw it. The renderers in `references/stance-calibration.md` and the gate in `references/full-workflow.md` said to "present" or "deliver" questions without naming a channel.
+
+- `stance-calibration.md`: every question the skill puts to the user goes through the question tool (`ask_user_question` or `request_user_input`, whichever the session lists) with its wait flag set to true. When no question tool is listed or a call returns unavailable, the questions go in chat with one line saying so. A timed-out, dismissed or unavailable answer is not approval: a fork takes its default, but the approval gate and the final authorization block stay open and the turn ends. `SKILL.md` carries the gate rule itself, and adds "even when the tool result says to continue on your best judgment", because senpi's timeout result says exactly that and a model otherwise follows it. That clause is a stopgap until senpi #2949 adds a per-call "no answer means don't" flag.
+- `full-workflow.md`: the gate asks one question, recommended first: Approve; Approve, skip review (only when the review is default-on); Change approach. The review-cap stop asks through the tool too. `SKILL.md`'s gate summary points at the same rule; `intent-clear.md`'s renderer recap now defers to stance-calibration.
+- `mass-ulw/SKILL.md`: a decision only the user can make is asked from the main session through the tool before the run that depends on it, never from an eval cell or a node prompt.
+
+No test: prose with no machine consumer. Proof is a live real-model `/skill:ulw-plan` run in an isolated senpi sandbox (see the PR).
+
+## 2026-10-08 - A skill name inside an identifier, a path, a URL or a prohibition no longer arms (#9738, #9740)
+
+`ultrawork` and `skill-pointers` treat a skill name as a request only when it stands as a word of its own:
+- **Identifier or path segment:** `mass-ulw-refactor`, `senpi-ulw-loop`, `.omo/ulw/...` and `.omo/ulw-execute/ledger.jsonl` arm nothing. A leading bundled skill name still arms (`ulw-loop ...`, `ulw-plan this`), and so does a skill chain (`mass ulw-loop`). The hyphenated `mass-ulw ...` still injects the mass-ulw pointer but no longer arms ultrawork on its own: it is lexically the same as the reference "in a mass-ulw research pipeline" that every delegated research brief carries, so allowing one allows both; `mass ulw ...` (spaced) and `ulw-mass ...` still arm.
+- **A URL** is masked like a code span.
+- **A prohibition:** `do not` / `don't` / `never` + `load|use|run|invoke|start|trigger|arm|enable` masks its objects up to the next sentence or clause break (`.;:!?` or a newline; a comma does not end it), so "Do not load mass-ulw or ulw-research" arms neither. A request that starts a new sentence still arms ("Don't use tmux. ulw this"), and so does a negation outside that verb list ("do not stop until done, ulw").
+- **Delegated sessions:** `skill-pointers` now applies the same `readSessionRole` rule `ultrawork` got in #9602, so a task child, DAG child or team member never gets a pointer from its own brief.
+
+Telemetry records the new suppression reasons `identifier_reference` and `negated_mention`.
+
+Measured: upstream's replay of 83 stored delegated briefs went from 83/83 to 0/83 ultrawork arms (47 identifier, 36 negated). Over 14 days of local root sessions the identifier rule removes about 926 arms, nearly all automated text naming lanes and paths; the 8 typed requests that open with a skill name still arm.
+
+Tests: `ultrawork-references.test.ts` and the new `skill-pointers-suppression.test.ts` cases fail on `dev`; removing the identifier guard, the negation mask, the URL mask, the pointer's trailing guard, its chain allowance or its delegated-session guard each fails them again. Live: `scripts/qa/skill-pointers-e2e.mjs` gains identifier-reference, negated-mention, lead-relay and request-after-prohibition scenarios.
+
 ## 2026-10-05 - A relayed report or a quoted mention no longer arms ultrawork or skill pointers (#9600)
 
 `skill-pointers/strip-quoted-regions.ts`, the masking that both `ultrawork` and `skill-pointers` run before they look for a keyword, now also hides text that is someone else's:

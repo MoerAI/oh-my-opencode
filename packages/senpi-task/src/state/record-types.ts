@@ -80,6 +80,13 @@ export type TaskRecordInput = {
   readonly fallback_models?: readonly ResolvedModelRecord[]
   readonly fallback_attempts?: readonly ResolvedModelRecord[]
   readonly resolved_model?: ResolvedModelRecord
+  /**
+   * The model the child ACTUALLY started on, recorded once the runner is up (#9722) and kept
+   * current from the child's own model observations - `model`/`resolved_model` state the plan,
+   * this states the route that ran. Absent on records predating the field or a child whose
+   * effective model could not be observed.
+   */
+  readonly effective_model?: ResolvedModelRecord
   readonly tool_allow?: readonly string[]
   readonly tool_deny?: readonly string[]
   readonly notify_on_terminal: boolean
@@ -109,6 +116,8 @@ export type TaskRecord = TaskRecordInput & TaskStartFailureRecordFields & {
   readonly host_pid?: number
   readonly child_session_id?: string
   readonly spawn_spec?: TaskSpawnSpec
+  /** Mirrors TaskRecordInput.effective_model; see there. */
+  readonly effective_model?: ResolvedModelRecord
   readonly final_response?: string
   readonly error_message?: string
   readonly killed?: boolean

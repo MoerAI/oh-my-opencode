@@ -43,7 +43,7 @@ The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `
 | `prompt_submitted` | `prompt_length_bucket` | `string` | `lt_100`, `100_500`, `500_2000`, `gte_2000` |
 | `prompt_submitted` | `queue_mode` | `string` | `immediate`, `follow_up`, `steer`, `other` |
 | `prompt_submitted` | `real_prompt_ordinal_bucket` | `string` | `1`, `2_3`, `4_10`, `11_25`, `26_plus` |
-| `prompt_submitted` | `suppression_reason` | `string` | `none`, `no_keyword`, `extension_source`, `child_session`, `embedded_directive`, `skill_expansion`, `skill_name_only` |
+| `prompt_submitted` | `suppression_reason` | `string` | `none`, `no_keyword`, `identifier_reference`, `negated_mention`, `extension_source`, `child_session`, `embedded_directive`, `skill_expansion`, `skill_name_only` |
 | `turn_completed` | `$session_id` | `string` | - |
 | `turn_completed` | `cache_read_tokens` | `number` | - |
 | `turn_completed` | `cache_write_tokens` | `number` | - |
