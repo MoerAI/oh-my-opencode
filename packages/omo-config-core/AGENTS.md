@@ -28,7 +28,8 @@ Harness-neutral primitives for the `omo.json` config surface: a Zod v4 schema tr
 | `src/loader/types.ts` | `LoadOmoConfigOptions/Result`, `OmoConfigDiagnostic`, `OmoConfigSource`, the injectable `OmoConfigReadFileSystem` port, and `DEFAULT_READ_FILE_SYSTEM`. |
 | `src/models/model-reference-resolution.ts` (+ `model-catalog-cycles.ts`) | `resolveModelReferences` - expands `models` catalog keys referenced by agent/category `model` strings, fills unset tuning (site tuning wins), and reports `model_catalog_cycle` diagnostics (`findModelCatalogCycles`). |
 | `src/migration/` | Lock+journal transaction engine (`batch.ts`, `engine.ts`): owner-aware lease lock (`lock.ts`), journal recovery before predicates (`recovery.ts`, `predicate.ts`), per-(target, migration-id) `_migrations` markers, no-clobber merge with `skipped:` diagnostics (`merge.ts`), comment-preserving atomic target writes (`commit.ts`), and journaled resumable backups. |
-| `src/writer/writer.ts` | `updateOmoConfig(options)` - jsonc-parser `modify`/`applyEdits`, timestamped backup, atomic temp-then-rename write. |
+| `src/writer/writer.ts` | `updateOmoConfig(options)` - edits applied through `surgical-edit.ts` `applyOmoConfigEdit`, timestamped backup, atomic temp-then-rename write. |
+| `src/writer/surgical-edit.ts` | `applyOmoConfigEdit(content, edit)`: inserts and removes members by hand in the file's own indentation and trailing-comma style; replacing a value uses jsonc-parser `modify`, which rewrites only that value; a member that shares its line falls back to `modify` (#9777). |
 | `src/writer/types.ts` | `OmoConfigEdit`, `UpdateOmoConfigOptions/Result`, the injectable `OmoConfigWriteFileSystem` port, and the typed `OmoConfigWriteError`. |
 
 ## PUBLIC API (`src/index.ts` barrel)

@@ -16,6 +16,7 @@ import { createMemoryComponent } from "../components/memory"
 import { createModelProfileComponent } from "../components/model-profile"
 import { createNativeBadgeComponent } from "../components/native-badge"
 import { createOnboardingComponent } from "../components/onboarding"
+import { createQuestionGatesComponent } from "../components/question-gates"
 import { createSkillCommandsComponent } from "../components/skill-commands"
 import { createSidePanelComponent } from "../components/side-panel"
 import { createSkillPointersComponent } from "../components/skill-pointers"
@@ -50,6 +51,7 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     createUlwExecuteContinuationComponent(),
     createUlwLoopComponent(),
     createTodoFanoutReminderComponent(),
+    createQuestionGatesComponent(),
     createGitMasterAttributionComponent(),
     createFallbackArchitectComponent(),
     createAstGrepComponent(),
