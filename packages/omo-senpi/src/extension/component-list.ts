@@ -8,6 +8,7 @@ import { createComputerUseComponent } from "../components/computer-use"
 import { createConfigStartupComponent } from "../components/config-startup"
 import { createConfigWatchComponent } from "../components/config-watch"
 import { createFallbackArchitectComponent } from "../components/fallback-architect"
+import { createGatewayComponent } from "../components/gateway"
 import { createGitMasterAttributionComponent } from "../components/git-master"
 import { createInitDeepAdvisorComponent } from "../components/init-deep-advisor"
 import { createLspComponent } from "../components/lsp"
@@ -15,7 +16,9 @@ import { createMemoryComponent } from "../components/memory"
 import { createModelProfileComponent } from "../components/model-profile"
 import { createNativeBadgeComponent } from "../components/native-badge"
 import { createOnboardingComponent } from "../components/onboarding"
+import { createQuestionGatesComponent } from "../components/question-gates"
 import { createSkillCommandsComponent } from "../components/skill-commands"
+import { createSidePanelComponent } from "../components/side-panel"
 import { createSkillPointersComponent } from "../components/skill-pointers"
 import { createOmoNativeTelemetryComponent } from "../components/telemetry"
 import { createTodoFanoutReminderComponent } from "../components/todo-fanout-reminder"
@@ -41,12 +44,14 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     createNativeBadgeComponent(),
     createOnboardingComponent(),
     createInitDeepAdvisorComponent(),
+    createSidePanelComponent(),
     createOmoNativeTelemetryComponent(),
     createUltraworkComponent(),
     createSkillPointersComponent(),
     createUlwExecuteContinuationComponent(),
     createUlwLoopComponent(),
     createTodoFanoutReminderComponent(),
+    createQuestionGatesComponent(),
     createGitMasterAttributionComponent(),
     createFallbackArchitectComponent(),
     createAstGrepComponent(),
@@ -60,6 +65,8 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     taskComponent,
     createThreadComponent(),
     createMemoryComponent(),
+    // After memory so the gateway block composes after the memory block in the system prompt.
+    createGatewayComponent(),
     createConfigWatchComponent(),
   ]
 }
