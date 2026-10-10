@@ -113,6 +113,11 @@ describe("Senpi compatibility test script", () => {
         await mkdir(join(pluginRoot, "skills", skillName), { recursive: true })
         await writeFile(join(pluginRoot, "skills", skillName, "SKILL.md"), `# ${skillName}\n`)
       }
+      // The browser skill's bundled omowright runtime is a required payload artifact (issue #9661);
+      // the packed layout mirrors it so the installer's integrity check passes.
+      await mkdir(join(pluginRoot, "skills", "browser", "runtime", "omowright"), { recursive: true })
+      await writeFile(join(pluginRoot, "skills", "browser", "runtime", "omowright", "index.js"), "export {}\n")
+      await writeFile(join(pluginRoot, "skills", "browser", "runtime", "omowright", "page-bundle.js"), "\n")
       // Credential-gated skill: staged outside pi.skills but still a required payload artifact.
       await mkdir(join(pluginRoot, "skills-conditional", "x-search"), { recursive: true })
       await writeFile(join(pluginRoot, "skills-conditional", "x-search", "SKILL.md"), "# x-search\n")
@@ -121,9 +126,13 @@ describe("Senpi compatibility test script", () => {
       await writeFile(join(pluginRoot, "extensions", "omo-task.js"), "export const createTaskComponent = () => ({})\n")
       await writeFile(join(pluginRoot, "extensions", "omo-member.js"), "export const runMember = () => undefined\n")
       await writeFile(join(pluginRoot, "extensions", "omo-computer-use.js"), "export {}\n")
+      await writeFile(join(pluginRoot, "extensions", "omo-memory-doctor.js"), "export {}\n")
+      await writeFile(join(pluginRoot, "extensions", "omo-memory-memfs.js"), "export {}\n")
       await writeFile(join(pluginRoot, "extensions", "assets.generated.json"), "{}\n")
       await mkdir(join(pluginRoot, "runtime", "agent-toolkit-sdk"), { recursive: true })
       await writeFile(join(pluginRoot, "runtime", "agent-toolkit-sdk", "sdk.js"), "export {}\n")
+      await mkdir(join(pluginRoot, "runtime", "thread-sdk"), { recursive: true })
+      await writeFile(join(pluginRoot, "runtime", "thread-sdk", "sdk.js"), "export {}\n")
       await writeFile(join(pluginRoot, "extensions", "reflection-persona.md"), "# reflection persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "dream-persona.md"), "# dream persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "facts-persona.md"), "# facts persona fixture\n")
@@ -133,6 +142,7 @@ describe("Senpi compatibility test script", () => {
       // The memory run supervisor ships as its own executable artifact beside the bundle, so a
       // packed root without it is genuinely incomplete and the installer is right to reject it.
       await writeFile(join(pluginRoot, "extensions", "memory-run-supervisor.mjs"), "#!/usr/bin/env node\n")
+      await writeFile(join(pluginRoot, "extensions", "gateway-store-worker.mjs"), "export {}\n")
       await mkdir(join(pluginRoot, "scripts"), { recursive: true })
       await writeFile(join(pluginRoot, "scripts", "install.mjs"), "#!/usr/bin/env node\n")
       await mkdir(join(pluginRoot, "runtime", "lsp-daemon", "dist"), { recursive: true })
