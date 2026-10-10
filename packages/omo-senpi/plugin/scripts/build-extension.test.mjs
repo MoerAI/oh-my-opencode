@@ -226,6 +226,29 @@ describe("checkExtensionCurrent", () => {
     expect(inMain("packages/senpi-desktop-tool/src/registration.ts")).toBe(true)
   })
 
+  test("#given the split extension build #when doctor inputs are inspected #then health checks load only from the lazy entry", async () => {
+    const { mainInputs, memoryDoctorInputs } = await sharedOutputs()
+    for (const suffix of [
+      "packages/omo-senpi/src/components/memory/commands/doctor-runtime.ts",
+      "packages/omo-senpi/src/components/memory/commands/doctor-checks.ts",
+      "packages/omo-senpi/src/components/memory/commands/doctor-reservation.ts",
+    ]) {
+      expect(mainInputs.some((input) => toPortableBuildPath(input).endsWith(suffix)), suffix).toBe(false)
+      expect(memoryDoctorInputs.some((input) => toPortableBuildPath(input).endsWith(suffix)), suffix).toBe(true)
+    }
+  })
+
+  test("#given the split extension build #when memfs inputs are inspected #then maintenance handlers load only from the lazy entry", async () => {
+    const { mainInputs, memoryMemfsInputs } = await sharedOutputs()
+    for (const suffix of [
+      "packages/omo-senpi/src/components/memory/commands/memfs-runtime.ts",
+      "packages/omo-senpi/src/components/memory/commands/memfs-extra.ts",
+    ]) {
+      expect(mainInputs.some((input) => toPortableBuildPath(input).endsWith(suffix)), suffix).toBe(false)
+      expect(memoryMemfsInputs.some((input) => toPortableBuildPath(input).endsWith(suffix)), suffix).toBe(true)
+    }
+  })
+
   test("#given a packaged task import map #when generated artifacts are inspected #then the main bundle resolves its task sidecar", async () => {
     const outputs = await sharedOutputs()
     const main = await readFile(outputs.outputPath, "utf8")
@@ -233,12 +256,15 @@ describe("checkExtensionCurrent", () => {
     const manifest = JSON.parse(await readFile(join(pluginRoot, "package.json"), "utf8"))
 
     expect(main).toContain('import("#omo-task-runtime")')
+    expect(main).toContain('import("#omo-memory-memfs-runtime")')
     expect(task).toMatch(/^\/\/ omo:[A-Za-z0-9_-]{43}:[A-Za-z0-9_-]{43}/)
     expect(main).not.toContain('import("#omo-agent-toolkit-runtime")')
     expect(manifest.imports).not.toHaveProperty("#omo-agent-toolkit-runtime")
     expect(manifest.imports).toEqual({
       "#omo-task-runtime": "./extensions/omo-task.js",
       "#omo-computer-use-runtime": "./extensions/omo-computer-use.js",
+      "#omo-memory-doctor-runtime": "./extensions/omo-memory-doctor.js",
+      "#omo-memory-memfs-runtime": "./extensions/omo-memory-memfs.js",
       "#omo-agent-toolkit-sdk": "./runtime/agent-toolkit-sdk/sdk.js",
     })
   })
