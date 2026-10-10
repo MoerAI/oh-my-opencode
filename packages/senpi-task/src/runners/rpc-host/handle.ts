@@ -44,7 +44,9 @@ export function createHostSessionHandle(options: HostSessionHandleOptions): Host
   let client: HostSessionPort = options.client
   let session: HostSessionIdentity = options.session
   let openDisposition: HostSessionOpenDisposition = options.openDisposition
-  const listeners = createHandleListeners()
+  const listeners = createHandleListeners({
+    onListenerError: (error) => log("senpi-task early event replay listener failed", { taskId, error: String(error) }),
+  })
   const waiters = createHandleWaiters()
   let reachedIdle = false
   let sessionId: string | undefined
@@ -273,10 +275,7 @@ export function createHostSessionHandle(options: HostSessionHandleOptions): Host
     transportRecovering: () => recovery.recovering() && outcome === undefined,
     markStopping: stop.markStopping,
     stopWhenReachable: stop.stopWhenReachable,
-    subscribe: listeners.subscribe,
-    subscribeExtensionEvents: listeners.extensionEvents.subscribe,
-    onParked: listeners.onParked,
-    onTurnResumed: listeners.onTurnResumed,
+    ...listeners.registrations,
     adoptFinishedTurn: async (finalResponse) => {
       if (turnOutcome !== undefined || settlement.pending() !== undefined) return
       // A state read that fails is not proof of idleness, and must never cost the reattach: stay busy.
@@ -284,7 +283,6 @@ export function createHostSessionHandle(options: HostSessionHandleOptions): Host
       if (state === undefined || !sessionIsIdle(state)) return
       if (turnOutcome === undefined && settlement.pending() === undefined) settleTurn({ status: "completed", finalResponse })
     },
-    onSelfResumed: listeners.onSelfResumed,
     waitForIdle: () => waiters.waitForIdle(reachedIdle || outcome !== undefined),
     hasExited: () => outcome !== undefined,
     waitForOutcome: () => waiters.waitForOutcome(turnOutcome, outcome, finalText),
