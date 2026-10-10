@@ -110,6 +110,21 @@ function waitingQuestionCallOf(event: unknown): string | undefined {
   return flag !== undefined && (args as Record<string, unknown> | null | undefined)?.[flag] === true ? toolCallId : undefined
 }
 
+/** senpi `ask-user/notify.js` ASK_USER_CLOSED_EVENT: every terminal outcome of an ask_user question, `{ requestId, status, resolvedBy? }`. */
+const ASK_USER_CLOSED_EVENT = "ask-user:closed"
+/** senpi `ask-user/notify.js` ASK_USER_ASKED_EVENT: a question opened, `{ ctx, request: { requestId, ... }, variant }`. */
+const ASK_USER_ASKED_EVENT = "ask-user:asked"
+/** Recently closed ask_user requests remembered for a question report still being written or not yet started; bounded. */
+const CLOSED_REQUESTS_KEPT = 64
+
+/** The ask_user request a `thread_report` call relays as a question (`kind: "question"` with `request_id`). */
+function relayedQuestionOf(event: unknown): { readonly call: string; readonly request: string } | undefined {
+  const { toolCallId, toolName, args } = (event ?? {}) as { readonly toolCallId?: unknown; readonly toolName?: unknown; readonly args?: unknown }
+  if (toolName !== "thread_report" || typeof toolCallId !== "string") return undefined
+  const { kind, request_id } = (args ?? {}) as { readonly kind?: unknown; readonly request_id?: unknown }
+  return kind === "question" && typeof request_id === "string" && request_id.length > 0 ? { call: toolCallId, request: request_id } : undefined
+}
+
 function durableIdOf(eventCtx: unknown): string | undefined {
   const manager = (eventCtx as { readonly sessionManager?: { readonly getSessionId?: () => unknown } } | undefined)?.sessionManager
   const id = typeof manager?.getSessionId === "function" ? manager.getSessionId() : undefined
@@ -176,8 +191,14 @@ export function createThreadComponent(options: ThreadComponentOptions = {}): Omo
       // into the store once, when this session starts and the mailbox still exists on disk.
       const legacyMailbox = join(stateDirectory, "mailbox")
       const store = options.store ?? createGatewayStore({ agentDir: agentDir(), legacyMailboxDirectories: [legacyMailbox], ...(runtimeInstance === undefined ? {} : { runtimeInstance }) })
+      // Every store open retries an unreadable legacy mailbox, and an idle store reopens its worker on
+      // the next call, so the same failure would repeat each time: it is reported once per session.
+      const reportedInvalidMailboxes = new Set<string>()
       store.onEvent((event) => {
-        if (event.kind === "legacy_mailbox_invalid") ctx.logger.warn(`thread gateway: the legacy thread mailbox ${event.directory} could not be read and was not imported (retried at the next start): ${event.error}`)
+        if (event.kind === "legacy_mailbox_invalid" && !reportedInvalidMailboxes.has(event.directory)) {
+          reportedInvalidMailboxes.add(event.directory)
+          ctx.logger.warn(`thread gateway: the legacy thread mailbox ${event.directory} could not be read and was not imported (it is retried each time the store opens): ${event.error}`)
+        }
         if (event.kind === "legacy_mailbox_skipped") ctx.logger.warn(`thread gateway: ${event.items.length} legacy thread mailbox item(s) in ${event.directory} name no session id and were not imported: ${event.items.map((item) => `#${item.message_seq} -> ${JSON.stringify(item.target)}`).join(", ")}`)
       })
       const run: RunContext = { turn: 0, cause: undefined, consumed: [], local: false, answered: true }
@@ -198,6 +219,7 @@ export function createThreadComponent(options: ThreadComponentOptions = {}): Omo
         callerSessionId: options.callerSessionId ?? (() => UNKNOWN_CALLER),
         callerWorkspaceRoot: options.callerWorkspaceRoot ?? (() => pi.cwd ?? process.cwd()),
         callerTurnId: () => (run.turn === 0 ? undefined : `turn-${run.turn}`),
+        callerName: () => pi.getSessionName?.(),
         callerCause: () => run.cause,
         callerRunDeliveries: () => [...run.consumed],
         callerRunHasLocalInput: () => run.local,
@@ -217,6 +239,55 @@ export function createThreadComponent(options: ThreadComponentOptions = {}): Omo
         }
       }
       const registrant = registerControlEndpoint(pi, ctx, options, store, agentDir, pickUpArms)
+      // A question this session relayed to a chat thread and then closed itself (answered here, timed out,
+      // cancelled) is closed in the store too, so the connector stops holding that thread's later rows behind
+      // it. Only a session that relayed a question touches the store for it; an answer that came through
+      // thread_answer finds its question no longer pending and changes nothing.
+      // An engine without an extension event bus never says a question closed; nothing to track then.
+      const events = pi.events
+      if (events !== undefined) {
+        const reporting = new Map<string, { readonly request: string; readonly durableId: string }>()
+        const relayed = new Map<string, string>()
+        const closedEarly = new Set<string>()
+        const closeRelayed = (request: string, durableId: string): void => {
+          void store.closeQuestion({ now: store.now(), session_durable_id: durableId, ui_request_id: request }).catch((error: unknown) =>
+            ctx.logger.warn(`thread gateway: the relayed question ${request} was not closed: ${error instanceof Error ? error.message : String(error)}`))
+        }
+        pi.on("tool_execution_start", (event, eventCtx) => {
+          const question = relayedQuestionOf(event)
+          const durableId = durableIdOf(eventCtx)
+          if (question !== undefined && durableId !== undefined) reporting.set(question.call, { request: question.request, durableId })
+        })
+        pi.on("tool_execution_end", (event) => {
+          const call = (event as { readonly toolCallId?: unknown } | undefined)?.toolCallId
+          const report = typeof call === "string" ? reporting.get(call) : undefined
+          if (report === undefined || typeof call !== "string") return
+          reporting.delete(call)
+          // Closed while its report was still being written: close the row that report just wrote.
+          if (closedEarly.delete(report.request)) closeRelayed(report.request, report.durableId)
+          else relayed.set(report.request, report.durableId)
+        })
+        events.on(ASK_USER_ASKED_EVENT, (payload) => {
+          // A new question under a request id that closed before it was relayed: that close is not this question's.
+          const request = (payload as { readonly request?: { readonly requestId?: unknown } } | undefined)?.request?.requestId
+          if (typeof request === "string") closedEarly.delete(request)
+        })
+        events.on(ASK_USER_CLOSED_EVENT, (payload) => {
+          // Also fired when a relayed thread_answer resolved it: closing first is harmless, the relay's confirm then records that answer.
+          const request = (payload as { readonly requestId?: unknown } | undefined)?.requestId
+          if (typeof request !== "string") return
+          const durableId = relayed.get(request)
+          if (durableId !== undefined) {
+            relayed.delete(request)
+            closeRelayed(request, durableId)
+            return
+          }
+          // Not relayed yet: its report may be running or may not have started (ask_user closed before the model
+          // called thread_report), so remember the close for whichever report names it next.
+          closedEarly.add(request)
+          if (closedEarly.size > CLOSED_REQUESTS_KEPT) closedEarly.delete(closedEarly.values().next().value as string)
+        })
+      }
       let legacyImportStarted = false
       const importLegacyMailbox = async (): Promise<void> => {
         if (legacyImportStarted || !LEGACY_MAILBOX_FILES.some((file) => existsSync(join(legacyMailbox, file)))) return
