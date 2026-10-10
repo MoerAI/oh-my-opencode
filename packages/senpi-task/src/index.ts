@@ -13,6 +13,7 @@ export {
   KERNEL_TOOL_ERROR_CODES,
   KernelToolError,
   createKernelToolWrappers,
+  type KernelToolWrapper,
   isReservedKernelToolName,
   kernelToolKey,
   normalizeKernelToolName,
@@ -434,6 +435,8 @@ export type {
   SuspendSummary,
   TaskLifecycle,
 } from "./lifecycle"
+export { deferralOutlookFor } from "./lifecycle/deferred-revival-reasons"
+export type { DeferralOutlook } from "./lifecycle/deferred-revival-reasons"
 export { DEFAULT_SEND_DELIVERY, createSteeringEngine } from "./steering"
 export type {
   CancelOutcome,
@@ -655,3 +658,4 @@ export type {
 
 export * from "./tools/team"
 export { createEvalHandleHost, type EvalHandleHostDeps } from "./eval-handles"
+export { isPriorityAliasOf } from "./runners/pinned-model-equivalence"

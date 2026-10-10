@@ -603,6 +603,11 @@ class TaskManagerImpl implements TaskManager {
   }
 
   forget(taskId: string): void {
+    const stopped = this.#tryLoad(taskId)
+    if (stopped?.killed === true && isTerminalRecord(stopped)) {
+      this.#removeCapacityWaiter(taskId)
+      this.#concurrency.releaseTask(taskId)
+    }
     // A cancel tears the child down through here before its caller releases the slot, and the live
     // entry that names the stopped run's lease is gone after this line.
     if (this.#tryLoad(taskId)?.status === "cancelled") this.#releaseSlotForTask(taskId)
@@ -624,6 +629,7 @@ class TaskManagerImpl implements TaskManager {
     this.#runStats.delete(taskId)
     const residency = this.#tryLoad(taskId)?.residency_state
     if (residency !== "persisted_only" && residency !== "rpc_detached") this.#steering.dropPending(taskId)
+    this.#settleWaiters(taskId)
   }
 
   getResidentHandle(taskId: string): ManagedChildHandle | undefined { return this.#live.get(taskId)?.handle ?? this.#cleanupOwners.get(taskId) }

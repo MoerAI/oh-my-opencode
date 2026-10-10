@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { OmoSidePanelSettingsSchema, type OmoSidePanelSettings } from "@oh-my-opencode/omo-config-core"
@@ -21,6 +20,7 @@ import { createSidePanelComponent } from "./index"
 import type { PanelMemory, PanelMemoryIdentity, PanelTimers } from "./types"
 import { SIDE_PANEL_DIFF_COMMAND } from "./constants"
 import type { PanelTaskRecord } from "./data/task-records"
+import { testTempDir } from "../../../test-support/temp-dir"
 
 interface WidgetCall {
   readonly key: string
@@ -568,7 +568,7 @@ describe("side panel usage wiring", () => {
     const harness = mounted({
       loadSettings: () => settings({ enabled: true, sections: { ...allSections(), usage: true } }),
       usage: {
-        cachePath: join(mkdtempSync(join(tmpdir(), "omo-usage-wiring-")), "usage.json"),
+        cachePath: join(testTempDir("omo-usage-wiring-"), "usage.json"),
         readCredentials: () => {
           reads += 1
           return { auth: {}, pool: undefined }
@@ -591,7 +591,7 @@ describe("side panel usage wiring", () => {
     const harness = mounted({
       loadSettings: () => settings({ enabled: true, sections: { ...allSections(), usage: true } }),
       usage: {
-        cachePath: join(mkdtempSync(join(tmpdir(), "omo-usage-nudge-")), "usage.json"),
+        cachePath: join(testTempDir("omo-usage-nudge-"), "usage.json"),
         readCredentials: () => {
           reads += 1
           return { auth: {}, pool: undefined }
@@ -612,7 +612,7 @@ describe("side panel usage wiring", () => {
 
   test("#given numbers another session cached #when the panel mounts #then they are on screen at once", async () => {
     // given the cache is shared, so a new window starts with the numbers rather than waiting
-    const cachePath = join(mkdtempSync(join(tmpdir(), "omo-usage-shared-")), "usage.json")
+    const cachePath = join(testTempDir("omo-usage-shared-"), "usage.json")
     writeFileSync(
       cachePath,
       JSON.stringify({ claude: { account: "work", updatedAt: 100_000, windows: [{ label: "5h", percent: 44 }] } }),

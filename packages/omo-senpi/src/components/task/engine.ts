@@ -197,7 +197,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     generations: categoryConfigGenerations,
   })
 
-  const registry = createManagerResidencyRegistry(getManager)
+  const registry = createManagerResidencyRegistry(getManager, () => runtime.sessionId())
   // The engine owns ONE isolation runtime: the manager clones the checkout for an isolated child
   // with it, and the lifecycle salvages and sweeps a crashed host's clones through the same object.
   // Without it every `isolated: true` spawn is refused as `isolation_unavailable`.
@@ -211,7 +211,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     ...(deps.host === undefined ? {} : { host: deps.host }),
     baseStore,
     generations: categoryConfigGenerations,
-    lifecycle: { store: storeChain.store, registry, kernelToolBindings, isolation },
+    lifecycle: { store: storeChain.store, registry, kernelToolBindings, isolation, onStoreMutation: storeChain.onMutation },
   })
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
@@ -253,6 +253,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     destruction: {
       destroyResidentTask: (taskId, cause) =>
         lifecycle.destroyResidentTask(taskId, cause),
+      parkTerminalResident: (taskId) => lifecycle.parkTerminalResident(taskId),
     },
     admit: (parentSessionId) => admitAdapter(lifecycle, parentSessionId),
     trustedRespawnLaunch: createTeamMemberRespawnLaunchResolver({

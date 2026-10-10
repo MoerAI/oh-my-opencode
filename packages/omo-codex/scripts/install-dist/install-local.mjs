@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:b7319305a396ba0951ee52a0b3289909b00ab057a398260b7bcdb03bf2134299:30cd9ef94fb66689bc215f16875f358d6b99d5dc3d6d4a0df2468f8df98580b9
+// omo-codex-install:17c062cf01b3751860ba096e47888ae5fd4fd09df22b1b2a75e9d91a4dc286b1:61c8f72c36d576d6ac4fd63c9522f4de639b13014246171431e1ab35c2daef83
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -9984,7 +9984,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.1.27",
+    version: "5.1.29",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -10239,6 +10239,9 @@ function resolveStdio(options) {
   }
   return [options.stdin ?? "ignore", options.stdout ?? "pipe", options.stderr ?? "inherit"];
 }
+function createBunSpawnOptions(options) {
+  return { ...options, windowsHide: true };
+}
 function createNodeSpawnOptions(options, platform = process.platform) {
   const nodeOptions = {
     stdio: resolveStdio(options),
@@ -10327,7 +10330,7 @@ function spawn(cmdOrOpts, opts) {
   const { cmd, opts: options } = resolveCommand(cmdOrOpts, opts);
   const bun = getBunRuntime();
   if (bun)
-    return wrapBunProcess(bun.spawn(cmd, options));
+    return wrapBunProcess(bun.spawn(cmd, createBunSpawnOptions(options)));
   const [bin, ...args] = cmd;
   if (!bin)
     throw new Error("spawn requires a command");
@@ -10409,7 +10412,7 @@ function isKnownNonGitBashLauncher(path) {
 }
 function whereCommand(command) {
   try {
-    return execFileSync("where", [command], { encoding: "utf8" }).split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+    return execFileSync("where", [command], { encoding: "utf8", windowsHide: true }).split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
   } catch (error) {
     if (error instanceof Error)
       return [];

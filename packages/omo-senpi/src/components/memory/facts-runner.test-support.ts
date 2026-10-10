@@ -1,4 +1,4 @@
-import { afterEach, expect } from "bun:test"
+import { expect, onTestFinished } from "bun:test"
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
 import { appendFile, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
@@ -22,15 +22,9 @@ import { createFactsRecordTool } from "./facts-record-tool"
 import type { FactsRunLedger } from "./facts-runner-types"
 
 export const AVAILABLE_MODEL: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
-const tempDirs: string[] = []
-
-afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
-})
-
 export async function fixture(now?: () => Date) {
   const root = await mkdtemp(join(tmpdir(), "omo-facts-runner-"))
-  tempDirs.push(root)
+  onTestFinished(() => rm(root, { recursive: true, force: true }))
   const identity: MemoryIdentity = {
     id: "facts-agent",
     safeSlug: "facts-agent",

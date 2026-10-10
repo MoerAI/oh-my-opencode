@@ -5,6 +5,7 @@ import type { RpcChildHandle, RpcEntriesResult, RpcSpawnSpec, RpcSwitchSessionRe
 import type { SuspensionReason } from "../state"
 import type { ChildExtensionListener } from "../runners/child-extension-events"
 import { HOST_TURN_RESUMED_EVENT } from "./host-turn-resumed"
+import type { EffectiveModel } from "../runners/pinned-model-equivalence"
 
 export type { RunnerOutcome } from "../runners/in-process/child-handle"
 
@@ -46,7 +47,7 @@ export type ManagedChildHandle = {
   readonly spawnSpec?: RpcSpawnSpec
   /** The model the child actually runs on: in-process reads the live session; a host child carries
    *  its open-session state read. Absent where the runner cannot observe one (#9722). */
-  effectiveModel?(): { readonly provider: string; readonly id: string } | undefined
+  effectiveModel?(): EffectiveModel | undefined
   // A daemon-session child whose session parked - itself (its recorded endpoint refused a reattach) or
   // by its host (idle sweep, generation handoff): the record parks with that reason either way.
   onParked?(listener: (event: { readonly reason: SuspensionReason }) => void): () => void

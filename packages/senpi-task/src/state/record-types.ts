@@ -141,7 +141,12 @@ export type TaskRecord = TaskRecordInput & TaskStartFailureRecordFields & {
   readonly runner_kind?: RunnerKind
   readonly host_session?: HostSessionIdentity
   readonly fallback_handoff_epoch?: number
-  readonly fallback_closing_child?: { readonly pid?: number; readonly host_session?: HostSessionIdentity }
+  readonly fallback_closing_child?: {
+    readonly pid?: number
+    readonly host_session?: HostSessionIdentity
+    // #9350: silence is not proof of closure after a suspended daemon child is failed.
+    readonly requires_confirmation?: boolean
+  }
   readonly residency_claim?: string
   // task_cancel accepted while the child was unreachable (omo#9403). The cancel is final: every
   // revival reads it and finishes the cancel instead of running the child again.
