@@ -2914,7 +2914,10 @@ The task was re-queued on a fallback model after a retryable failure.
       tasks: this.tasks,
       notifications: this.notifications,
       taskTtlMs: this.config?.taskTtlMs,
+      taskCleanupDelayMs: this.config?.taskCleanupDelayMs,
       sessionStatuses: allStatuses,
+      hasPendingRemovalTimer: (taskId) => this.completionTimers.has(taskId),
+      hasAttachedSyncSession: (sessionID) => this.syncAttachedSessions.has(sessionID),
       onTaskPruned: (taskId, task, errorMessage) => {
         const wasPending = task.status === "pending"
         log("[background-agent] Pruning stale task:", { taskId, status: task.status, age: Math.round(((wasPending ? task.queuedAt?.getTime() : task.startedAt?.getTime()) ? (Date.now() - (wasPending ? task.queuedAt!.getTime() : task.startedAt!.getTime())) : 0) / 1000) + "s" })

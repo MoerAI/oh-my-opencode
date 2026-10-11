@@ -1,3 +1,11 @@
+## 2026-10-11 - Preserve maintenance and error classification after first-input memory admission (#9922)
+
+Facts reconciliation still recovers terminal artifacts under a pre-aborted launch signal and reports an existing active run without starting a model child. First-user-settle runtime recovery catches and classifies failures, treats reflection lock contention as a harmless skip, and continues RPC state synchronization. Compaction and transient-run fixtures now follow accepted-input admission; the obsolete overdue startup-dream hook is removed. Adapter-level tests cover child/member process-environment forwarding, and both the Senpi and Codex installer artifacts are rebuilt against the current memory schema.
+
+## 2026-10-11 - Drain inherited facts on the first real turn, not a task child's prompt (#9922)
+
+An inherited facts queue now drains after the first accepted top-level turn even with the default four-turn debounce; fresh-session accumulation keeps that debounce. Binding or rebinding resets first-turn admission without making a startup request. Automatic memory activity excludes task, DAG-child, member, and worker session roles through the existing session-role reader, including per-child process environments. Real-engine regressions use the default counter, drive explicit resume and fork APIs with pending work, and verify that accepted RPC task prompts never launch extraction on the task model.
+
 ## 2026-10-11 - Run code has no handle-level path to the foreground-control grant (#9967)
 
 Follow-ups to #9908's review. A window handle's facade method seam was a TypeScript-only `protected` property, so `computer.run` code could call `w.method(...)` and send any engine method, including the host-only `control.grant`, without the human confirm. The seam is now a true private (`#method`, as `ElementHandle` already had) and the shared request helper is module-private, so a handle exposes only its named helpers; a regression test runs that exploit and asserts no `control.grant` reaches the engine. This corrects #9908's wording: a call chain reaches the grant only through `control.acquire`, and run code now has no handle-level path to it either; the grant is a consent guard for a cooperating model, not a sandbox boundary (the run vm is not one).
@@ -11,6 +19,10 @@ The host half of the human-confirmed foreground grant lands on top of B5a's engi
 ## 2026-10-11 - Preserve category reasoning through background launch and resume (#8510)
 
 Category model overrides and `models` chains no longer inherit the builtin category's variant. MoerAI's fix in #9013 is retained, with the background reasoning-lowering correction identified by willowite: resolve canonical reasoning against the selected model before session creation or dispatch. Loaded configuration keeps the precedence `reasoning > reasoningEffort > variant`; a legacy variant supplies reasoning only when no higher-precedence field is set, and a retained `default` remains neutral. Builtin categories preserve their existing variants, including fallback rungs without a variant of their own. Background attempt projection preserves the current model's generation settings, so a resumed task retains effort-only reasoning as well. The regression matrix passes user settings through the config schema and observes session creation, sync and background dispatch, resumed dispatch, and the provider-facing `chat.params` hook. Thanks to pointfish6660 for the per-session evidence.
+
+## 2026-10-11 - Memory extraction waits for a real prompt and uses a user-selected model (#9922)
+
+Launching or relaunching OmO no longer drains pending facts into a model call. Facts recovery remains local maintenance; automatic extraction, reflection recovery, and dream triggers wait for an accepted non-extension user prompt in the current engine run. Explicit memory commands still work. Facts use `memory.facts.model` (including per-identity overrides), explicitly configured quick models, or the live session model, without built-in or registry fallback candidates. A missing or unavailable selection logs one skip and leaves the queue pending without recording an extraction failure. Recording-provider regressions drive both the real parent engine and real in-process children through launch, relaunch, accepted prompts, rejected/extension inputs, model overrides, and no-model skips.
 
 ## 2026-10-11 - OpenCode shell lookup skips unusable filesystem entries (#9733)
 

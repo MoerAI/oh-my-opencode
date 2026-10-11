@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:c0434c323119abd4c8f9dbe2770f25c161f77afbc2510028fd56c1cf8686c9f0:e05728c791992ba8b6cd306a4648b585ac26e82c604e589ee39a47768c95fb09
+// omo-codex-install:d4760953e82ff7182c54f5a9435f29e953cae69458faac5a49841a618a72e8b0:998a0bc6d14bfc3b7214691f5912e7abb192ca92c553e844b7a5dc5d9e57b084
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -19469,7 +19469,8 @@ var OmoMemoryNudgeSchema = object({
 }).strict();
 var OmoMemoryFactsSchema = object({
   enabled: boolean2().default(true),
-  debounce_settles: number2().int().min(1).default(4)
+  debounce_settles: number2().int().min(1).default(4),
+  model: string2().min(1).optional()
 }).strict();
 var OmoMemoryDreamSchema = object({
   enabled: boolean2().default(true),
@@ -19531,7 +19532,8 @@ var OmoMemoryNudgeLayerSchema = object({
 }).strict();
 var OmoMemoryFactsLayerSchema = object({
   enabled: boolean2().optional(),
-  debounce_settles: number2().int().min(1).optional()
+  debounce_settles: number2().int().min(1).optional(),
+  model: string2().min(1).optional()
 }).strict();
 var OmoMemoryDreamLayerSchema = object({
   enabled: boolean2().optional(),
