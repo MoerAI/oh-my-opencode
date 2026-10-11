@@ -1,3 +1,13 @@
+## 2026-10-11 - Eval smoke and daemon waits cover the engine stop budget (#9836)
+
+The eval smoke derives its shutdown wait and outer execution deadline from the pinned Senpi stop budget instead of 30/60-second cutoffs. It accounts for every endpoint's serial stop request and observation wait, and a shutdown failure includes the owning pids and command output. A normal stop still returns as soon as the generations and claims end.
+
+`daemon stop --all --wait --timeout` cannot shorten the engine's own shutdown budget, including `SENPI_RPC_CHILD_STALLED_STOP_MAX_MS` overrides. The existing 600-second default remains for draining work; it already covers the ordinary engine budget. Senpi does not publicly export the budget in 2026.10.10-12, so one shared helper mirrors its formula, and a compatibility test checks the installed engine's actual `STOP_WAIT_BUDGET_MS` for default, raised and invalid environment values.
+
+## 2026-10-11 - The never-replies doctor test pins the whole probe timeout message (#9742 follow-up)
+
+The fake engine in `computer-use-doctor-failures.test.ts` never replies, so the phase in the timeout report is deterministic. The test asserted only the message shape with `/(phase: [^)]+)$/`, which accepted any phase label; it now asserts the exact message ending in `(phase: requests sent, awaiting engine.hello and capabilities)`.
+
 ## 2026-10-09 - Settle native logout refresh failures and crash recovery (#9833)
 
 The regenerated auth bundle distinguishes refresh refusals from unconfirmed outcomes. Both clear locally and exit successfully. The unconfirmed-revocation warning is skipped only for `account_deleted` and `reauth_required`, where the service has already revoked the device; `unauthorized`, `invalid_grant` and every unconfirmed outcome warn. Crash recovery never replays a refresh token marked uncertain.

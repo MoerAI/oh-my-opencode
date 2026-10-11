@@ -5,6 +5,7 @@
 	"description": "senpi desktop engine: screenshots, native input, accessibility, and the stop path",
 	"ops": [
 		"desktop.engine.hello",
+		"desktop.control.state",
 		"desktop.capabilities",
 		"desktop.displays",
 		"desktop.windows",
@@ -37,6 +38,7 @@
 	],
 	"effects": {
 		"desktop.engine.hello": "read",
+		"desktop.control.state": "read",
 		"desktop.capabilities": "read",
 		"desktop.displays": "read",
 		"desktop.windows": "read",
@@ -69,6 +71,11 @@
 	},
 	"schemas": {
 		"desktop.engine.hello": {
+			"type": "object",
+			"description": "Parameters of a method that takes none: `{}`.",
+			"additionalProperties": false
+		},
+		"desktop.control.state": {
 			"type": "object",
 			"description": "Parameters of a method that takes none: `{}`.",
 			"additionalProperties": false
@@ -662,7 +669,7 @@
 			"required": [
 				"windowId"
 			],
-			"description": "`menus.items` / `menus.select`: the window whose menu is addressed and the\npath inside it (empty lists the menu bar; select requires 1..=32 labels).",
+			"description": "`menus.items`: the window whose menu is addressed and the path inside it\n(empty lists the menu bar). `menus.select` takes [`MenuSelectParams`].",
 			"additionalProperties": false
 		},
 		"desktop.menus.select": {
@@ -677,12 +684,18 @@
 						"type": "string"
 					},
 					"default": []
+				},
+				"deliveryMode": {
+					"type": [
+						"string",
+						"null"
+					]
 				}
 			},
 			"required": [
 				"windowId"
 			],
-			"description": "`menus.items` / `menus.select`: the window whose menu is addressed and the\npath inside it (empty lists the menu bar; select requires 1..=32 labels).",
+			"description": "`menus.select`: the window, the 1..=32-label path to a command, and the\ndelivery. An omitted delivery is background; `foreground` raises and keys\nthe target window and needs this session's live control grant (#9888).",
 			"additionalProperties": false
 		},
 		"desktop.clipboard.read": {
