@@ -342,6 +342,13 @@ describe.skipIf(process.platform === "win32")("tar listing layouts", () => {
 			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 \\355\\225\\234.txt",
 		],
 		[
+			"extracts a non-ASCII name at the archive root when LC_ALL overrides a C LC_CTYPE",
+			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 한.txt",
+			/^resolved$/m,
+			{ LC_ALL: "en_US.UTF-8", LC_CTYPE: "C" },
+			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 \\355\\225\\234.txt",
+		],
+		[
 			"extracts with the environment it validated the listing under",
 			"-rw-r--r-- 0/0               1 2026-10-08 20:47 bin/tool",
 			/^resolved$/m,

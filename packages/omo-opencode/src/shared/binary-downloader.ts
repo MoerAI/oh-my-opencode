@@ -124,7 +124,7 @@ function parseTarEntry(line: string): ArchiveEntry | null {
 // hence the localized date forms above.
 function tarEnvironment(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, LC_MESSAGES: "C", LC_TIME: "C" }
-  if (env.LC_ALL && !env.LC_CTYPE) env.LC_CTYPE = env.LC_ALL
+  if (env.LC_ALL) env.LC_CTYPE = env.LC_ALL
   delete env.LC_ALL
   delete env.TAR_OPTIONS
   return env
