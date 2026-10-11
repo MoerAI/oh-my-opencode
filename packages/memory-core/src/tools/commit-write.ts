@@ -42,8 +42,8 @@ export async function commitMemoryWrite(options: CommitMemoryWriteOptions): Prom
       if (error instanceof NoEffectiveChangesError) {
         throw new MemoryToolError(noChangesMessage ?? "made no effective changes", { cause: error })
       }
+      await repo.restorePaths(paths)
       if (error instanceof MemorySecretError) {
-        await repo.restorePaths(paths)
         throw new MemoryToolError(error.message, { cause: error })
       }
       throw error
