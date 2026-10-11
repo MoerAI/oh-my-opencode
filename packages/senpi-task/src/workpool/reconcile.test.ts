@@ -80,5 +80,24 @@ for (const denial of ["evicted", "one-shot"] as const) test(`#given ${denial} wo
   expect(f.resumes).toEqual([])
   failureReceipt(denial, { refusal, replacement, pool: f.inspect() })
 })
+
+test("#given a recovered assignment whose epoch the worker record moved past #when its turn binds #then admission fails visibly instead of leaving the item pending", async () => {
+  // given
+  const f = deliveryFixture()
+  const worker = await f.start()
+  f.push("recovered")
+  f.store.mutate(worker.taskId, record => ({ ...record, burnt_epoch: worker.epoch + 1 }))
+  createWorkpoolStore(f.store.stateDir).mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.key === "recovered"
+    ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
+    : item) }))
+  const failed = f.event("admission_failed")
+  // when
+  f.children.get(worker.taskId)?.settle({ status: "completed", finalResponse: "turn finished" })
+  const refusal = await failed
+  // then
+  expect(refusal).toMatchObject({ task_id: worker.taskId, run_epoch: worker.epoch + 2, error: { code: "worker_not_continuable" } })
+  expect(f.inspect().items.find(item => item.key === "recovered")).toMatchObject({ status: "error", error: { code: "worker_not_continuable" } })
+  failureReceipt("bind-refused", { refusal, pool: f.inspect() })
+})
 runRecoveryCases()
 })

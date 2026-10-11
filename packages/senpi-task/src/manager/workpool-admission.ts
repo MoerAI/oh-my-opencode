@@ -76,6 +76,13 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
     const release = (): void => concurrency.releaseLease(taskId, epoch)
     const current = (): boolean => !cancelled && input.current()
     const event = (kind: "granted" | "dispatched"): void => input.event({ kind, pool_id: pool.pool_id, item_id: item.item_id, task_id: taskId, run_epoch: epoch })
+    // A bind refused while the request is still current means the item moved to another turn of this worker after it was
+    // scheduled. Fail it like a refused recheck, so the dispatcher clears its pending entry instead of leaving it assigned.
+    const bindTurn = (): boolean => {
+      if (input.bind(taskId, epoch)) return true
+      if (current()) throw new WorkpoolError("worker_not_continuable", "The item's binding no longer matches this turn.")
+      return false
+    }
 
     async function launch(): Promise<void> {
       try {
@@ -89,7 +96,7 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
             oneShotPolicyDenial(record) !== undefined || (ports.pending(taskId) && (record.pending_steering ?? []).some(entry => entry.workpool?.pool_id !== pool.pool_id))) {
             throw new WorkpoolError("worker_not_continuable", "Worker is no longer eligible for reuse.")
           }
-          if (!input.bind(taskId, epoch)) return
+          if (!bindTurn()) return
           appendAssignedMessages(stores, turn)
           if (beginWorkerTurn(stores, turn) === undefined) return
           const result = await ports.revive(record, WORKPOOL_TURN_MESSAGE, { ok: true, release, commit: () => { transferred = true; ports.trackRevive(taskId, epoch) } })
@@ -117,7 +124,7 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
             const processLaunch = pool.worker_spec.start.execution_mode === "process"
               ? await workpoolProcessLaunch(options.store.stateDir, taskId, options.resolveInheritedExtensions)
               : undefined
-            if (!input.bind(taskId, epoch)) return
+            if (!bindTurn()) return
             context = prepareWorkpoolLaunch({ options, workerSpec: pool.worker_spec, taskId, hostPid: ports.hostPid,
               taskSeq: ports.nextSequence(pool.parent_session_id),
               spec: { ...pool.worker_spec.start,
