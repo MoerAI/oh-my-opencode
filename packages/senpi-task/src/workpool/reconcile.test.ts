@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { failureReceipt, runRecoveryCases } from "./__fixtures__/recovery"
 import { deliveryFixture } from "./__fixtures__/delivery"
 import { createWorkpoolStore } from "./store"
@@ -98,6 +98,36 @@ test("#given a recovered assignment whose epoch the worker record moved past #wh
   expect(refusal).toMatchObject({ task_id: worker.taskId, run_epoch: worker.epoch + 2, error: { code: "worker_not_continuable" } })
   expect(f.inspect().items.find(item => item.key === "recovered")).toMatchObject({ status: "error", error: { code: "worker_not_continuable" } })
   failureReceipt("bind-refused", { refusal, pool: f.inspect() })
+})
+test("#given a recovered turn another engine owner already began #when this owner's bind loses #then the winner's item is left alone", async () => {
+  // given
+  const f = deliveryFixture()
+  const worker = await f.start()
+  await f.settle(worker.taskId)
+  const pools = createWorkpoolStore(f.store.stateDir)
+  const recovered = f.push("recovered").item_ids[0]?.item_id
+  pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+    ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
+    : item) }))
+  const load = f.store.load.bind(f.store)
+  let otherOwnerBegan = false
+  const spy = spyOn(f.store, "load").mockImplementation(taskId => {
+    if (!otherOwnerBegan && taskId === worker.taskId) {
+      otherOwnerBegan = true
+      pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+        ? { ...item, delivery: { phase: "dispatching", message_sha256: "0".repeat(64) } }
+        : item) }))
+    }
+    return load(taskId)
+  })
+  const granted = f.event("granted")
+  // when
+  await granted
+  spy.mockRestore()
+  // then
+  expect(otherOwnerBegan).toBe(true)
+  expect(f.events.filter(event => event.kind === "admission_failed" && event.item_id === recovered)).toEqual([])
+  expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: "assigned", delivery: { phase: "dispatching" } })
 })
 runRecoveryCases()
 })

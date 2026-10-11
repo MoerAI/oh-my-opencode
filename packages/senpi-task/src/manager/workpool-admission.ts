@@ -76,11 +76,16 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
     const release = (): void => concurrency.releaseLease(taskId, epoch)
     const current = (): boolean => !cancelled && input.current()
     const event = (kind: "granted" | "dispatched"): void => input.event({ kind, pool_id: pool.pool_id, item_id: item.item_id, task_id: taskId, run_epoch: epoch })
-    // A bind refused while the request is still current means the item moved to another turn of this worker after it was
-    // scheduled. Fail it like a refused recheck, so the dispatcher clears its pending entry instead of leaving it assigned.
+    // A refused bind fails the turn only while the item still waits, undispatched, for this worker under another epoch:
+    // nothing can bind it any more, so fail it like a refused recheck and let the dispatcher clear its pending entry.
+    // A refusal because another owner already began the turn stays quiet, so that owner's item is left alone.
+    const awaitsAnotherEpoch = (): boolean => {
+      const anchor = stores.pools.load(pool.pool_id).items.find(candidate => candidate.item_id === item.item_id)
+      return anchor?.status === "assigned" && anchor.delivery?.phase === "queued" && anchor.binding?.task_id === taskId && anchor.binding.run_epoch !== epoch
+    }
     const bindTurn = (): boolean => {
       if (input.bind(taskId, epoch)) return true
-      if (current()) throw new WorkpoolError("worker_not_continuable", "The item's binding no longer matches this turn.")
+      if (current() && awaitsAnotherEpoch()) throw new WorkpoolError("worker_not_continuable", "The item's binding no longer matches this turn.")
       return false
     }
 
