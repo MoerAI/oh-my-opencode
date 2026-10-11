@@ -188,8 +188,12 @@ interface ComputerWindow extends ComputerInputTarget {
 	readonly menu: {
 		/** Inspect a menu path without activating the application (empty path = the menu bar). */
 		items(path?: string[]): Promise<ComputerMenuItem[]>;
-		/** Select one unambiguous enabled leaf command using the window's native menu context. */
-		select(path: string[]): Promise<void>;
+		/**
+		 * Select one unambiguous enabled leaf command using the window's native menu context. Background (the
+		 * default) refuses an app with several windows; `delivery: "foreground"` raises and keys this window, so
+		 * multi-window apps work, and needs the human-confirmed grant (`computer.control.acquire`) first.
+		 */
+		select(path: string[], options?: { delivery?: "background" | "foreground" }): Promise<void>;
 	};
 	/** Formatted accessibility tree as one string, one node per line with `[ref=eN]` tags. */
 	ax(options?: ComputerAxOptions): Promise<string>;
@@ -212,8 +216,23 @@ interface ComputerDesktop extends ComputerInputTarget {
 		read(): Promise<string>;
 		write(text: string): Promise<void>;
 	};
+	readonly control: {
+		/** Ask the human for the foreground-control grant; returns `{ active }` (false when headless or refused). */
+		acquire(options: { reason: string }): Promise<ComputerControlState>;
+		/** Release the foreground-control grant; belongs in `finally`. */
+		release(): Promise<void>;
+		/** Read the foreground-control grant state. */
+		state(): Promise<ComputerControlState>;
+	};
 	/** Native backend capabilities, permission state, stop path, and focus guard. */
 	capabilities(): Promise<ComputerCapabilities>;
+}
+
+/** The foreground-control grant state (#9651). */
+interface ComputerControlState {
+	active: boolean;
+	reason?: string | null;
+	grantedAt?: string | null;
 }
 
 /** Scope object passed as the first argument to a computer run function. */

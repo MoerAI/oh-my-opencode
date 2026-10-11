@@ -309,7 +309,7 @@ describe("full-matrix workflow wiring", () => {
   })
 
   describe("#given the pull_request trigger", () => {
-    test("#then labeled events retrigger CI", () => {
+    test("#then normal CI leaves label events to the separate full-matrix caller", () => {
       // given
       const parsed: unknown = load(readFileSync(ciWorkflowPath, "utf8"))
       if (!isRecord(parsed)) throw new Error("ci.yml must parse as an object")
@@ -319,7 +319,8 @@ describe("full-matrix workflow wiring", () => {
       if (!isRecord(pullRequest)) throw new Error("ci.yml must define pull_request triggers")
 
       // then
-      expect(pullRequest["types"]).toEqual(["opened", "synchronize", "reopened", "labeled"])
+      expect(pullRequest["types"]).toEqual(["opened", "synchronize", "reopened"])
+      expect(triggers).toHaveProperty("workflow_call")
     })
   })
 

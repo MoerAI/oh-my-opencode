@@ -198,6 +198,26 @@ describe("JavaScript computer facade", () => {
 		]);
 	});
 
+	it("forwards a win.menu.select delivery option as a second argument (#9888)", async () => {
+		// Given
+		const kernel = loadJsFacade(windowResponder);
+
+		// When
+		await kernel.run(`
+			const win = await computer.window({ app: "Code" });
+			await win.menu.select(["File", "Save"], { delivery: "foreground" });
+		`);
+
+		// Then
+		expect(kernel.calls.at(-1)).toEqual({
+			action: "call",
+			chain: [
+				{ method: "window", args: ["w1"] },
+				{ method: "menu.select", args: [["File", "Save"], { delivery: "foreground" }] },
+			],
+		});
+	});
+
 	it("returns the items array from win.menu.items", async () => {
 		// Given
 		const menu = [
@@ -216,5 +236,23 @@ describe("JavaScript computer facade", () => {
 
 		// Then
 		expect(value).toEqual(menu);
+	});
+
+	it("sends control helpers as one-step call chains (#9651 B5b)", async () => {
+		// Given
+		const kernel = loadJsFacade(() => ({ text: "", details: { value: { active: true } } }));
+
+		// When
+		const acquired = await kernel.run(`return await computer.control.acquire({ reason: "click Run" });`);
+		const state = await kernel.run("return await computer.control.state();");
+		await kernel.run("await computer.control.release();");
+
+		// Then
+		expect({ acquired, state }).toEqual({ acquired: { active: true }, state: { active: true } });
+		expect(kernel.calls).toEqual([
+			{ action: "call", chain: [{ method: "control.acquire", args: [{ reason: "click Run" }] }] },
+			{ action: "call", chain: [{ method: "control.state", args: [] }] },
+			{ action: "call", chain: [{ method: "control.release", args: [] }] },
+		]);
 	});
 });
