@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { DESKTOP_METHODS, type DesktopCapabilities } from "@oh-my-opencode/senpi-desktop-protocol";
+import { DESKTOP_METHODS, DISPLAY_METHODS, type DesktopCapabilities } from "@oh-my-opencode/senpi-desktop-protocol";
 import { isDesktopCapabilities, isRecord } from "../service/parse";
 import { ComputerRunError, facadeMethod, type RunScope } from "./context";
 import {
@@ -53,6 +53,13 @@ export function createDesktopFacade(scope: RunScope) {
 			method("displays", async ({ call }) =>
 				expectResult("displays", await call("displays", {}), listOf(isDisplay)),
 			),
+		/** A per-call display target, without changing the session's default capture; the engine refuses an unknown id at first use. */
+		display: (selector: string): Promise<InputTarget & { readonly id: string }> =>
+			method("display", async () => {
+				if (typeof selector !== "string" || selector.length === 0)
+					throw new ComputerRunError("assertion", "display requires an id, 'active', or 'all'");
+				return Object.assign(new InputTarget(scope, `display:${selector}`, DISPLAY_METHODS), { id: selector });
+			}),
 		windows: (filter?: WindowFilter): Promise<readonly DesktopWindow[]> =>
 			method("windows", async (run) => (await listWindows(run)).filter((window) => matchesFilter(window, filter))),
 		/** Exactly one window by opaque id or filter; an ambiguous filter throws listing the candidates. */

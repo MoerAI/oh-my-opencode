@@ -55,6 +55,7 @@
 	const elementFields = ["ref", "role", "nativeRole", "title", "description", "enabled", "focused", "childCount"];
 	const elementValueMethods = ["value", "setValue", "bounds", "attributes", "actions", "perform", "press", "click", "focus"];
 	const desktopValueMethods = ["displays", "windows", "screenshot", "click", "doubleClick", "move", "drag", "scroll", "type", "press"];
+	const displayValueMethods = ["screenshot", "click", "doubleClick", "move", "drag", "scroll", "type", "press"];
 
 	const copyFields = (target, fields, snapshot) => {
 		for (const field of fields) {
@@ -100,6 +101,13 @@
 	const computer = {};
 	defineValueMethods(computer, desktopValueMethods, next => [next]);
 	computer.window = selector => resolveWindow([step("window", [selector])]);
+	computer.display = async selector => {
+		const snapshot = await callValue([step("display", [selector])]);
+		const target = {};
+		copyFields(target, ["id"], snapshot);
+		defineValueMethods(target, displayValueMethods, next => [step("display", [snapshot.id]), next]);
+		return Object.freeze(target);
+	};
 	computer.focusedWindow = () => resolveWindow([step("focusedWindow", [])]);
 	computer.elementAt = (x, y) => resolveElement([step("elementAt", [x, y])]);
 	computer.focusedElement = () => resolveElement([step("focusedElement", [])]);

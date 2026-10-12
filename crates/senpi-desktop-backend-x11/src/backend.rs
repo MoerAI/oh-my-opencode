@@ -129,7 +129,7 @@ impl<S: XServer + Send, I: InputServer + Send> Backend for X11Backend<S, I> {
     }
 
     fn displays(&mut self) -> CoreResult<Vec<DesktopDisplay>> {
-        self.capture.displays()
+        self.capture.all_displays()
     }
 
     fn windows(&mut self) -> CoreResult<Vec<DesktopWindow>> {
@@ -256,6 +256,6 @@ impl<S: XServer + Send, I: InputServer + Send> Backend for X11Backend<S, I> {
 fn foreground_owner(target: &Target, mode: DeliveryMode) -> Option<String> {
     match (target, mode) {
         (Target::Window(id), DeliveryMode::Foreground) => Some(id.clone()),
-        (Target::Desktop, _) | (Target::Window(_), DeliveryMode::Background) => None,
+        (Target::Desktop | Target::Display(_), _) | (Target::Window(_), DeliveryMode::Background) => None,
     }
 }

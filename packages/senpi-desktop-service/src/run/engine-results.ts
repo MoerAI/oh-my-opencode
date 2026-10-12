@@ -6,7 +6,7 @@ import { DesktopServiceError } from "../service/rpc-client";
 // (`DesktopDisplay`, `DesktopWindow`, `AxNode`, `CaptureResult`). Engine stdout is the trust
 // boundary: every result is shape-checked here before the facade hands it to user code.
 
-/** Monitor geometry in global logical points plus composite screenshot pixels. */
+/** Monitor geometry in global points plus `display("all")` composite pixels, not active-capture pixels. */
 export interface DesktopDisplay {
 	readonly id: string;
 	readonly name: string;

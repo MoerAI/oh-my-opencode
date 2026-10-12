@@ -170,7 +170,7 @@ impl Worker {
                 .into_iter()
                 .find(|window| window.id == *id)
                 .ok_or_else(|| DesktopError::window_not_found(format!("window '{id}' was not found"))),
-            Target::Desktop => windows
+            Target::Desktop | Target::Display(_) => windows
                 .into_iter()
                 .find(|window| window.focused)
                 .ok_or_else(|| DesktopError::window_not_found("no focused window was found")),

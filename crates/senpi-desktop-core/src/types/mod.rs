@@ -59,3 +59,6 @@ impl Default for ScreenshotGc {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod display_tests;

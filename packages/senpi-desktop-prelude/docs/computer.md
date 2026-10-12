@@ -4,13 +4,16 @@ computer → host desktop facade, experimental (present while the `computer` too
     Every helper is one `tool.computer({ action: "call", chain })` call. Permission tiers: inspection needs `computer:read`, input and mutation need `computer:exec`; a denied call throws.
     JS: `await` every helper. Python: sync, same names, keyword args become the trailing options object, `win.raise_()` stands in for `raise`.
 computer.displays() → ComputerDisplay[]
+    All known monitors; pixel rectangles describe the all-display composite, not the default active screenshot.
+computer.display(id | "active" | "all") → ComputerDisplayTarget
+    A handle with id, screenshot(), click(), doubleClick(), move(), drag(), scroll(), type(), press(). Each capture/input targets that display without changing the session default. Active re-resolves focus at capture time; all composites every display.
 computer.windows({ app?, title? }?) → ComputerWindowInfo[]
     Case-insensitive substring match on app and title.
 computer.window(idOrFilter) → ComputerWindow
     Exactly one window; zero or several matches throw listing candidates. Handle fields: id, app, title, pid, bounds, focused.
 computer.focusedWindow() → ComputerWindow | null
 computer.screenshot({ silent? }?) / win.screenshot({ silent? }?) → { target, frameId, width, height, sourceWidth, sourceHeight, scale, path? }
-    Auto-displays the image unless `silent: true`.
+    The root captures the focused monitor by default (primary fallback), not the all-display composite. Auto-displays the image unless `silent: true`. Wayland uses the first display the portal reports, not a known compositor primary.
 computer.click(x, y, { button?, count?, modifiers?, delivery? }?) / win.click(...) → None
 computer.doubleClick(x, y, opts?) / computer.move(x, y) / computer.drag([[x, y], …], { modifiers?, delivery? }?) / computer.scroll(x, y, { dx?, dy?, delivery? }?) → None
     Same helpers on a window handle: win.doubleClick, win.move, win.drag, win.scroll.

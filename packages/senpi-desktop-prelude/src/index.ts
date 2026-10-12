@@ -17,6 +17,7 @@ const METHOD_ALLOWLIST: readonly string[] = [
 	"control.acquire",
 	"control.release",
 	"control.state",
+	"display",
 	"displays",
 	"doubleClick",
 	"drag",

@@ -98,6 +98,20 @@ def _make_computer():
         },
     )
 
+    class _Display:
+        __slots__ = ("id",)
+
+        def __init__(self, snapshot):
+            self.id = snapshot["id"]
+
+        def _method(self, method, args, kwargs):
+            return _call([_step("display", (self.id,), {}), _step(method, args, kwargs)])
+
+    _install(
+        _Display,
+        {name: name for name in ("screenshot", "click", "doubleClick", "move", "drag", "scroll", "type", "press")},
+    )
+
     class _Menu:
         __slots__ = ("_call",)
 
@@ -160,6 +174,10 @@ def _make_computer():
         def window(self, *args, **kwargs):
             """Resolve one window by opaque id or by `app`/`title` filter keywords."""
             return _window(self._method("window", args, kwargs))
+
+        def display(self, selector):
+            """Resolve one display id, 'active', or 'all' without changing the session default."""
+            return _Display(self._method("display", (selector,), {}))
 
         def focusedWindow(self):
             return _window(self._method("focusedWindow", (), {}))

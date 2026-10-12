@@ -80,7 +80,7 @@ interface ComputerWindowInfo extends ComputerBounds {
 	elevated?: boolean | null;
 }
 
-/** Monitor geometry in both desktop coordinates and composite screenshot pixels. */
+/** Monitor geometry in desktop coordinates and `display("all")` composite pixels, not the active capture. */
 interface ComputerDisplay extends ComputerBounds {
 	id: string;
 	name: string;
@@ -163,7 +163,7 @@ interface ComputerElement {
 	children(): Promise<ComputerElement[]>;
 }
 
-/** Native input helpers shared by the desktop root and window handles; `x`/`y` are pixels in the most recent screenshot of the same target. */
+/** Native input helpers shared by desktop, display, and window targets; `x`/`y` are pixels of that target's latest screenshot. */
 interface ComputerInputTarget {
 	screenshot(options?: ComputerScreenshotOptions): Promise<ComputerScreenshotResult>;
 	click(x: number, y: number, options?: ComputerClickOptions): Promise<void>;
@@ -174,6 +174,11 @@ interface ComputerInputTarget {
 	type(text: string, options?: ComputerDeliveryOptions): Promise<void>;
 	/** Key chord such as `"cmd+shift+p"` or `["cmd", "shift", "p"]`. */
 	press(chord: string | string[], options?: ComputerDeliveryOptions): Promise<void>;
+}
+
+/** A display target; `active` resolves focus again on each capture, `all` composites every display. */
+interface ComputerDisplayTarget extends ComputerInputTarget {
+	readonly id: string;
 }
 
 /** Window handle resolved by `window`/`focusedWindow`; identity fields are a snapshot taken at resolution. */
@@ -204,6 +209,8 @@ interface ComputerWindow extends ComputerInputTarget {
 /** Desktop helpers shared by the direct `computer` facade and the `desktop` object inside `computer.run`. */
 interface ComputerDesktop extends ComputerInputTarget {
 	displays(): Promise<ComputerDisplay[]>;
+	/** Resolve a display id, `"active"`, or `"all"` without changing the session default (active). */
+	display(selector: string): Promise<ComputerDisplayTarget>;
 	windows(filter?: ComputerWindowFilter): Promise<ComputerWindowInfo[]>;
 	/** Resolve exactly one window by opaque id or filter; ambiguous filters throw listing candidates. */
 	window(selector: string | ComputerWindowFilter): Promise<ComputerWindow>;

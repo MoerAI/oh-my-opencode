@@ -68,7 +68,7 @@ const error = (rpcCode, code, message, hint = null) => ({ error: { code: rpcCode
 function capture(target, frameId) {
 	const window = WINDOWS.find((candidate) => candidate.id === target);
 	const common = { target, frameId, scale: 1, note: null };
-	if (target === "desktop") {
+	if (target === "desktop" || target.startsWith("display:")) {
 		const size = { width: 1280, height: 800, sourceWidth: 2880, sourceHeight: 1800 };
 		return { ...common, ...size, mode: "inline-png", data: PNG_1X1, mimeType: "image/png", artifactPath: null };
 	}
@@ -120,7 +120,11 @@ export function createDesktop() {
 			case "windows":
 				return { result: WINDOWS };
 			case "capture": {
-				if (target !== "desktop" && !WINDOWS.some((window) => window.id === target)) {
+				const display = target?.startsWith("display:") ? target.slice("display:".length) : undefined;
+				if (display !== undefined && !["active", "all", ...DISPLAYS.map((item) => item.id)].includes(display)) {
+					return error(-32005, "InvalidTarget", `no display ${display}`);
+				}
+				if (target !== "desktop" && display === undefined && !WINDOWS.some((window) => window.id === target)) {
 					return error(-32004, "WindowNotFound", `no window ${target}`);
 				}
 				const frameId = `${target}-${frames.size + 1}`;
