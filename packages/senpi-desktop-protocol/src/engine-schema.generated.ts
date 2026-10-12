@@ -19,6 +19,7 @@ export const ENGINE_METHODS = [
 	"displays",
 	"windows",
 	"capture",
+	"captureRegion",
 	"click",
 	"moveMouse",
 	"drag",

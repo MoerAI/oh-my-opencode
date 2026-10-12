@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::menus::MenuItem;
 use crate::protocol_params::{
     AdvanceClockParams, AxClickParams, AxElementAtParams, AxPerformParams, AxQueryParams, AxRefParams,
-    AxSetValueParams, AxSnapshotParams, CancelParams, CaptureParams, ClipboardText, ControlGrantParams, DragParams,
+    AxSetValueParams, AxSnapshotParams, CancelParams, CaptureParams, CaptureRegionParams, ClipboardText, ControlGrantParams, DragParams,
     EmptyParams, KeyChordParams, MenuPathParams, MenuSelectParams, PointParams, RaiseWindowParams, ScrollParams, StopPathResumeParams,
     StopPathStartParams, StopPathStopParams, TypeTextParams,
 };
@@ -95,6 +95,7 @@ method_table! {
     Displays = "displays", Read, Public, EmptyParams => Vec<DesktopDisplay>;
     Windows = "windows", Read, Public, EmptyParams => Vec<DesktopWindow>;
     Capture = "capture", Read, Public, CaptureParams => CaptureResult;
+    CaptureRegion = "captureRegion", Read, Public, CaptureRegionParams => CaptureResult;
     Click = "click", Exec, Public, PointParams => ();
     MoveMouse = "moveMouse", Exec, Public, PointParams => ();
     Drag = "drag", Exec, Public, DragParams => ();

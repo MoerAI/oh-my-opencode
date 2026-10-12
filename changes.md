@@ -1,3 +1,12 @@
+## 2026-10-11 - Packaged eval smoke observes supervisor exit after drain (#9998)
+
+The QA smoke records its sandbox-owned supervisor pids before daemon stop, then waits for those observed processes to exit within the supervisor-completion and final-kill reserve from the same shared engine stop-budget formula. Several supervisors share one deadline. A survivor still fails with its pid, command and measured time after drain; the final process/socket leak check remains in place. Drain receipts are retained before the exit wait so failure cleanup still removes owned socket namespaces. Deterministic clock, liveness and waiter regressions cover capped waits, persistent supervisors and timely exits.
+
+Review regressions pin the original deadline when one supervisor exits late, compare the reserve against the installed engine's exported budget parts, and distinguish command time from post-drain receipt work. Permission-denied liveness probes remain alive for the bounded diagnostic without authorizing a signal; timely-exit assertions no longer depend on the polling step.
+## 2026-10-11 - Detect environment leaks at test-file teardown (#9390, #9469)
+
+Thanks to @Dante-dan for the per-file teardown leak check: tests now report added, removed, or changed `process.env` keys after a file's own cleanup, then restore the worker baseline without printing values. Maintainer follow-ups put `OMO_MEMORY_HOME` in the shared hermetic-home installer so package-local Senpi tests use a per-run temporary memory root too, and remove the leftover implicit-test-globals reference. Tests loaded by the integrity plugin must import their test functions from `bun:test`.
+
 ## 2026-10-11 - Preserve maintenance and error classification after first-input memory admission (#9922)
 
 Facts reconciliation still recovers terminal artifacts under a pre-aborted launch signal and reports an existing active run without starting a model child. First-user-settle runtime recovery catches and classifies failures, treats reflection lock contention as a harmless skip, and continues RPC state synchronization. Compaction and transient-run fixtures now follow accepted-input admission; the obsolete overdue startup-dream hook is removed. Adapter-level tests cover child/member process-environment forwarding, and both the Senpi and Codex installer artifacts are rebuilt against the current memory schema.

@@ -27,6 +27,16 @@ interface ComputerScrollOptions extends ComputerDeliveryOptions {
 /** Options for capturing a screenshot; `silent` skips the auto-displayed image. */
 interface ComputerScreenshotOptions {
 	silent?: boolean;
+	/** Zoom rejects an id other than this target's latest full screenshot. */
+	frameId?: string;
+}
+
+/** Region in the last full screenshot's pixels; zoom pixels are not input coordinates. */
+interface ComputerCaptureRegion {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 /** Options for an accessibility-tree snapshot. */
@@ -80,7 +90,7 @@ interface ComputerWindowInfo extends ComputerBounds {
 	elevated?: boolean | null;
 }
 
-/** Monitor geometry in both desktop coordinates and composite screenshot pixels. */
+/** Monitor geometry in desktop coordinates and `display("all")` composite pixels, not the active capture. */
 interface ComputerDisplay extends ComputerBounds {
 	id: string;
 	name: string;
@@ -102,6 +112,10 @@ interface ComputerScreenshotResult {
 	/** Captured size before downscaling. */
 	sourceWidth: number;
 	sourceHeight: number;
+	/** Input coordinates remain in the last full screenshot, including after zoom. */
+	coordinateWidth: number;
+	coordinateHeight: number;
+	region?: ComputerCaptureRegion;
 	scale: number;
 	/** Full-resolution artifact, when the engine wrote one. */
 	path?: string;
@@ -163,9 +177,11 @@ interface ComputerElement {
 	children(): Promise<ComputerElement[]>;
 }
 
-/** Native input helpers shared by the desktop root and window handles; `x`/`y` are pixels in the most recent screenshot of the same target. */
+/** Native input helpers shared by desktop, display, and window targets; `x`/`y` are pixels of that target's latest screenshot. */
 interface ComputerInputTarget {
 	screenshot(options?: ComputerScreenshotOptions): Promise<ComputerScreenshotResult>;
+	/** Fresh native-detail crop; later clicks still use the last full screenshot's coordinates. */
+	zoom(region: ComputerCaptureRegion, options?: ComputerScreenshotOptions): Promise<ComputerScreenshotResult>;
 	click(x: number, y: number, options?: ComputerClickOptions): Promise<void>;
 	doubleClick(x: number, y: number, options?: Omit<ComputerClickOptions, "count">): Promise<void>;
 	move(x: number, y: number): Promise<void>;
@@ -174,6 +190,11 @@ interface ComputerInputTarget {
 	type(text: string, options?: ComputerDeliveryOptions): Promise<void>;
 	/** Key chord such as `"cmd+shift+p"` or `["cmd", "shift", "p"]`. */
 	press(chord: string | string[], options?: ComputerDeliveryOptions): Promise<void>;
+}
+
+/** A display target; `active` resolves focus again on each capture, `all` composites every display. */
+interface ComputerDisplayTarget extends ComputerInputTarget {
+	readonly id: string;
 }
 
 /** Window handle resolved by `window`/`focusedWindow`; identity fields are a snapshot taken at resolution. */
@@ -204,6 +225,8 @@ interface ComputerWindow extends ComputerInputTarget {
 /** Desktop helpers shared by the direct `computer` facade and the `desktop` object inside `computer.run`. */
 interface ComputerDesktop extends ComputerInputTarget {
 	displays(): Promise<ComputerDisplay[]>;
+	/** Resolve a display id, `"active"`, or `"all"` without changing the session default (active). */
+	display(selector: string): Promise<ComputerDisplayTarget>;
 	windows(filter?: ComputerWindowFilter): Promise<ComputerWindowInfo[]>;
 	/** Resolve exactly one window by opaque id or filter; ambiguous filters throw listing candidates. */
 	window(selector: string | ComputerWindowFilter): Promise<ComputerWindow>;

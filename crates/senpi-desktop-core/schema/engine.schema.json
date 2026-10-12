@@ -120,6 +120,17 @@
         "$ref": "#/definitions/CaptureResult"
       }
     },
+    "captureRegion": {
+      "effect": "read",
+      "hostOnly": false,
+      "testOnly": false,
+      "params": {
+        "$ref": "#/definitions/CaptureRegionParams"
+      },
+      "result": {
+        "$ref": "#/definitions/CaptureResult"
+      }
+    },
     "click": {
       "effect": "exec",
       "hostOnly": false,
@@ -1060,6 +1071,26 @@
           "format": "uint32",
           "minimum": 0
         },
+        "coordinateWidth": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "coordinateHeight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CaptureRegion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "scale": {
           "type": "number",
           "format": "double"
@@ -1083,6 +1114,8 @@
         "height",
         "sourceWidth",
         "sourceHeight",
+        "coordinateWidth",
+        "coordinateHeight",
         "scale",
         "target",
         "frameId"
@@ -1098,6 +1131,68 @@
         "artifact-only"
       ],
       "description": "How a capture was delivered under the byte budget."
+    },
+    "CaptureRegion": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "format": "double"
+        },
+        "y": {
+          "type": "number",
+          "format": "double"
+        },
+        "width": {
+          "type": "number",
+          "format": "double"
+        },
+        "height": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "description": "Rectangle in the pixels of the last full screenshot, not the zoom image.",
+      "additionalProperties": false
+    },
+    "CaptureRegionParams": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "region": {
+          "$ref": "#/definitions/CaptureRegion"
+        },
+        "caps": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CaptureCaps"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "frameId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "target",
+        "region"
+      ],
+      "description": "`captureRegion`: native-detail zoom preserving the last full input frame.",
+      "additionalProperties": false
     },
     "PointParams": {
       "type": "object",
@@ -1979,6 +2074,7 @@
         "displays",
         "windows",
         "capture",
+        "captureRegion",
         "click",
         "moveMouse",
         "drag",
