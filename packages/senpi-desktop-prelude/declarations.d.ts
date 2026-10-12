@@ -44,6 +44,16 @@ interface ComputerAxOptions {
 	/** Include nodes that are normally pruned as non-interactive. */
 	all?: boolean;
 	maxDepth?: number;
+	maxNodes?: number;
+}
+
+/** One window capture and AX snapshot, committed together. */
+interface ComputerObserveOptions extends ComputerScreenshotOptions, ComputerAxOptions {}
+
+interface ComputerObserveResult extends ComputerScreenshotResult {
+	ax: string;
+	nodeCount: number;
+	truncated: boolean;
 }
 
 /** Accessibility query matched against role, title, and value. */
@@ -218,6 +228,8 @@ interface ComputerWindow extends ComputerInputTarget {
 	};
 	/** Formatted accessibility tree as one string, one node per line with `[ref=eN]` tags. */
 	ax(options?: ComputerAxOptions): Promise<string>;
+	/** Atomic screenshot and AX text of this window; displays screenshot then AX unless silent. */
+	observe(options?: ComputerObserveOptions): Promise<ComputerObserveResult>;
 	find(query: ComputerAxQuery): Promise<ComputerElement[]>;
 	ref(ref: string): Promise<ComputerElement | null>;
 }

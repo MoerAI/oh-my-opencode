@@ -19,6 +19,15 @@ pub struct CaptureParams {
     pub caps: Option<CaptureCaps>,
 }
 
+/// `observe`: an atomic window screenshot and accessibility snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ObserveParams {
+    pub target: String,
+    pub caps: Option<CaptureCaps>,
+    pub ax: Option<AxSnapshotOptions>,
+}
+
 /// `captureRegion`: native-detail zoom preserving the last full input frame.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

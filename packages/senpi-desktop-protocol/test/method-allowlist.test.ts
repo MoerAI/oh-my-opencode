@@ -27,6 +27,7 @@ const CHAIN_METHOD_SNAPSHOT = [
 	"menu.items",
 	"menu.select",
 	"move",
+	"observe",
 	"parent",
 	"perform",
 	"press",

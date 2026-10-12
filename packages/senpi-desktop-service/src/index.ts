@@ -12,6 +12,7 @@ export { type ControlState, createDesktopFacade, type DesktopFacade, type Window
 export { ElementHandle, WindowHandle } from "./run/handles";
 export { type ComputerRunHost, type ComputerRunRequest, type ExecuteTool, runComputerCode } from "./run/runtime";
 export type { ScreenshotOptions, ScreenshotResult } from "./run/screenshot";
+export type { ObserveOptions, ObservationResult } from "./run/observe";
 export {
 	acquiringEngineChildFactory,
 	type AcquiringEngineChildOptions,

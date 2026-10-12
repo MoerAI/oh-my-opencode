@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Computer use can list and choose menu commands on Linux.** On X11 and Wayland, `menus.items` and `menus.select` walk a window's menu bar through AT-SPI and run the chosen item's own activation action, without focusing or raising the window. The request is bound to the exact window you named, so a same-titled sibling window of the same app is refused rather than used, and ambiguous, disabled or submenu labels are refused before anything runs. Selecting a menu command also no longer crashes GTK apps on Ubuntu 22.04. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651), [#9994](https://github.com/code-yeongyu/oh-my-openagent/pull/9994))
+
+**Computer use can take a screenshot and read a window's accessibility tree in one step.** `observe()` on a window returns both together, and a failed or cancelled observation normally leaves the previous screenshot and accessibility references in place. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651))
+
 **Computer use can zoom into part of a screenshot at full detail without changing where clicks land.** `zoom(region)` on the desktop, a window or a display captures that region again at native resolution, while later clicks and typing still use the coordinates of the last full screenshot. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651))
 
 **Computer use can list and choose menu commands on Windows.** `menus.items` and `menus.select` read a window's classic menu bar directly, or its UI Automation menu when it has none, and run the chosen command without keyboard input. Elevated windows, ambiguous or disabled labels, submenus, and menus that change mid-request are refused before anything runs; apps that take focus while they act are refused in the background and work with `delivery: "foreground"`. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651), [#9991](https://github.com/code-yeongyu/oh-my-openagent/pull/9991))

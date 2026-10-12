@@ -90,3 +90,14 @@ pub struct CaptureResult {
     pub frame_id: String,
     pub note: Option<String>,
 }
+
+/// One delivered window observation; capture pixels remain the input frame.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ObserveResult {
+    #[serde(flatten)]
+    pub capture: CaptureResult,
+    pub ax: String,
+    pub node_count: u32,
+    pub truncated: bool,
+}
