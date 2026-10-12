@@ -116,6 +116,7 @@ impl Worker {
             Op::Displays => Ok(Response::Displays(self.backend()?.displays()?)),
             Op::Windows => Ok(Response::Windows(self.backend()?.windows()?)),
             Op::Capture(params) => self.capture(&params),
+            Op::CaptureRegion(params) => self.capture_region(&params, cancelled),
             Op::Click(params) => served(self.click(&params, cancelled)),
             Op::MoveMouse(params) => served(self.move_mouse(&params, cancelled)),
             Op::Drag(params) => served(self.drag(&params, cancelled)),

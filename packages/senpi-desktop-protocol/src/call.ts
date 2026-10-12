@@ -18,6 +18,7 @@ export const DESKTOP_METHODS: MethodPolicies = {
 	window: "read",
 	focusedWindow: "read",
 	screenshot: "read",
+	zoom: "read",
 	click: "exec",
 	doubleClick: "exec",
 	move: "exec",
@@ -38,6 +39,7 @@ export const DESKTOP_METHODS: MethodPolicies = {
 /** Helpers callable on a display handle resolved through `desktop.display(selector)`. */
 export const DISPLAY_METHODS: MethodPolicies = {
 	screenshot: "read",
+	zoom: "read",
 	click: "exec",
 	doubleClick: "exec",
 	move: "exec",
@@ -50,6 +52,7 @@ export const DISPLAY_METHODS: MethodPolicies = {
 /** Helpers callable on a window handle resolved through `desktop.window(id)`. */
 export const WINDOW_METHODS: MethodPolicies = {
 	screenshot: "read",
+	zoom: "read",
 	click: "exec",
 	doubleClick: "exec",
 	move: "exec",

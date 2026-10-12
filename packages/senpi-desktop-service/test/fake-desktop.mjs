@@ -1,4 +1,6 @@
 // Scripted desktop methods for test/fake-engine.mjs, enabled by FAKE_ENGINE_DESKTOP=1.
+// FAKE_ENGINE_ZOOM_NO_FRAME=1 answers captureRegion without the full input frame, FAKE_ENGINE_ZOOM_NO_REGION=1 without its region (broken engines).
+// FAKE_ENGINE_PRE_ZOOM=1 acts like an engine that predates region zoom: no coordinate fields, no captureRegion.
 // One display, two windows ("101" Code, "202" Mail). Pointer input needs a prior capture of the same
 // target (InvalidCoordinateFrame otherwise), as the real engine's per-target frames do.
 // Captures of "desktop" and "101" are inline PNGs; "202" is artifact-only.
@@ -67,7 +69,8 @@ const error = (rpcCode, code, message, hint = null) => ({ error: { code: rpcCode
 
 function capture(target, frameId) {
 	const window = WINDOWS.find((candidate) => candidate.id === target);
-	const common = { target, frameId, scale: 1, note: null };
+	const common = { target, frameId, scale: 1, note: null, region: null,
+		coordinateWidth: window?.width ?? 1280, coordinateHeight: window?.height ?? 800 };
 	if (target === "desktop" || target.startsWith("display:")) {
 		const size = { width: 1280, height: 800, sourceWidth: 2880, sourceHeight: 1800 };
 		return { ...common, ...size, mode: "inline-png", data: PNG_1X1, mimeType: "image/png", artifactPath: null };
@@ -129,7 +132,38 @@ export function createDesktop() {
 				}
 				const frameId = `${target}-${frames.size + 1}`;
 				frames.set(target, frameId);
+				if (process.env.FAKE_ENGINE_PRE_ZOOM === "1") {
+					const { coordinateWidth, coordinateHeight, region, ...older } = capture(target, frameId);
+					return { result: older };
+				}
 				return { result: capture(target, frameId) };
+			}
+			case "captureRegion": {
+				if (process.env.FAKE_ENGINE_PRE_ZOOM === "1") {
+					return { error: { code: -32601, message: "Method not found", data: { reason: "unknown" } } };
+				}
+				const frameId = frames.get(target);
+				if (frameId === undefined || (params.frameId !== undefined && params.frameId !== frameId)) {
+					return error(-32007, "InvalidCoordinateFrame", "zoom needs the latest full screenshot");
+				}
+				const base = capture(target, frameId);
+				const region = params.region;
+				if (![region?.x, region?.y, region?.width, region?.height].every(Number.isFinite) ||
+					region.x < 0 || region.y < 0 || region.width <= 0 || region.height <= 0 ||
+					region.x + region.width > base.width || region.y + region.height > base.height) {
+					return error(-32007, "InvalidCoordinateFrame", "invalid zoom rectangle");
+				}
+				const zoomed = { ...base, region, width: region.width * 2, height: region.height * 2,
+					sourceWidth: region.width * 2, sourceHeight: region.height * 2 };
+				if (process.env.FAKE_ENGINE_ZOOM_NO_FRAME === "1") {
+					const { coordinateWidth, coordinateHeight, ...broken } = zoomed;
+					return { result: broken };
+				}
+				if (process.env.FAKE_ENGINE_ZOOM_NO_REGION === "1") {
+					const { region: _region, ...broken } = zoomed;
+					return { result: broken };
+				}
+				return { result: zoomed };
 			}
 			case "clipboard.read":
 				return { result: { text: clipboard } };

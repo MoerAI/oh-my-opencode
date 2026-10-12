@@ -42,6 +42,8 @@ describe("computer tool execute", HANG_GUARD, () => {
 			{
 			  "images": 1,
 			  "value": {
+			    "coordinateHeight": 800,
+			    "coordinateWidth": 1200,
 			    "frameId": "101-1",
 			    "height": 800,
 			    "scale": 1,

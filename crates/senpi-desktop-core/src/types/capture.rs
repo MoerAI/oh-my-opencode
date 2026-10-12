@@ -59,6 +59,16 @@ pub enum CaptureMode {
     ArtifactOnly,
 }
 
+/// Rectangle in the pixels of the last full screenshot, not the zoom image.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureRegion {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
 /// The wire result of `capture`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +82,9 @@ pub struct CaptureResult {
     pub height: u32,
     pub source_width: u32,
     pub source_height: u32,
+    pub coordinate_width: u32,
+    pub coordinate_height: u32,
+    pub region: Option<CaptureRegion>,
     pub scale: f64,
     pub target: String,
     pub frame_id: String,

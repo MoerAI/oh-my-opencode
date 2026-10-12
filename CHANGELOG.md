@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Computer use can zoom into part of a screenshot at full detail without changing where clicks land.** `zoom(region)` on the desktop, a window or a display captures that region again at native resolution, while later clicks and typing still use the coordinates of the last full screenshot. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651))
+
 **Computer use can list and choose menu commands on Windows.** `menus.items` and `menus.select` read a window's classic menu bar directly, or its UI Automation menu when it has none, and run the chosen command without keyboard input. Elevated windows, ambiguous or disabled labels, submenus, and menus that change mid-request are refused before anything runs; apps that take focus while they act are refused in the background and work with `delivery: "foreground"`. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651), [#9991](https://github.com/code-yeongyu/oh-my-openagent/pull/9991))
 
 **Computer use screenshots the monitor you are working on by default, and `computer.display(id)` reaches any other one.** An unset `computer.display` now captures the active monitor, the one the focused window mostly sits on, instead of compositing every display; `"all"` and display ids work as before. `computer.display("all" | "active" | id)` gives a screenshot and input handle for one display without changing the session default, and `computer.displays()` lists every monitor. ([#9651](https://github.com/code-yeongyu/oh-my-openagent/issues/9651), [#9995](https://github.com/code-yeongyu/oh-my-openagent/pull/9995))

@@ -14,6 +14,8 @@ computer.window(idOrFilter) → ComputerWindow
 computer.focusedWindow() → ComputerWindow | null
 computer.screenshot({ silent? }?) / win.screenshot({ silent? }?) → { target, frameId, width, height, sourceWidth, sourceHeight, scale, path? }
     The root captures the focused monitor by default (primary fallback), not the all-display composite. Auto-displays the image unless `silent: true`. Wayland uses the first display the portal reports, not a known compositor primary.
+computer.zoom({ x, y, width, height }, { silent?, frameId? }?) / win.zoom(...) → { target, frameId, width, height, sourceWidth, sourceHeight, coordinateWidth, coordinateHeight, region, scale, path? }
+    Fresh native-detail crop of a region in the SAME target's last full screenshot. Desktop/display zoom pins the displays that full frame captured, even after focus moves. Zoom pixels are NOT input coordinates: later clicks still use the last full screenshot's coordinateWidth/coordinateHeight and frameId. A missing/stale full frame or invalid rectangle throws InvalidCoordinateFrame; take a new full screenshot. Same helper on display handles.
 computer.click(x, y, { button?, count?, modifiers?, delivery? }?) / win.click(...) → None
 computer.doubleClick(x, y, opts?) / computer.move(x, y) / computer.drag([[x, y], …], { modifiers?, delivery? }?) / computer.scroll(x, y, { dx?, dy?, delivery? }?) → None
     Same helpers on a window handle: win.doubleClick, win.move, win.drag, win.scroll.
@@ -52,7 +54,7 @@ computer.close() → None
 Rules:
     Observe once per turn before interacting with an app (one screenshot or `ax()` of the target), act, then observe again only when you need fresh state; never re-screenshot after every action.
     PREFER AX over pixels: `win.ax()` → `el.press()` / `el.click()` / `el.setValue()`.
-    Pointer x,y are pixels in the MOST RECENT screenshot of the SAME target; AX coordinates are global desktop coordinates; NEVER mix them. `InvalidCoordinateFrame` → re-screenshot that target.
+    Pointer x,y are pixels in the MOST RECENT FULL screenshot of the SAME target; zoom leaves that frame unchanged. AX coordinates are global desktop coordinates; NEVER mix them. `InvalidCoordinateFrame` → re-screenshot that target.
     Each `win.ax()` starts a ref generation; current and previous refs stay valid, older refs throw `StaleRef`. Re-snapshot; NEVER guess refs.
     Input defaults to `delivery: "background"`. On macOS it leaves the frontmost app, its focused window, the cursor and the destination of the user's next keystroke unchanged, but a clicked target window may rise directly under the user's front window. `BackgroundUnavailable` means use AX or retry with `delivery: "foreground"` (briefly activates the target, then the focus guard restores it). Never assume a background action landed without re-observing.
     Background keyboard input goes only to an app's SOLE window: typing or pressing keys into a process with several windows throws `BackgroundUnavailable`; use AX `setValue`, or foreground delivery.

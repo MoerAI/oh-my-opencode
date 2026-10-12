@@ -39,6 +39,7 @@ const CHAIN_METHOD_SNAPSHOT = [
 	"value",
 	"window",
 	"windows",
+	"zoom",
 ];
 
 /**

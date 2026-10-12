@@ -27,6 +27,16 @@ interface ComputerScrollOptions extends ComputerDeliveryOptions {
 /** Options for capturing a screenshot; `silent` skips the auto-displayed image. */
 interface ComputerScreenshotOptions {
 	silent?: boolean;
+	/** Zoom rejects an id other than this target's latest full screenshot. */
+	frameId?: string;
+}
+
+/** Region in the last full screenshot's pixels; zoom pixels are not input coordinates. */
+interface ComputerCaptureRegion {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 /** Options for an accessibility-tree snapshot. */
@@ -102,6 +112,10 @@ interface ComputerScreenshotResult {
 	/** Captured size before downscaling. */
 	sourceWidth: number;
 	sourceHeight: number;
+	/** Input coordinates remain in the last full screenshot, including after zoom. */
+	coordinateWidth: number;
+	coordinateHeight: number;
+	region?: ComputerCaptureRegion;
 	scale: number;
 	/** Full-resolution artifact, when the engine wrote one. */
 	path?: string;
@@ -166,6 +180,8 @@ interface ComputerElement {
 /** Native input helpers shared by desktop, display, and window targets; `x`/`y` are pixels of that target's latest screenshot. */
 interface ComputerInputTarget {
 	screenshot(options?: ComputerScreenshotOptions): Promise<ComputerScreenshotResult>;
+	/** Fresh native-detail crop; later clicks still use the last full screenshot's coordinates. */
+	zoom(region: ComputerCaptureRegion, options?: ComputerScreenshotOptions): Promise<ComputerScreenshotResult>;
 	click(x: number, y: number, options?: ComputerClickOptions): Promise<void>;
 	doubleClick(x: number, y: number, options?: Omit<ComputerClickOptions, "count">): Promise<void>;
 	move(x: number, y: number): Promise<void>;

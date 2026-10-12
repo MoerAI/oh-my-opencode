@@ -41,6 +41,7 @@ const METHOD_ALLOWLIST: readonly string[] = [
 	"value",
 	"window",
 	"windows",
+	"zoom",
 ];
 
 /**

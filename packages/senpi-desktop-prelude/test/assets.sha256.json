@@ -1,8 +1,8 @@
 {
-	"_comment": "sha256 of each published prelude asset on dev (bc64056efc's unchanged asset sources). Any change to the published bytes must consciously update this fixture (#9113 prelude contingency). COMPUTER_DOCUMENTATION was updated for the experimental facade label (#9124). Updated for the menu.items/menu.select facade (#9651 B2a). Updated for the #9651 B5b control facade (computer.control.acquire/release/state), then for the acquire run-budget note and the raise wording. Then for the menu.select delivery option (#9888). Then for computer.display() and the active-display default (#9651 B6).",
-	"COMPUTER_PRELUDE_JAVASCRIPT": "7653429cfaeff08edab5c9a85a2b865b151ce47c0569abea3fad4e7ecbc1a432",
-	"COMPUTER_PRELUDE_PYTHON": "7303d369fb7ac1d8bc1c3a0dc1857d49f55fbeeca7c6cc389b5fc5284039d223",
-	"COMPUTER_DECLARATIONS": "0fc29e00b17a47404fa7ed48c37c5c6f55eb37ec7bdbbe8a8b63c710c3607092",
-	"COMPUTER_DOCUMENTATION": "8d9370b32e6f8fbafabb10802dbbdd75cd642b6d11467842923dd83173feddba",
+	"_comment": "sha256 of each published prelude asset on dev (bc64056efc's unchanged asset sources). Any change to the published bytes must consciously update this fixture (#9113 prelude contingency). COMPUTER_DOCUMENTATION was updated for the experimental facade label (#9124). Updated for the menu.items/menu.select facade (#9651 B2a). Updated for the #9651 B5b control facade (computer.control.acquire/release/state), then for the acquire run-budget note and the raise wording. Then for the menu.select delivery option (#9888). Then for computer.display() and the active-display default (#9651 B6). Then for native-detail region zoom with unchanged full-frame input coordinates (#9651 B7).",
+	"COMPUTER_PRELUDE_JAVASCRIPT": "23f8d4455e0f30ddc8ae726abcbed7589622b83399b71ec8e4b5f0f83e544025",
+	"COMPUTER_PRELUDE_PYTHON": "c75093c40ff764c5ec2dd994d7b031f3f5b77423bf2396358f0fce40fe64cfe2",
+	"COMPUTER_DECLARATIONS": "1be7d09d7243e5fea1cc955b023275379792b13de4e9f225db7339cdc4e98ca5",
+	"COMPUTER_DOCUMENTATION": "511bf97bb2c25ca13bef082c527d0d166a30a733b3efb64f2ca33ba51034d9a9",
 	"COMPUTER_SAFETY": "0c9f2d6223d92fdff268f1ee1eebc6f33870f5737bc09ab0dadafb96a4f36124"
 }

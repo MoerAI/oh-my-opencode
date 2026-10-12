@@ -86,6 +86,7 @@ export function createDesktopFacade(scope: RunScope) {
 				return focused === undefined ? null : new WindowHandle(scope, focused);
 			}),
 		screenshot: root.screenshot.bind(root),
+		zoom: root.zoom.bind(root),
 		click: root.click.bind(root),
 		doubleClick: root.doubleClick.bind(root),
 		move: root.move.bind(root),

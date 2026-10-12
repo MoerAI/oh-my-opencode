@@ -2,6 +2,7 @@ import { ELEMENT_METHODS, type EngineMethod, WINDOW_METHODS } from "@oh-my-openc
 import { type FacadeMethod, facadeMethod, type MethodTiers, type RunScope } from "./context";
 import {
 	type AxNode,
+	type CaptureRegion,
 	type DesktopWindow,
 	type MenuItem,
 	expectResult,
@@ -87,6 +88,11 @@ export class InputTarget {
 
 	screenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
 		return this.#method("screenshot", (scope) => captureScreenshot(scope, this.#target, options));
+	}
+
+	/** Recaptures native detail; zoom pixels never replace the full input frame. */
+	zoom(region: CaptureRegion, options?: ScreenshotOptions): Promise<ScreenshotResult> {
+		return this.#method("zoom", (scope) => captureScreenshot(scope, this.#target, options, region));
 	}
 
 	click(x: number, y: number, options?: ClickOptions): Promise<void> {
