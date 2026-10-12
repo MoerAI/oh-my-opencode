@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { GitCommandError, GitMemoryRepo, MemorySecretError } from "../git"
+import { renderMemoryFile } from "../memfs/frontmatter"
 import { installHooks } from "../memfs/hooks"
 import { commitMemoryWrite } from "./commit-write"
 
@@ -56,9 +57,11 @@ describe("commitMemoryWrite", () => {
     // given
     const { dir, repo } = await hookedRepo()
     const head = await repo.head()
+    const secretNote = renderMemoryFile({ description: "CLI notes" }, '\napiKey: "!op read example"\n')
+    const plainNote = renderMemoryFile({ description: "Plain notes" }, "\nnothing secret here\n")
 
     // when
-    const error = await rejected(writeMemory(repo, dir, "reference/cli.md", '---\ndescription: CLI notes\n---\n\napiKey: "!op read example"\n'))
+    const error = await rejected(writeMemory(repo, dir, "reference/cli.md", secretNote))
 
     // then
     expect(error).toBeInstanceOf(GitCommandError)
@@ -66,7 +69,7 @@ describe("commitMemoryWrite", () => {
     expect(error.message).toContain("secret-like content (credential_assignment)")
     expect(await repo.head()).toBe(head)
     expect(await repo.status()).toBe("")
-    const next = await writeMemory(repo, dir, "reference/plain.md", "---\ndescription: Plain notes\n---\n\nnothing secret here\n")
+    const next = await writeMemory(repo, dir, "reference/plain.md", plainNote)
     expect(next.affectedPaths).toEqual(["reference/plain.md"])
   })
 })
