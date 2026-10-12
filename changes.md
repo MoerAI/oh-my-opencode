@@ -1,3 +1,7 @@
+## 2026-10-12 - Track task-owned worktrees and runtime caches at creation (#9951)
+
+Ultrawork now scopes runtime caches before task commands, registers path-specific cleanup todos at resource creation, and requires removal receipts. Native full and compact directives, Codex, and the independent OpenCode variants share the same lifecycle: stop owned processes before directory removal, preserve worktrees still needed by open PRs, and leave shared caches untouched. Loop, phase, team, and contribution workflows refer to their bundled directive instead of repeating its rules.
+
 ## 2026-10-11 - Packaged eval smoke observes supervisor exit after drain (#9998)
 
 The QA smoke records its sandbox-owned supervisor pids before daemon stop, then waits for those observed processes to exit within the supervisor-completion and final-kill reserve from the same shared engine stop-budget formula. Several supervisors share one deadline. A survivor still fails with its pid, command and measured time after drain; the final process/socket leak check remains in place. Drain receipts are retained before the exit wait so failure cleanup still removes owned socket namespaces. Deterministic clock, liveness and waiter regressions cover capped waits, persistent supervisors and timely exits.
