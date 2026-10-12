@@ -83,6 +83,13 @@ export interface CaptureRegion {
 	readonly height: number;
 }
 
+/** Screenshot and AX text from one serialized, committed observation. */
+export interface ObserveResult extends CaptureResult {
+	readonly ax: string;
+	readonly nodeCount: number;
+	readonly truncated: boolean;
+}
+
 const DISPLAY: FieldSpec = {
 	id: "string",
 	name: "string",
@@ -182,6 +189,11 @@ export const isCaptureResult: Guard<CaptureResult> = (value): value is CaptureRe
 export const isZoomResult: Guard<CaptureResult> = (value): value is CaptureResult =>
 	isCaptureResult(value) && typeof value.coordinateWidth === "number" &&
 	typeof value.coordinateHeight === "number" && value.region != null;
+
+/** An observe reply comes only from engines that already send the full input frame. */
+export const isObserveResult: Guard<ObserveResult> = (value): value is ObserveResult =>
+	isCaptureResult(value) && typeof value.coordinateWidth === "number" && typeof value.coordinateHeight === "number" &&
+	matches(value, { ax: "string", nodeCount: "number", truncated: "boolean" });
 
 export const isText: Guard<{ readonly text: string }> = (value): value is { readonly text: string } =>
 	isRecord(value) && typeof value.text === "string";

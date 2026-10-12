@@ -20,6 +20,7 @@ export const ENGINE_METHODS = [
 	"windows",
 	"capture",
 	"captureRegion",
+	"observe",
 	"click",
 	"moveMouse",
 	"drag",

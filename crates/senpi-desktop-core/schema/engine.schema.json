@@ -131,6 +131,17 @@
         "$ref": "#/definitions/CaptureResult"
       }
     },
+    "observe": {
+      "effect": "read",
+      "hostOnly": false,
+      "testOnly": false,
+      "params": {
+        "$ref": "#/definitions/ObserveParams"
+      },
+      "result": {
+        "$ref": "#/definitions/ObserveResult"
+      }
+    },
     "click": {
       "effect": "exec",
       "hostOnly": false,
@@ -1194,6 +1205,181 @@
       "description": "`captureRegion`: native-detail zoom preserving the last full input frame.",
       "additionalProperties": false
     },
+    "ObserveParams": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "caps": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CaptureCaps"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ax": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AxSnapshotOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "description": "`observe`: an atomic window screenshot and accessibility snapshot.",
+      "additionalProperties": false
+    },
+    "AxSnapshotOptions": {
+      "type": "object",
+      "properties": {
+        "maxDepth": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0,
+          "default": null
+        },
+        "maxNodes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0,
+          "default": null
+        },
+        "all": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObserveResult": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/definitions/CaptureMode"
+        },
+        "data": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Base64 image bytes when `mode` is inline."
+        },
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artifactPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "height": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sourceWidth": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "sourceHeight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "coordinateWidth": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "coordinateHeight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CaptureRegion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scale": {
+          "type": "number",
+          "format": "double"
+        },
+        "target": {
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ax": {
+          "type": "string"
+        },
+        "nodeCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mode",
+        "width",
+        "height",
+        "sourceWidth",
+        "sourceHeight",
+        "coordinateWidth",
+        "coordinateHeight",
+        "scale",
+        "target",
+        "frameId",
+        "ax",
+        "nodeCount",
+        "truncated"
+      ],
+      "description": "One delivered window observation; capture pixels remain the input frame.",
+      "additionalProperties": false
+    },
     "PointParams": {
       "type": "object",
       "properties": {
@@ -1560,37 +1746,6 @@
       "required": [
         "target"
       ],
-      "additionalProperties": false
-    },
-    "AxSnapshotOptions": {
-      "type": "object",
-      "properties": {
-        "maxDepth": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0,
-          "default": null
-        },
-        "maxNodes": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0,
-          "default": null
-        },
-        "all": {
-          "type": [
-            "boolean",
-            "null"
-          ],
-          "default": null
-        }
-      },
       "additionalProperties": false
     },
     "AxSnapshot": {
@@ -2075,6 +2230,7 @@
         "windows",
         "capture",
         "captureRegion",
+        "observe",
         "click",
         "moveMouse",
         "drag",

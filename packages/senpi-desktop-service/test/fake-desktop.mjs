@@ -165,6 +165,16 @@ export function createDesktop() {
 				}
 				return { result: zoomed };
 			}
+			case "observe": {
+				if (process.env.FAKE_ENGINE_PRE_OBSERVE === "1") {
+					return { error: { code: -32601, message: "Method not found", data: { reason: "unknown" } } };
+				}
+				const frameId = `${target}-${frames.size + 1}`;
+				frames.set(target, frameId);
+				const result = { ...capture(target, frameId), ax: "button Run [ref=e1]", nodeCount: 1, truncated: false };
+				if (process.env.FAKE_ENGINE_BAD_OBSERVE === "1") delete result.ax;
+				return { result };
+			}
 			case "clipboard.read":
 				return { result: { text: clipboard } };
 			case "clipboard.write":

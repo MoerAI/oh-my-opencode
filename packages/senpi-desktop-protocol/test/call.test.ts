@@ -27,8 +27,8 @@ describe("isReadOnlyComputerCall", () => {
 	it("refuses window-only helpers on a display handle", () => {
 		expect(rejectionReason([{ method: "display" }, { method: "raise" }])).toBe("unknownMethod");
 	});
-	it("returns true when a window screenshot chain is inspection-only", () => {
-		expect(isReadOnlyComputerCall([{ method: "window" }, { method: "screenshot" }])).toBe(true);
+	it.each(["screenshot", "observe"])("returns true when a window %s chain is inspection-only", (method) => {
+		expect(isReadOnlyComputerCall([{ method: "window" }, { method }])).toBe(true);
 	});
 
 	it("returns false when a window click chain mutates", () => {

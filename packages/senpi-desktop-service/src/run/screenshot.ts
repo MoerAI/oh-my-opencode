@@ -45,7 +45,7 @@ export async function captureScreenshot(
 	options: ScreenshotOptions = {},
 	region?: CaptureRegion,
 ): Promise<ScreenshotResult> {
-	const { snapshot, output, screenshots } = scope.context;
+	const { snapshot } = scope.context;
 	const caps = {
 		maxWidth: snapshot.captureMaxWidth,
 		maxHeight: snapshot.captureMaxHeight,
@@ -54,6 +54,16 @@ export async function captureScreenshot(
 	const method = region === undefined ? "capture" : "captureRegion";
 	const params = region === undefined ? { target, caps } : { target, caps, region, frameId: options.frameId };
 	const frame = expectResult(method, await scope.call(method, params), region === undefined ? isCaptureResult : isZoomResult);
+	return displayScreenshot(scope, frame, options);
+}
+
+/** Displays and projects a capture already obtained by screenshot or observe. */
+export function displayScreenshot(
+	scope: RunScope,
+	frame: CaptureResult,
+	options: ScreenshotOptions = {},
+): ScreenshotResult {
+	const { output, screenshots } = scope.context;
 	const path = frame.artifactPath ?? undefined;
 	if (path !== undefined) {
 		screenshots.push({

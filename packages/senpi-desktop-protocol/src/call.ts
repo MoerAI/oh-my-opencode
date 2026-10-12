@@ -52,6 +52,7 @@ export const DISPLAY_METHODS: MethodPolicies = {
 /** Helpers callable on a window handle resolved through `desktop.window(id)`. */
 export const WINDOW_METHODS: MethodPolicies = {
 	screenshot: "read",
+	observe: "read",
 	zoom: "read",
 	click: "exec",
 	doubleClick: "exec",

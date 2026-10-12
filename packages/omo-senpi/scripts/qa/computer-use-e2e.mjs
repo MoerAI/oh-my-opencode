@@ -142,10 +142,33 @@ const zoomRun = {
   action: "run",
   code: "const full = await desktop.screenshot({ silent: true }); const zoom = await desktop.zoom({ x: 0, y: 0, width: full.width / 4, height: full.height / 4 }, { silent: true }); await desktop.click(full.width - 10, full.height - 10); return 'ZOOM ' + [full.width, full.height, zoom.coordinateWidth, zoom.coordinateHeight, zoom.region.width, zoom.region.height, full.sourceWidth, full.sourceHeight, zoom.sourceWidth, zoom.sourceHeight].join(' ')",
 }
+// Observe returns one window frame and its accessibility tree together; later input uses that frame.
+const observeRun = {
+  action: "run",
+  code: "const win = await desktop.window('101'); const seen = await win.observe({ silent: true }); await win.click(5, 5); return 'OBSERVE ' + [seen.frameId, seen.coordinateWidth, seen.coordinateHeight, seen.nodeCount, seen.ax.includes('[ref=e'), seen.truncated].join(' ')",
+}
 const displayShotChain = { action: "call", chain: [{ method: "display", args: ["2"] }, { method: "screenshot" }] }
 const displayClickChain = { action: "call", chain: [{ method: "display", args: ["2"] }, { method: "click", args: [20, 10] }] }
 
 const scenarios = [
+  {
+    name: "observe-returns-one-frame-and-tree",
+    permission: undefined,
+    steps: [
+      { type: "tool_call", name: "computer", arguments: observeRun },
+      { type: "text", text: "done" },
+    ],
+    verify: ({ results, methods }) => {
+      const result = results.find((r) => r.toolName === "computer")
+      const [frameId, width, height, nodes, hasRefs, truncated] = (/OBSERVE (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)/.exec(resultText(result)) ?? []).slice(1)
+      return [
+        ["the observe run succeeded", result?.isError === false],
+        ["the observation carries a window frame", /^\S+$/.test(frameId ?? "") && Number(width) > 0 && Number(height) > 0],
+        ["the observation carries a non-empty tree with refs", Number(nodes) > 0 && hasRefs === "true" && truncated === "false"],
+        ["a click on the observed frame reached the engine", methods.includes("click")],
+      ]
+    },
+  },
   {
     name: "zoom-keeps-the-full-input-frame",
     permission: undefined,

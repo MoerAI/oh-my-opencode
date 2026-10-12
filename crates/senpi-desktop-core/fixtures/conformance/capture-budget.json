@@ -143,6 +143,55 @@
           ]
         }
       ]
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "observe",
+        "params": {
+          "target": "101",
+          "caps": {
+            "maxWidth": 32
+          },
+          "ax": {
+            "maxNodes": 1
+          }
+        }
+      },
+      "expect": [
+        {
+          "message": {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "result": {
+              "mode": "inline-png",
+              "data": "image",
+              "mimeType": "image/png",
+              "artifactPath": null,
+              "width": 32,
+              "height": 24,
+              "sourceWidth": 800,
+              "sourceHeight": 600,
+              "coordinateWidth": 32,
+              "coordinateHeight": 24,
+              "region": null,
+              "scale": 0.04,
+              "target": "101",
+              "frameId": "frame-3",
+              "note": null,
+              "ax": "window",
+              "nodeCount": 1,
+              "truncated": true
+            }
+          },
+          "variable": [
+            "/result/data",
+            "/result/frameId",
+            "/result/ax"
+          ]
+        }
+      ]
     }
   ]
 }
