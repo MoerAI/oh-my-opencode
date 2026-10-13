@@ -129,5 +129,35 @@ test("#given a recovered turn another engine owner already began #when this owne
   expect(f.events.filter(event => event.kind === "admission_failed" && event.item_id === recovered)).toEqual([])
   expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: "assigned", delivery: { phase: "dispatching" } })
 })
+test("#given a recovered turn another engine owner begins while this owner's admission fails #when the failure is recorded #then the winner's item is left alone", async () => {
+  // given
+  const f = deliveryFixture()
+  const worker = await f.start()
+  await f.settle(worker.taskId)
+  const pools = createWorkpoolStore(f.store.stateDir)
+  const recovered = f.push("recovered").item_ids[0]?.item_id
+  pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+    ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
+    : item) }))
+  const load = f.store.load.bind(f.store)
+  let workerLoads = 0
+  const spy = spyOn(f.store, "load").mockImplementation(taskId => {
+    const record = load(taskId)
+    if (taskId !== worker.taskId || record === null) return record
+    workerLoads += 1
+    if (workerLoads > 1) return { ...record, notification: { ...record.notification, run_epoch: record.notification.run_epoch + 1 } }
+    pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+      ? { ...item, delivery: { phase: "dispatching", message_sha256: "0".repeat(64) } }
+      : item) }))
+    return record
+  })
+  const failed = f.event("admission_failed")
+  // when
+  const refusal = await failed
+  spy.mockRestore()
+  // then
+  expect(refusal).toMatchObject({ item_id: recovered, error: { code: "worker_not_continuable" } })
+  expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: "assigned", delivery: { phase: "dispatching" } })
+})
 runRecoveryCases()
 })

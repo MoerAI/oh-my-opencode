@@ -90,6 +90,9 @@ export function createWorkpoolDispatcher(ports: {
             store.mutate(poolId, latest => latest.generation !== pool.generation ? latest : { ...latest, items: latest.items.map(candidate => {
               const affected = candidate.item_id === item.item_id || (boundTask !== undefined && candidate.binding?.task_id === boundTask && candidate.binding.run_epoch === event.run_epoch)
               if (!affected || (candidate.status !== "queued" && candidate.status !== "assigned")) return candidate
+              // Another engine owner may begin this item's turn after the failing admission last looked at it: a delivery
+              // already past queued under a different run epoch is that owner's live turn, so this failure leaves it alone.
+              if (candidate.status === "assigned" && candidate.delivery !== undefined && candidate.delivery.phase !== "queued" && candidate.binding?.run_epoch !== event.run_epoch) return candidate
               return event.error?.code === "delivery_uncertain" ? uncertainItem(candidate, latest, event.task_id === undefined ? null : admission.tasks.load(event.task_id)) : { ...candidate, status: "error", error: event.error }
             }), workers: latest.workers.filter(worker => worker.task_id !== event.task_id || admission.get(worker.task_id)?.status === "running") })
             if (event.error?.code === "delivery_uncertain" && event.task_id !== undefined && event.run_epoch !== undefined) observeCompletion(pool, event.task_id, event.run_epoch)
