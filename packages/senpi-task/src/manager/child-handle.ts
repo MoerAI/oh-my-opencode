@@ -73,6 +73,7 @@ export type ManagedChildHandle = {
   getEntries?(since?: string): Promise<RpcEntriesResult>
   // Partial assistant text captured so far (used by interrupt to preserve work-in-progress).
   lastAssistantText(): string | undefined
+  lastSeen?(): number | undefined
   terminate?(): Promise<void>
   dispose(): Promise<void>
 }
@@ -131,6 +132,7 @@ export function adaptRpcHandle(handle: RpcChildHandle): ManagedChildHandle {
     ...(switchSession === undefined ? {} : { switchSession: (sessionPath: string) => switchSession(sessionPath) }),
     ...(getEntries === undefined ? {} : { getEntries: (since?: string) => getEntries(since) }),
     lastAssistantText: () => handle.lastAssistantText(),
+    lastSeen: () => handle.lastSeen(),
     terminate: () => handle.terminate(),
     dispose: () => handle.dispose(),
   }
