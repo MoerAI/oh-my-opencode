@@ -606,6 +606,8 @@ class TaskManagerImpl implements TaskManager {
     const records = this.#options.store.list().records
     const filtered = scope.scope === "all" ? records : records.filter((record) => inSession(record, scope.session_id))
     return filtered.map((record) => {
+      const lastSeen = this.#live.get(record.task_id)?.handle.lastSeen?.()
+      if (lastSeen !== undefined) record = { ...record, last_seen_at: new Date(lastSeen).toISOString() }
       const position = record.status === "pending" ? this.#concurrency.queuePosition(record.model, record.task_id) : undefined
       return position === undefined ? { record } : { record, queue_position: position }
     })
