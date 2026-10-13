@@ -448,8 +448,9 @@ jobs:
             # musl binaries cannot run on the glibc runner: alpine container.
             docker run --rm -v "${PWD}:/work" -w /work -e HOME=/tmp/omo-smoke-home \
               alpine:3.21 sh -c "apk add --no-cache libstdc++ >/dev/null && ${BIN} --version" | grep -F "$EXPECTED_VERSION_LINE"
-            # Mount the parent so the driver can rename the source checkout.
-            docker run --rm -v "${PWD}/..:/workspace" -w "/workspace/$(basename "$PWD")" \
+            # Mount the parent so the driver can rename the source checkout. --init gives the container a
+            # PID 1 that reaps orphans; node as PID 1 leaves an exited host supervisor as a zombie.
+            docker run --rm --init -v "${PWD}/..:/workspace" -w "/workspace/$(basename "$PWD")" \
               alpine:3.21 sh -c "apk add --no-cache libstdc++ python3 nodejs procps >/dev/null && node script/qa/omo-native-eval-smoke.mjs ${BIN}"
           }
 
@@ -902,7 +903,7 @@ jobs:
             docker run --rm -v "${PWD}:/work" -w /work -e HOME=/tmp/omo-smoke-home \
               alpine:3.21 sh -c "apk add --no-cache libstdc++ >/dev/null && chmod +x .omo/release-binaries/omo-linux-arm64-musl && .omo/release-binaries/omo-linux-arm64-musl --version" \
               | grep -F "$EXPECTED_VERSION_LINE"
-            docker run --rm -v "${PWD}/..:/workspace" -w "/workspace/$(basename "$PWD")" \
+            docker run --rm --init -v "${PWD}/..:/workspace" -w "/workspace/$(basename "$PWD")" \
               alpine:3.21 sh -c "apk add --no-cache libstdc++ python3 nodejs procps >/dev/null && node script/qa/omo-native-eval-smoke.mjs .omo/release-binaries/omo-linux-arm64-musl"
           fi
 
