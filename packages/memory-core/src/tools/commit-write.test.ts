@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import { GitCommandError, GitMemoryRepo, MemorySecretError } from "../git"
+import { DirtyRepoError, GitCommandError, GitMemoryRepo, MemorySecretError } from "../git"
 import { renderMemoryFile } from "../memfs/frontmatter"
 import { installHooks } from "../memfs/hooks"
 import { commitMemoryWrite } from "./commit-write"
@@ -52,6 +53,16 @@ afterEach(async () => {
 
 setDefaultTimeout(process.platform === "win32" ? 30_000 : 15_000)
 
+const caseInsensitiveFs = (() => {
+  const probe = mkdtempSync(join(tmpdir(), "memory-commit-case-"))
+  try {
+    writeFileSync(join(probe, "Aa"), "")
+    return existsSync(join(probe, "aA"))
+  } finally {
+    rmSync(probe, { recursive: true, force: true })
+  }
+})()
+
 describe("commitMemoryWrite", () => {
   it("#given a write the pre-commit hook refuses after the in-process screen let it through #when it commits #then the write is rolled back and the next write commits", async () => {
     // given
@@ -71,5 +82,19 @@ describe("commitMemoryWrite", () => {
     expect(await repo.status()).toBe("")
     const next = await writeMemory(repo, dir, "reference/plain.md", plainNote)
     expect(next.affectedPaths).toEqual(["reference/plain.md"])
+  })
+
+  it.skipIf(!caseInsensitiveFs)("#given a tracked file and a write through a path that differs only in case #when the commit refuses it as an unrelated change #then the tracked file stays in place", async () => {
+    // given
+    const { dir, repo } = await hookedRepo()
+    await writeMemory(repo, dir, "reference/Notes.md", renderMemoryFile({ description: "Notes" }, "\noriginal\n"))
+
+    // when
+    const error = await rejected(writeMemory(repo, dir, "reference/notes.md", renderMemoryFile({ description: "Notes" }, "\nchanged\n")))
+
+    // then
+    expect(error).toBeInstanceOf(DirtyRepoError)
+    expect(await readdir(join(dir, "reference"))).toEqual(["Notes.md"])
+    expect((await repo.status()).trim()).toBe("M reference/Notes.md")
   })
 })
