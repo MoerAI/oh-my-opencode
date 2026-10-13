@@ -129,7 +129,7 @@ test("#given a recovered turn another engine owner already began #when this owne
   expect(f.events.filter(event => event.kind === "admission_failed" && event.item_id === recovered)).toEqual([])
   expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: "assigned", delivery: { phase: "dispatching" } })
 })
-test("#given a recovered turn another engine owner begins while this owner's admission fails #when the failure is recorded #then the winner's item is left alone", async () => {
+test("#given a recovered turn another engine owner begins while this owner's admission fails #when the failure is recorded #then the winner's item and pool worker are left alone", async () => {
   // given
   const f = deliveryFixture()
   const worker = await f.start()
@@ -148,7 +148,8 @@ test("#given a recovered turn another engine owner begins while this owner's adm
     if (workerLoads > 1) return { ...record, notification: { ...record.notification, run_epoch: record.notification.run_epoch + 1 } }
     pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
       ? { ...item, delivery: { phase: "dispatching", message_sha256: "0".repeat(64) } }
-      : item) }))
+      : item), workers: [...pool.workers.filter(candidate => candidate.task_id !== worker.taskId),
+      { task_id: worker.taskId, run_epoch: worker.epoch + 1, status: "busy", completed_turns: 0, idle_since: 0 }] }))
     return record
   })
   const failed = f.event("admission_failed")
@@ -158,6 +159,7 @@ test("#given a recovered turn another engine owner begins while this owner's adm
   // then
   expect(refusal).toMatchObject({ item_id: recovered, error: { code: "worker_not_continuable" } })
   expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: "assigned", delivery: { phase: "dispatching" } })
+  expect(pools.load(f.pool.pool_id).workers.find(candidate => candidate.task_id === worker.taskId)).toMatchObject({ run_epoch: worker.epoch + 1, status: "busy" })
 })
 runRecoveryCases()
 })
