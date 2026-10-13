@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**A child that stops answering no longer hangs a task indefinitely.** Stdio RPC requests have deadlines, and both process runners keep one heartbeat in flight. Three missed ten-second probes end a running child as `child-unresponsive`, preserve its transcript, and name how to inspect and rerun it in `task_output`. The last successful heartbeat appears as `last_seen_at` in the live task snapshot. ([#10017](https://github.com/code-yeongyu/oh-my-openagent/issues/10017))
+
+**Resuming a background task no longer waits for a free slot.** When its concurrency group is full, resuming a finished background task now returns at once as pending and sends the follow-up when a slot frees, instead of blocking the call. A second resume of the same task while one is queued is refused, cancelling a queued resume releases nothing it didn't hold, and a fallback retry keeps the latest follow-up prompt. Thanks to @imadal1n. ([#9985](https://github.com/code-yeongyu/oh-my-openagent/pull/9985))
+
 **A task child started as its own process never receives its fallback chain after its first prompt.** When the engine answered the capability check only after the chain deadline, the runner still sent `set_retry_fallback` once the first prompt was already out; it now drops the chain at the deadline, and the child keeps the manager's fallback with the usual "no answer" warning. This was the intermittent windows-latest test failure. ([#9582](https://github.com/code-yeongyu/oh-my-openagent/issues/9582), [#10087](https://github.com/code-yeongyu/oh-my-openagent/pull/10087))
 
 **ulw-execute stops a checkpoint that keeps failing instead of retrying it for days.** After the same failure twice in a row, a third failed attempt, or four hours open, the checkpoint and every checkpoint that depends on it are marked blocked (`[~]`) with the gap left, recorded in the ledger and the final report, and the run moves on to the rest of the plan. A broken test harness gets one repair attempt, and work found while a checkpoint is open is queued after it unless it blocks that checkpoint. ([#10051](https://github.com/code-yeongyu/oh-my-openagent/issues/10051))
@@ -14,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Mass research plans its whole collection before it starts instead of one wave at a time.** `mass ulw research` now defines every angle as a harvest, expand and verify chain that passes its findings to the next step through a file, so a fast angle reaches verification while slow ones are still harvesting, and leads that are still open join each cluster of angles as soon as that cluster settles. The mass-ulw and ulw-execute skills no longer say a single node's completion wakes the session; only a finished or paused run does. ([#10049](https://github.com/code-yeongyu/oh-my-openagent/issues/10049))
 
 ## [5.1.32] - 2026-10-12
+
 
 **5.1.32 is the release that 5.1.31 was meant to be: 5.1.31 never reached npm.** Two checks in the release pipeline stopped it before any package was published, one on the macOS Intel desktop engine and one on the Linux musl builds. omo itself did not change between the two, so every entry below is new to anyone upgrading from 5.1.30. The notarization check now waits for Apple's ticket to reach Gatekeeper, and the musl smoke no longer reports an exited host supervisor as a leak. ([#10081](https://github.com/code-yeongyu/oh-my-openagent/pull/10081), [#10082](https://github.com/code-yeongyu/oh-my-openagent/pull/10082))
 

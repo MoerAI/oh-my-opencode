@@ -33,6 +33,7 @@ export function buildTaskSnapshot(record: TaskRecord, stateDir: string, now: num
     ...(record.category !== undefined ? { category: record.category } : {}),
     ...(record.pid !== undefined ? { pid: record.pid } : {}),
     ...(record.child_session_id !== undefined ? { child_session_id: record.child_session_id } : {}),
+    ...(record.last_seen_at === undefined ? {} : { last_seen_at: record.last_seen_at }),
     ...(record.final_response !== undefined ? { final_response: record.final_response } : {}),
     ...(record.error_message !== undefined ? { error_message: record.error_message } : {}),
     ...(record.run_stats !== undefined ? { run_stats: record.run_stats } : {}),
