@@ -1,3 +1,9 @@
+## 2026-10-12 - OmO Native retires the Codex-compatible app-server command (#10033)
+
+`omo app-server` is no longer a launch path. The npm launcher and the compiled entry answer the retired command with a diagnostic and exit 2 instead of forwarding it to the engine with the OmO extension appended, so the old invocation cannot become a prompt. OmO Native keeps its RPC host, daemon, thread, doctor and every one-shot engine command dispatch unchanged (#9572/#9573 remain the dispatch contract).
+
+`bin/lib/launcher.js` and `compile-entry.ts` share the refusal in `bin/lib/retired-command.js`; `compile-args.ts` drops the app-server extension placement and banner special case; `bin/lib/engine-commands.js` and `bin/lib/doctor.js` no longer name the retired mode. Protocol-only launcher/compile tests are removed with the behavior, the parity test routes every other argv constant the installed engine exports and keeps excluding `APP_SERVER_COMMAND_ARGV` (asserting `app-server` is never handed to the engine) until the pinned engine is a Senpi release without it, and shared-behavior fixtures that borrowed the app-server mode (doctor stale-engine classification, `--` delimiter handling) use remaining modes instead. Full removal lands when the pinned engine is the Senpi release that removes the compatibility implementation; this change is source-only and keeps the current pin.
+
 ## 2026-10-11 - Eval smoke and daemon waits cover the engine stop budget (#9836)
 
 The eval smoke derives its shutdown wait and outer execution deadline from the pinned Senpi stop budget instead of 30/60-second cutoffs. It accounts for every endpoint's serial stop request and observation wait, and a shutdown failure includes the owning pids and command output. A normal stop still returns as soon as the generations and claims end.
