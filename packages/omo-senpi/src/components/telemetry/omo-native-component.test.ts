@@ -143,6 +143,7 @@ describe("OmO Native telemetry component integration", () => {
       const session = context("integration-session")
       const stateDir = join(agentDir, "omo-senpi", "omo-native")
       const component = createOmoNativeTelemetryComponent({
+        rawTurnSampleRate: 1,
         env: createEnabledEnv(agentDir),
         hashSessionId: (raw) => `hashed:${raw}`,
         isConfigEnabled: () => true,
@@ -176,6 +177,7 @@ describe("OmO Native telemetry component integration", () => {
         "prompt_submitted",
         "turn_completed",
         "feature_used",
+        "session_summary",
       ])
       expect(nativeMessages(recorder.messages).map(({ properties }) => Object.keys(properties ?? {}).sort())).toEqual([
         [...OMO_NATIVE_PROPERTY_ALLOWLISTS.daily_active, ...SHARED_KEYS].sort(),
@@ -183,6 +185,7 @@ describe("OmO Native telemetry component integration", () => {
         [...OMO_NATIVE_PROPERTY_ALLOWLISTS.prompt_submitted, ...SHARED_KEYS].sort(),
         [...OMO_NATIVE_PROPERTY_ALLOWLISTS.turn_completed, ...SHARED_KEYS].sort(),
         [...OMO_NATIVE_PROPERTY_ALLOWLISTS.feature_used, ...SHARED_KEYS].sort(),
+        [...OMO_NATIVE_PROPERTY_ALLOWLISTS.session_summary, ...SHARED_KEYS].sort(),
       ])
       assertAllowlistedPayloadKeys(recorder.messages)
       expect(existsSync(join(stateDir, "last-payloads.json"))).toBe(false)
@@ -236,6 +239,69 @@ describe("OmO Native telemetry component integration", () => {
     })
   })
 
+  // The summary carries the totals for sessions outside the raw sample, so it must reach the transport
+  // at shutdown through the REAL registration order, and an unsampled session must send no raw turn.
+  test("#given an unsampled session #when turns end and the session shuts down #then no turn_completed is sent and session_summary carries the totals", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      writeInventory(agentDir)
+      const recorder = createTransportRecorder()
+      const pi = new FakeExtensionAPI()
+      const session = context("unsampled-session")
+      createOmoNativeTelemetryComponent({
+        rawTurnSampleRate: 0,
+        env: createEnabledEnv(agentDir),
+        hashSessionId: (raw) => `hashed:${raw}`,
+        isConfigEnabled: () => true,
+        now: FIXED_NOW,
+        osProvider: createOsProvider("summary-host"),
+        stateDir: join(agentDir, "omo-senpi", "omo-native"),
+        transportFactory: recorder.factory,
+      }).register(pi, { config: pi, logger: createSilentLogger() })
+
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, session)
+      await pi.dispatch("turn_end", turnEnd(), session)
+      await pi.dispatch("turn_end", turnEnd(), session)
+      await pi.dispatch("session_shutdown", { type: "session_shutdown", reason: "quit" }, session)
+
+      expect(recorder.messages.filter(({ event }) => event === "turn_completed")).toHaveLength(0)
+      const summaries = recorder.messages.filter(({ event }) => event === "session_summary")
+      expect(summaries).toHaveLength(1)
+      expect(summaries[0]?.properties).toMatchObject({
+        $session_id: "hashed:unsampled-session",
+        turns: 2,
+        is_final: true,
+        raw_turns_sampled: false,
+        sample_rate: 0,
+      })
+      assertAllowlistedPayloadKeys(recorder.messages)
+    })
+  })
+
+  test("#given a task-child session #when it reports its summary #then session_role says child so delegated cost is not counted twice", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      writeInventory(agentDir)
+      const recorder = createTransportRecorder()
+      const pi = new FakeExtensionAPI()
+      const session = context("child-session")
+      createOmoNativeTelemetryComponent({
+        rawTurnSampleRate: 0,
+        env: { ...createEnabledEnv(agentDir), OMO_SENPI_TASK_RPC_CHILD: "1" },
+        hashSessionId: (raw) => `hashed:${raw}`,
+        isConfigEnabled: () => true,
+        now: FIXED_NOW,
+        osProvider: createOsProvider("child-host"),
+        stateDir: join(agentDir, "omo-senpi", "omo-native"),
+        transportFactory: recorder.factory,
+      }).register(pi, { config: pi, logger: createSilentLogger() })
+
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, session)
+      await pi.dispatch("turn_end", turnEnd(), session)
+      await pi.dispatch("session_shutdown", { type: "session_shutdown", reason: "quit" }, session)
+
+      expect(recorder.messages.find(({ event }) => event === "session_summary")?.properties).toMatchObject({ session_role: "child", turns: 1 })
+    })
+  })
+
   test("#given a delegation capture carrying a foreign $session_id #when forwarded #then state.sessionHash is unchanged and only session_start may set it", async () => {
     await withTempAgentDir(async (agentDir) => {
       // given: a live session plus a terminal edge for a task spawned by an OLDER session
@@ -245,6 +311,7 @@ describe("OmO Native telemetry component integration", () => {
       const session = context("live-session")
       const observers = createTaskTerminalObservers()
       createOmoNativeTelemetryComponent({
+        rawTurnSampleRate: 1,
         env: createEnabledEnv(agentDir),
         hashSessionId: (raw) => `hashed:${raw}`,
         isConfigEnabled: () => true,
