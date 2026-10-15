@@ -113,6 +113,8 @@ describe.skipIf(process.platform === "win32")("archive extraction preflight", ()
 	it.each([
 		{ LANG: "not_a_locale" },
 		{ LC_COLLATE: "not_a_locale", LC_NUMERIC: "not_a_locale" },
+		{ LC_ALL: undefined, LANG: process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8", LC_CTYPE: undefined, LC_COLLATE: "not_a_locale", LC_NUMERIC: "not_a_locale" },
+		{ LC_ALL: undefined, LANG: "not_a_locale", LC_CTYPE: process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8", LC_COLLATE: "not_a_locale", LC_NUMERIC: "not_a_locale" },
 	])("extracts UTF-8 root entries with shadowed locale inputs %j", (shadowedLocale) => {
 		//#given
 		const rootDir = createTestDir()

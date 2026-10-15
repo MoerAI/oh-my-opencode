@@ -118,19 +118,16 @@ function parseTarEntry(line: string): ArchiveEntry | null {
 
 // The validated listing and the extraction run with this one environment. GNU tar reads extra options
 // from TAR_OPTIONS (--block-number prefixes every line) and translates " link to " in the message locale,
-// so neither run sees TAR_OPTIONS and both use the C locale for messages and dates. LC_ALL would override
-// those categories, so its value becomes LANG and its shadowed category overrides are removed. Leaving
-// an invalid shadowed locale makes GNU tar fall back to C and escape non-ASCII names. bsdtar also needs
-// the effective character locale preserved; Windows bsdtar keeps the system locale regardless.
+// so neither run sees TAR_OPTIONS and both use the C locale for messages and dates. Preserve the effective
+// character locale as LANG and remove every category override: an invalid unrelated category makes GNU
+// tar fall back to C and escape non-ASCII names. Windows bsdtar keeps the system locale regardless.
 function tarEnvironment(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
-  if (env.LC_ALL) {
-    env.LANG = env.LC_ALL
-    for (const key of Object.keys(env)) if (key.startsWith("LC_")) delete env[key]
-  }
+  const characterLocale = env.LC_ALL || env.LC_CTYPE || env.LANG
+  if (characterLocale) env.LANG = characterLocale
+  for (const key of Object.keys(env)) if (key.startsWith("LC_")) delete env[key]
   env.LC_MESSAGES = "C"
   env.LC_TIME = "C"
-  delete env.LC_ALL
   delete env.TAR_OPTIONS
   return env
 }
