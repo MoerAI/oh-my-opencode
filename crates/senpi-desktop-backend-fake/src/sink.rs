@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
 use parking_lot::Mutex;
 use senpi_desktop_core::backend::{DeliveryMode, Modifiers, MouseButton, PointerEvent};
@@ -78,6 +78,19 @@ impl From<PointerEvent> for RecordedPointer {
 /// One side effect the fake backend performed, in call order.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SinkOp {
+    HeldKey {
+        target: Target,
+        key: KeyName,
+        down: bool,
+        mode: DeliveryMode,
+    },
+    HeldButton {
+        target: Target,
+        at: DesktopPoint,
+        button: MouseButton,
+        down: bool,
+        mode: DeliveryMode,
+    },
     Pointer {
         target: Target,
         event: RecordedPointer,
@@ -127,11 +140,21 @@ pub enum SinkOp {
 #[derive(Debug, Clone, Default)]
 pub struct RecordingSink {
     ops: Arc<Mutex<Vec<SinkOp>>>,
+    subscribers: Arc<Mutex<Vec<mpsc::Sender<SinkOp>>>>,
 }
 
 impl RecordingSink {
     pub(crate) fn record(&self, op: SinkOp) {
-        self.ops.lock().push(op);
+        self.ops.lock().push(op.clone());
+        self.subscribers.lock().retain(|subscriber| subscriber.send(op.clone()).is_ok());
+    }
+
+    /// Subscribe before submitting a request; tests await actual emitted
+    /// input rather than guessing when the session thread started its hold.
+    pub fn subscribe(&self) -> mpsc::Receiver<SinkOp> {
+        let (sender, receiver) = mpsc::channel();
+        self.subscribers.lock().push(sender);
+        receiver
     }
 
     /// Snapshot of every recorded op, oldest first.
