@@ -139,7 +139,7 @@ export class GitMemoryRepo {
   async status(paths: readonly string[] = []): Promise<string> {
     const normalized = normalizePathspecs(paths)
     const suffix = normalized.length > 0 ? ["--", ...normalized] : []
-    return (await this.git(["-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", ...suffix])).stdout
+    return (await this.git(["--literal-pathspecs", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", ...suffix])).stdout
   }
 
   head(): Promise<string | null> { return this.reads.head() }
@@ -249,7 +249,7 @@ export class GitMemoryRepo {
   }
 
   private async stage(paths: readonly string[]): Promise<void> {
-    await withGitLockRetry(() => this.git(["add", "-A", "--", ...paths]))
+    await withGitLockRetry(() => this.git(["--literal-pathspecs", "add", "-A", "--", ...paths]))
   }
 
   private async hasPathChanges(paths: readonly string[]): Promise<boolean> {

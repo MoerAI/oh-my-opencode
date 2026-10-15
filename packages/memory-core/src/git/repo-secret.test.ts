@@ -158,7 +158,7 @@ describe("GitMemoryRepo secret screening", () => {
     expect(await repo.show("HEAD", "reference/ok.md")).toBe("perfectly ordinary note\n")
   })
 
-  it.each(["reference/new.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given refused staging of new secret file %s #when restorePaths runs #then index and worktree both return to the pre-operation state", async (path) => {
+  it.each(["reference/new.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md", ":!*.md"])])("#given refused staging of new secret file %s #when restorePaths runs #then index and worktree both return to the pre-operation state", async (path) => {
     // given
     const { dir, repo } = await createRepo()
     const initial = await repo.init({ seedFiles: [{ relativePath: "reference/x.md", content: "preserved body\n" }] })
@@ -174,7 +174,7 @@ describe("GitMemoryRepo secret screening", () => {
     expect(await readFile(join(dir, "reference/x.md"), "utf8")).toBe("preserved body\n")
   })
 
-  it.each(["reference/target.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given refused staging over tracked file %s #when restorePaths runs #then only its content is restored", async (path) => {
+  it.each(["reference/target.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md", ":!*.md"])])("#given refused staging over tracked file %s #when restorePaths runs #then only its content is restored", async (path) => {
     // given
     const { dir, repo } = await createRepo()
     await repo.init({ seedFiles: [

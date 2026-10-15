@@ -64,7 +64,7 @@ const caseInsensitiveFs = (() => {
 })()
 
 describe("commitMemoryWrite", () => {
-  it.each(["reference/cli.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given a hook-refused write to %s #when it commits #then it rolls back and the next write commits", async (path) => {
+  it.each(["reference/cli.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md", ":!*.md"])])("#given a hook-refused write to %s #when it commits #then it rolls back and the next write commits", async (path) => {
     // given
     const { dir, repo } = await hookedRepo()
     const secretNote = renderMemoryFile({ description: "CLI notes" }, '\napiKey: "!op read example"\n')
