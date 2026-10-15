@@ -3,6 +3,7 @@ import { createConnection, type Socket } from "node:net"
 import { randomUUID } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { StringDecoder } from "node:string_decoder"
 import { resolveThreadSocket } from "./live-surface-paths"
 import type { SenpiExtensionAPI } from "../../extension/types"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
@@ -69,6 +70,8 @@ async function requestFrame(socketPath: string, command: Record<string, unknown>
   return await new Promise((resolve, reject) => {
     const socket = connect(socketPath)
     let buffer = ""
+    // One streaming decoder per connection: a character split across two reads stays whole.
+    const decoder = new StringDecoder("utf8")
     const timer = setTimeout(() => { socket.destroy(); reject(new Error("thread RPC request timed out")) }, options.timeoutMs ?? REQUEST_TIMEOUT_MS)
     const finish = (error?: Error, value?: RpcFrame) => { clearTimeout(timer); socket.destroy(); error === undefined ? resolve(value as RpcFrame) : reject(error) }
     socket.once("error", (error) => finish(error))
@@ -78,7 +81,7 @@ async function requestFrame(socketPath: string, command: Record<string, unknown>
       socket.write(`${JSON.stringify({ ...command, id })}\n`)
     })
     socket.on("data", (chunk) => {
-      buffer += chunk.toString("utf8")
+      buffer += decoder.write(chunk)
       let newline = buffer.indexOf("\n")
       while (newline >= 0) {
         const line = buffer.slice(0, newline)
