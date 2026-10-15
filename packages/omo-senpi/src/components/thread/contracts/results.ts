@@ -24,6 +24,8 @@ export type ThreadSummary = {
   readonly alive?: boolean
   /** What a caller can do to this thread through its endpoint; an older terminal accepts only send, read and rename. */
   readonly controls?: readonly ("send" | "read" | "rename" | "set_model" | "set_reasoning" | "interrupt")[]
+  /** `thread_create` only: the initial skills attached to the new thread (`initial-skills.ts`). */
+  readonly skills?: readonly string[]
 }
 
 /**

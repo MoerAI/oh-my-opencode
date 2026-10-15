@@ -6,6 +6,7 @@ import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { createCompletionTracker, type AgentEndFacts } from "./gateway/completion"
 import { SESSION_CONTROL_DELIVERY_TYPE } from "./gateway/constants"
 import { gatewayDatabasePath } from "./gateway/paths"
+import { registerInitialSkills } from "./initial-skills"
 import { controlSessionOf, createControlEndpointRegistrant, hostInstanceOf, sessionControlOf, type ControlEndpointRegistrantOptions, type SessionControlActionsPort } from "./gateway/registration"
 import { createGatewayStore, type GatewayStore } from "./gateway/store"
 import { registerThreadTools, UNKNOWN_CALLER, type ThreadToolSurfaceOptions } from "./tools"
@@ -157,6 +158,8 @@ function registerControlEndpoint(pi: SenpiExtensionAPI, ctx: ComponentContext, o
     if (session === undefined) return
     void registrant.start(session).catch((error: unknown) => ctx.logger.warn(`thread gateway: control endpoint registration failed: ${error instanceof Error ? error.message : String(error)}`))
   })
+  // A session thread_create opened runs on a host, so its initial skills ride with the control endpoint.
+  registerInitialSkills(pi, ctx)
   pi.on("session_before_compact", () => registrant.noteCompaction(true))
   pi.on("session_compact", () => registrant.noteCompaction(false))
   // A steer into a session waiting on a question is `not_steerable` (`decision.ts`): the answer comes
@@ -215,6 +218,7 @@ export function createThreadComponent(options: ThreadComponentOptions = {}): Omo
         store,
         diskSessions: options.diskSessions,
         sessionsDirectory: options.sessionsDirectory ?? (() => join(agentDir(), "sessions")),
+        agentDir,
         ensureHost: options.ensureHost,
         callerSessionId: options.callerSessionId ?? (() => UNKNOWN_CALLER),
         callerWorkspaceRoot: options.callerWorkspaceRoot ?? (() => pi.cwd ?? process.cwd()),

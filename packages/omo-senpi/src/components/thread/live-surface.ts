@@ -9,6 +9,7 @@ import type { SenpiExtensionAPI } from "../../extension/types"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { resolveSenpiLaunch, withoutForeignPackageDirEnv } from "../memory/worker/senpi-command"
 import { readDiskSession, type AddressBookHost, type DiskSession } from "./address-book"
+import { INITIAL_SKILLS_CONTEXT_KEY } from "./initial-skills"
 import { controlSocketSecretPath, endpointKindOf, isTuiControlSocket, listRegistryEndpoints, type EndpointKind, type RegistryEndpoint } from "./endpoint-registry"
 import type { EndpointLiveness, ExternalAdmissionKind, GatewayEndpointPort, GatewayEndpointRef, GatewayWakeReply, ReleaseSessionReply } from "./gateway/adapter"
 import type { ThreadTranscriptEntry, ThreadHost, ThreadHostSession } from "./tools"
@@ -440,7 +441,9 @@ export function createLiveThreadSurface(_pi: SenpiExtensionAPI | undefined, opti
       // host DETACH instead of closing when a connection drops. This client is one-shot - the
       // connection that opens the session ends immediately - so without the flag the new session
       // goes straight to `closing` and every later call answers `session_closing`.
-      const result = await call<{ sessionId: string; state: ThreadHostSession }>("open_session", { ...(params as Record<string, unknown>), retain_on_disconnect: true })
+      // `initialSkills` rides on the open_session context (`initial-skills.ts`), never as a wire field.
+      const { initialSkills, ...openParams } = params as Record<string, unknown> & { readonly initialSkills?: readonly string[] }
+      const result = await call<{ sessionId: string; state: ThreadHostSession }>("open_session", { ...openParams, retain_on_disconnect: true, ...(initialSkills === undefined ? {} : { context: { [INITIAL_SKILLS_CONTEXT_KEY]: JSON.stringify(initialSkills) } }) })
       const routingId = result.sessionId
       const name = (params as { readonly name?: string }).name
       if (name !== undefined && name.trim() !== "") await call("set_session_name", { sessionId: routingId, name })
