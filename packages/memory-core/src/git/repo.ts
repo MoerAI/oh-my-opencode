@@ -153,7 +153,7 @@ export class GitMemoryRepo {
   log(options: GitLogOptions = {}): Promise<readonly MemoryCommit[]> { return this.reads.log(options) }
 
   /**
-   * Roll index and worktree back to HEAD for the given pathspecs after a refused
+   * Roll index and worktree back to HEAD for the given paths after a refused
    * staging: paths tracked at HEAD are restored on both sides (`git restore
    * --source=HEAD --staged --worktree`), and paths new at HEAD are unstaged and
    * removed, so a refused tool call leaves no trace behind.
@@ -165,10 +165,10 @@ export class GitMemoryRepo {
     const tracked = normalized.filter((path) => atHead.has(path))
     const untracked = normalized.filter((path) => !atHead.has(path))
     if (tracked.length > 0) {
-      await withGitLockRetry(() => this.git(["restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
+      await withGitLockRetry(() => this.git(["--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
     }
     for (const path of untracked) {
-      await withGitLockRetry(() => this.git(["rm", "-q", "--cached", "--ignore-unmatch", "--", path]))
+      await withGitLockRetry(() => this.git(["--literal-pathspecs", "rm", "-q", "--cached", "--ignore-unmatch", "--", path]))
       await rm(join(this.dir, path), { force: true })
     }
   }

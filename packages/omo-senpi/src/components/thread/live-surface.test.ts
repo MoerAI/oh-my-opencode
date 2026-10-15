@@ -149,6 +149,20 @@ describe("live thread session-control RPCs", () => {
   })
 })
 
+describe("live thread create with initial skills", () => {
+  test("#given initial skills #when a session is opened #then they ride on the open_session context and never as a wire field", async () => {
+    await withRpc(
+      (frame) => (frame.type === "open_session" ? { success: true, data: { sessionId: "rpc-new", state: { sessionId: "rpc-new", cwd: "/w" } } } : { success: true, data: { sessions: [] } }),
+      async (surface, frames) => {
+        await surface.openSession({ cwd: "/w", initialSkills: ["gateway-lead"] })
+        const open = frames.find((frame) => frame.type === "open_session")
+        expect(open).toMatchObject({ cwd: "/w", retain_on_disconnect: true, context: { initial_skills: JSON.stringify(["gateway-lead"]) } })
+        expect(open).not.toHaveProperty("initialSkills")
+      },
+    )
+  })
+})
+
 describe("live thread request correlation", () => {
   test("#given an open_session admission notice ahead of the reply #when openSession runs #then the queued frame is skipped and the correlated response is returned", async () => {
     await withRpc(

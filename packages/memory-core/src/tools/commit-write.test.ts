@@ -64,15 +64,16 @@ const caseInsensitiveFs = (() => {
 })()
 
 describe("commitMemoryWrite", () => {
-  it("#given a write the pre-commit hook refuses after the in-process screen let it through #when it commits #then the write is rolled back and the next write commits", async () => {
+  it.each(["reference/cli.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given a hook-refused write to %s #when it commits #then it rolls back and the next write commits", async (path) => {
     // given
     const { dir, repo } = await hookedRepo()
-    const head = await repo.head()
     const secretNote = renderMemoryFile({ description: "CLI notes" }, '\napiKey: "!op read example"\n')
     const plainNote = renderMemoryFile({ description: "Plain notes" }, "\nnothing secret here\n")
+    await writeMemory(repo, dir, "reference/x.md", plainNote)
+    const head = await repo.head()
 
     // when
-    const error = await rejected(writeMemory(repo, dir, "reference/cli.md", secretNote))
+    const error = await rejected(writeMemory(repo, dir, path, secretNote))
 
     // then
     expect(error).toBeInstanceOf(GitCommandError)
@@ -80,6 +81,7 @@ describe("commitMemoryWrite", () => {
     expect(error.message).toContain("secret-like content (credential_assignment)")
     expect(await repo.head()).toBe(head)
     expect(await repo.status()).toBe("")
+    expect(await repo.show("HEAD", "reference/x.md")).toBe(plainNote)
     const next = await writeMemory(repo, dir, "reference/plain.md", plainNote)
     expect(next.affectedPaths).toEqual(["reference/plain.md"])
   })

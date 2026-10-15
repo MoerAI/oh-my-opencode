@@ -15,7 +15,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc,
+        Arc, Weak,
     },
 };
 
@@ -126,6 +126,7 @@ impl StopPathState {
 
 /// Kill-switch state shared by the session loop and every stop path.
 pub struct Supervisor {
+    hold_signals: Mutex<Vec<Weak<crate::HoldSignal>>>,
     suspended: AtomicBool,
     /// Bumped by every stop, so a control grant granted before one is dead.
     stop_epoch: AtomicU64,
@@ -141,6 +142,7 @@ impl Supervisor {
     #[must_use]
     pub fn new(clock: Arc<dyn Clock>) -> Self {
         Self {
+            hold_signals: Mutex::new(Vec::new()),
             suspended: AtomicBool::new(false),
             stop_epoch: AtomicU64::new(0),
             stopped_by: Mutex::new(None),
@@ -178,6 +180,26 @@ impl Supervisor {
         let mut stopped_by = self.stopped_by.lock();
         stopped_by.get_or_insert(source);
         self.suspended.store(true, Ordering::SeqCst);
+        drop(stopped_by);
+        self.hold_signals.lock().retain(|signal| {
+            if let Some(signal) = signal.upgrade() {
+                signal.stopped();
+                true
+            } else {
+                false
+            }
+        });
+    }
+
+    /// Register before checking state or pressing input. Weak registration
+    /// cannot keep a completed request alive; dead registrations are pruned.
+    #[must_use]
+    pub fn hold_signal(&self) -> Arc<crate::HoldSignal> {
+        let signal = crate::HoldSignal::new(self.stop_epoch());
+        let mut signals = self.hold_signals.lock();
+        signals.retain(|signal| signal.strong_count() > 0);
+        signals.push(Arc::downgrade(&signal));
+        signal
     }
 
     /// How many stops this supervisor observed; a control grant's epoch at

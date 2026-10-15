@@ -158,34 +158,40 @@ describe("GitMemoryRepo secret screening", () => {
     expect(await repo.show("HEAD", "reference/ok.md")).toBe("perfectly ordinary note\n")
   })
 
-  it("#given a refused staging of a new secret file #when restorePaths runs #then index and worktree both return to the pre-operation state", async () => {
+  it.each(["reference/new.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given refused staging of new secret file %s #when restorePaths runs #then index and worktree both return to the pre-operation state", async (path) => {
     // given
     const { dir, repo } = await createRepo()
-    const initial = await repo.init()
-    await write(dir, "reference/new.md", "token=abc123456\n")
-    await rejectedError(repo.commitWrite(["reference/new.md"], "remember new", AUTHOR))
+    const initial = await repo.init({ seedFiles: [{ relativePath: "reference/x.md", content: "preserved body\n" }] })
+    await write(dir, path, "token=abc123456\n")
+    await rejectedError(repo.commitWrite([path], "remember new", AUTHOR))
 
     // when
-    await repo.restorePaths(["reference/new.md"])
+    await repo.restorePaths([path])
 
     // then
     expect(await repo.head()).toBe(initial)
     expect((await repo.status()).trim()).toBe("")
+    expect(await readFile(join(dir, "reference/x.md"), "utf8")).toBe("preserved body\n")
   })
 
-  it("#given a refused staging over a tracked clean file #when restorePaths runs #then the tracked content is back in index and worktree", async () => {
+  it.each(["reference/target.md", "reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md"])])("#given refused staging over tracked file %s #when restorePaths runs #then only its content is restored", async (path) => {
     // given
     const { dir, repo } = await createRepo()
-    await repo.init({ seedFiles: [{ relativePath: "reference/x.md", content: "clean body\n" }] })
-    await write(dir, "reference/x.md", "token=abc123456\n")
-    await rejectedError(repo.commitWrite(["reference/x.md"], "remember x", AUTHOR))
+    await repo.init({ seedFiles: [
+      { relativePath: path, content: "clean body\n" },
+      { relativePath: "reference/x.md", content: "preserved body\n" },
+    ] })
+    await write(dir, path, "token=abc123456\n")
+    await rejectedError(repo.commitWrite([path], "remember x", AUTHOR))
+    await write(dir, "reference/x.md", "unrelated change\n")
 
     // when
-    await repo.restorePaths(["reference/x.md"])
+    await repo.restorePaths([path])
 
     // then
-    expect((await repo.status()).trim()).toBe("")
-    expect((await readFile(join(dir, "reference/x.md"), "utf8")).replace(/\r\n/g, "\n")).toBe("clean body\n")
-    expect(await repo.show("HEAD", "reference/x.md")).toBe("clean body\n")
+    expect((await repo.status()).trim()).toBe("M reference/x.md")
+    expect((await readFile(join(dir, path), "utf8")).replace(/\r\n/g, "\n")).toBe("clean body\n")
+    expect(await repo.show("HEAD", path)).toBe("clean body\n")
+    expect(await readFile(join(dir, "reference/x.md"), "utf8")).toBe("unrelated change\n")
   })
 })
