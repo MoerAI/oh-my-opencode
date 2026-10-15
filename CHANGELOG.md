@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**The thread tools' socket client loads on first use.** The thread component still registers its tools, store and lifecycle handlers at startup, but the client that talks to session hosts now ships as its own `omo-thread-client.js` and loads with the first thread or gateway call, so about 11 KB leave the main extension bundle. Thanks to @Dante-dan. ([#9624](https://github.com/code-yeongyu/oh-my-openagent/pull/9624))
+
 **Session-gateway store extensions hold the write lock for less time and can no longer commit a partial operation.** A call to a current extension takes the lock once and re-checks the extension's version under it, an exact session id resolves from its session file without enumerating live endpoints inside the lock, and a statement run while an `enqueue`/`bind`/... helper is still in flight fails the call instead of landing inside that helper's savepoint. ([#9508](https://github.com/code-yeongyu/oh-my-openagent/pull/9508))
 
 **`thread_create` can start a thread with skills it follows from its first turn.** Pass `skills: ["<name>", ...]` with the names of installed skills; the new session applies each one as if it were loaded with `/skill`, without a slash command and without starting a turn, and keeps applying it after a restart. A path or raw text refuses the create, and nothing is opened. The new session applies each skill its own registry holds (the same roots and trust rules as `/skill`) and logs any it does not; the result echoes the names passed as `thread.requested_skills`.
