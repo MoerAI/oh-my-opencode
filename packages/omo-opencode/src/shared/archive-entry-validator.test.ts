@@ -110,6 +110,48 @@ describe("validateArchiveEntries", () => {
 // same logic on actual archive bytes. macOS and Linux runners have Python
 // installed and still run the full block.
 describe.skipIf(process.platform === "win32")("archive extraction preflight", () => {
+	it.each([
+		{ LANG: "not_a_locale" },
+		{ LC_COLLATE: "not_a_locale", LC_NUMERIC: "not_a_locale" },
+	])("extracts UTF-8 root entries with shadowed locale inputs %j", (shadowedLocale) => {
+		//#given
+		const rootDir = createTestDir()
+		const archivePath = join(rootDir, "utf8.tar.gz")
+		const destDir = join(rootDir, "dest")
+		const sourcePath = join(rootDir, "한.txt")
+		mkdirSync(destDir)
+		writeFileSync(sourcePath, "safe")
+		const scriptPath = writePythonScript(rootDir, "make-utf8-tar.py", [
+			"import sys",
+			"import tarfile",
+			"with tarfile.open(sys.argv[1], 'w:gz') as archive:",
+			"    archive.add(sys.argv[2], arcname='한.txt')",
+		].join("\n"))
+		runPythonScript(scriptPath, [archivePath, sourcePath])
+		const driverPath = join(rootDir, "extract.ts")
+		writeFileSync(driverPath, [
+			`import { extractTarGz } from ${JSON.stringify(join(import.meta.dir, "binary-downloader.ts"))}`,
+			"await extractTarGz(process.argv[2], process.argv[3])",
+		].join("\n"))
+
+		//#when
+		const result = spawnSync([process.execPath, driverPath, archivePath, destDir], {
+			env: {
+				...process.env,
+				LC_ALL: process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8",
+				LANG: "C",
+				LC_CTYPE: "C",
+				...shadowedLocale,
+			},
+			stdout: "pipe",
+			stderr: "pipe",
+		})
+
+		//#then
+		expect(result.exitCode, result.stderr.toString()).toBe(0)
+		expect(readFileSync(join(destDir, "한.txt"), "utf8")).toBe("safe")
+	})
+
 	it("rejects tar archives with traversal entries before extraction", async () => {
 		//#given
 		const rootDir = createTestDir()
