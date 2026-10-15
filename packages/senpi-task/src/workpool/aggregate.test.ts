@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test"
+import { rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { createTaskManager } from "../manager/manager"
 import { TaskConcurrency } from "../manager/concurrency"
 import { OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
@@ -28,6 +30,21 @@ function reopen(root: string) {
     planner: spec => ({ kind: "resolved", plan: { model: spec.model ?? "test/model" } }), destruction: lifecycle, admit: async () => ({ kind: "admitted" }) })
   return { manager, lifecycle }
 }
+
+for (const failure of ["missing", "corrupt"] as const) test(`#given a ${failure} pool record #when its scheduled pump fails #then admission reports the load error without a second exception`, async () => {
+  // given
+  const f = fixture()
+  const pool = f.manager.workpools.create(f.caller, poolInput)
+  const failed = f.manager.workpools.waitForEvent(pool.pool_id, "admission_failed", AbortSignal.timeout(5000))
+  const path = join(f.store.stateDir, "workpools", `${pool.pool_id}.json`)
+  // when
+  if (failure === "missing") rmSync(path)
+  else writeFileSync(path, "{")
+  const event = await bounded(failed)
+  // then
+  expect(event).toMatchObject({ pool_id: pool.pool_id, error: { code: failure === "missing" ? "pool_not_found" : "store_corrupt" } })
+  expect(event.item_id).toBeUndefined()
+})
 
 test("#given omitted mode #when creating a pool #then the approved keep_alive default is installed", () => {
   const f = fixture()

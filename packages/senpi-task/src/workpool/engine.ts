@@ -27,7 +27,8 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
   const awaitingAck = new Set<string>()
   const emit = (event: WorkpoolEvent): void => {
     for (const listener of listeners) listener(event)
-    if (event.kind === "item_result" || event.kind === "worker_idle" || event.kind === "cancelled" || event.kind === "admission_failed") flushAggregate(event.pool_id)
+    if (event.kind === "item_result" || event.kind === "worker_idle" || event.kind === "cancelled" ||
+      (event.kind === "admission_failed" && event.item_id !== undefined)) flushAggregate(event.pool_id)
   }
   function persistAggregate(poolId: PoolId, generation: number, state: { readonly delivered: boolean; readonly accepted: boolean }): void {
     store.mutate(poolId, pool => pool.generation !== generation ? pool : {

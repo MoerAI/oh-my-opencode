@@ -117,7 +117,7 @@ export function createWorkpoolDispatcher(ports: {
               return { ...latest, items, workers: latest.workers.filter(worker => {
                 if (worker.task_id !== event.task_id) return true
                 const task = admission.get(worker.task_id)
-                return task?.status === "running" || (task !== undefined && task.parent_session_id === latest.parent_session_id &&
+                return task?.status === "running" || (worker.status === "idle" && task !== undefined && task.parent_session_id === latest.parent_session_id &&
                   oneShotPolicyDenial(task) === undefined && (isColdRevivalCandidate(task) ||
                     messageability(task.status, task.residency_state, task.execution_mode, task.killed) === "revive")) ||
                   latest.items.some(candidate => othersTurn(candidate) && candidate.binding?.task_id === worker.task_id && candidate.binding.run_epoch === worker.run_epoch)
