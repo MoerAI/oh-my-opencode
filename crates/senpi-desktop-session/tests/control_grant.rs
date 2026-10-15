@@ -91,6 +91,7 @@ async fn capture(session: &Session) -> String {
         .submit(Op::Capture(CaptureParams {
             target: "101".to_owned(),
             caps: None,
+            exclude_window_titles: None,
         }))
         .wait()
         .await

@@ -1,4 +1,4 @@
-use super::{capture, open, visible};
+use super::{capture_for, open, visible};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -83,11 +83,11 @@ fn two_helpers_cannot_render_inside_another_sessions_capture() {
     let mut second = Helper::start(&path);
     first.command("show", "visible");
     second.command("show", "visible");
-    assert!(capture(open(&path).unwrap(), std::thread::sleep).is_err());
+    assert!(capture_for(open(&path).unwrap(), std::thread::sleep, std::time::Duration::from_secs(2)).is_err());
     first.command("hide", "hidden");
-    assert!(capture(open(&path).unwrap(), std::thread::sleep).is_err(), "the other session is still visible");
+    assert!(capture_for(open(&path).unwrap(), std::thread::sleep, std::time::Duration::from_secs(2)).is_err(), "the other session is still visible");
     second.command("hide", "hidden");
-    let pixels = capture(open(&path).unwrap(), std::thread::sleep).unwrap();
+    let pixels = capture_for(open(&path).unwrap(), std::thread::sleep, std::time::Duration::from_secs(2)).unwrap();
     first.command("show", "hidden");
     second.command("show", "hidden");
     drop(pixels);

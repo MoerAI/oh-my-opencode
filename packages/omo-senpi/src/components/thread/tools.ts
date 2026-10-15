@@ -2,6 +2,7 @@ import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import { type Static } from "typebox"
 import { toThreadAddressEntries } from "./address-book"
 import { fuzzyMatch, workspaceEntries } from "./addressing"
+import { checkInitialSkills } from "./initial-skills"
 import {
   parseThreadParams,
   threadToolParamSchemas,
@@ -18,6 +19,7 @@ import {
   type ThreadToolResult,
 } from "./contracts"
 import { THREAD_FAMILY_PROMPT_GUIDELINES } from "./metadata"
+import { threadLink } from "./thread-link"
 export type { ThreadTranscriptEntry } from "./reader"
 import { hashArgs } from "./gateway/bindings"
 import { GATEWAY_RECEIPT_RETENTION_MS } from "./gateway/constants"
@@ -171,8 +173,11 @@ function buildThreadTools(options: ThreadToolSurfaceOptions): { readonly tools: 
   const create: AnyTool = { ...metadata("thread_create"), parameters: threadToolParamSchemas.thread_create, promptGuidelines: [THREAD_FAMILY_PROMPT_GUIDELINES], execute: (id: string, args: ThreadCreateInput, _signal, _onUpdate, ectx) => execute("thread_create", id, args, ectx, async (current, value) => {
     const entries = resolveEntries(options, current)
     if (value.name !== undefined) { const existing = entries.find((entry) => entry.name.toLowerCase() === value.name?.trim().toLowerCase()); if (existing !== undefined) return failure("name_conflict", `A thread named "${existing.name}" already exists.`, "Call thread_list and choose another name.") }
-    const session = await options.host.openSession({ cwd: value.cwd, forkFrom: value.fork_from, name: value.name })
-    return { kind: "ok", thread: summary(session), deduplicated: false }
+    const skills = value.skills === undefined || value.skills.length === 0 ? undefined : checkInitialSkills(value.skills)
+    if (skills?.kind === "invalid") return failure("invalid_arguments", `Not a skill name: ${skills.names.join(", ")}. Pass the names of installed skills, never a path or text.`, "Pass skill names as listed by the skill index.", { invalid: skills.names })
+    const loaded = skills?.kind === "ok" ? skills.names : undefined
+    const session = await options.host.openSession({ cwd: value.cwd, forkFrom: value.fork_from, name: value.name, ...(loaded === undefined ? {} : { initialSkills: loaded }) })
+    return { kind: "ok", thread: { ...summary(session), ...(loaded === undefined ? {} : { requested_skills: loaded }) }, deduplicated: false }
   }) }
   const list: AnyTool = {
     ...metadata("thread_list"),
@@ -293,7 +298,10 @@ async function deliverThroughGateway(
   })
   if (sent.kind === "error") return { kind: "error", error: sent.error }
   const facts = { delivery_id: sent.delivery_id, effective_mode: sent.effective_mode, endpoint: sent.endpoint_kind === null ? null : { kind: sent.endpoint_kind } }
-  if (resolvedBy === undefined) return { kind: "ok", thread_id: threadId, delivery: sent.delivery, message_seq: sent.message_seq, deduplicated: sent.deduplicated, ...facts }
+  if (resolvedBy === undefined) {
+    const title = current.sessions.find((session) => (session.durableSessionId ?? session.sessionId) === threadId)?.name
+    return { kind: "ok", thread_id: threadId, link: threadLink(threadId, title), delivery: sent.delivery, message_seq: sent.message_seq, deduplicated: sent.deduplicated, ...facts }
+  }
   const session = targetSession(current, threadId)
   const entry = sendAddressBook(options, current, threadId, true).find((candidate) => candidate.thread_id === threadId)
   const thread = session !== undefined ? summary(session, entry) : entry !== undefined ? degradedSummary(entry) : undefined

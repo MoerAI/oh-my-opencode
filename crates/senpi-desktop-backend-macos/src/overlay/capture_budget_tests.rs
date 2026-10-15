@@ -66,5 +66,8 @@ fn foreign_helper_past_deadline_returns_a_bounded_capture_error() {
     assert!(!ran);
     // Time is the behavior under test; no guessed sleep releases the holder.
     assert!(elapsed >= Duration::from_millis(1500));
-    assert!(elapsed < Duration::from_secs(10), "capture exceeded its bounded wait: {elapsed:?}");
+    assert!(
+        elapsed < coordination::CAPTURE_WAIT + Duration::from_secs(5),
+        "capture exceeded its bounded wait: {elapsed:?}"
+    );
 }

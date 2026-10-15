@@ -97,7 +97,14 @@ pub trait Backend: Send {
 
     fn displays(&mut self) -> CoreResult<Vec<DesktopDisplay>>;
     fn windows(&mut self) -> CoreResult<Vec<DesktopWindow>>;
-    fn capture(&mut self, target: &Target, caps: &CaptureCaps) -> CoreResult<(RgbaImage, FrameGeometry)>;
+    /// Captures `target`. `exclude_window_titles` names windows a display
+    /// capture must leave out; backends without exclusion support ignore it.
+    fn capture(
+        &mut self,
+        target: &Target,
+        caps: &CaptureCaps,
+        exclude_window_titles: &[String],
+    ) -> CoreResult<(RgbaImage, FrameGeometry)>;
     fn pointer(
         &mut self,
         target: &Target,
@@ -135,6 +142,27 @@ pub trait Backend: Send {
         Ok(())
     }
     fn key_chord(&mut self, target: &Target, keys: &[KeyName], mode: DeliveryMode) -> CoreResult<()>;
+    /// Native press/release around a session-owned interruptible wait.
+    /// Backends without bounded input refuse rather than synthesizing clicks.
+    fn hold_keys(
+        &mut self,
+        _target: &Target,
+        _keys: &[KeyName],
+        _mode: DeliveryMode,
+        _control: &crate::holds::HoldControl<'_>,
+    ) -> CoreResult<()> {
+        Err(DesktopError::input_failed("bounded key holds are unavailable on this backend"))
+    }
+
+    fn hold_mouse(
+        &mut self,
+        _target: &Target,
+        _hold: &crate::holds::MouseHold<'_>,
+        _mode: DeliveryMode,
+        _control: &crate::holds::HoldControl<'_>,
+    ) -> CoreResult<()> {
+        Err(DesktopError::input_failed("bounded mouse holds are unavailable on this backend"))
+    }
     fn raise_window(&mut self, id: &str) -> CoreResult<()>;
 
     /// The immediate children of `window`'s menu at `path` (empty = the menu

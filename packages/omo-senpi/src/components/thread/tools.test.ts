@@ -7,6 +7,7 @@ import type { ThreadToolName, ThreadToolResult } from "./contracts"
 import type { GatewayEndpointRef } from "./gateway/adapter"
 import { GATEWAY_RECEIPT_RETENTION_MS } from "./gateway/constants"
 import { createGatewayStore, type GatewayStore } from "./gateway/store"
+import { parseThreadLinkUrl } from "./thread-link"
 import { createThreadTools, RECEIPT_RECOVERY_MAX_KEYS, registerThreadTools, type ThreadHost, type ThreadHostSession } from "./tools"
 
 const directories: string[] = []
@@ -130,6 +131,36 @@ describe("thread tool registration", () => {
     // then
     expect(pages.length).toBeGreaterThan(1)
     expect(pages.flatMap((page) => page.contents)).toEqual(transcript.map((message) => JSON.stringify(message.content)))
+  })
+})
+
+describe("thread links", () => {
+  const linkTarget = (link: unknown) => {
+    const match = /^\[[^\]]+\]\((omo-thread:\/\/v1\/[^)]+)\)$/.exec(String(link))
+    return match === null ? null : parseThreadLinkUrl(match[1])
+  }
+
+  test("#given thread tools that name a thread #when they succeed #then each result carries a link that names that thread", async () => {
+    // given
+    const f = fixture()
+    f.sessions.push({ sessionId: "route-other", durableSessionId: "dur-other", cwd: process.cwd(), name: "other" })
+    const run = runner(f)
+
+    // when
+    const listed = await run("thread_list", {}, undefined, "call-list") as unknown as { threads: Array<{ thread_id: string; link?: string }> }
+    const created = await run("thread_create", { name: "fresh" }, undefined, "call-create") as unknown as { thread: { thread_id: string; link?: string } }
+    const read = await run("thread_read", { thread: "peer" }, undefined, "call-read") as unknown as { thread_id: string; link?: string }
+    const sent = await run("thread_send", { thread: "peer", message: "hi" }, "dur-other", "call-send") as unknown as { thread_id: string; link?: string }
+    const handed = await run("thread_handoff", { thread: "peer", message: "go" }, "dur-other", "call-handoff") as unknown as { thread: { thread_id: string; link?: string } }
+
+    // then
+    expect(listed.threads.length).toBeGreaterThan(0)
+    for (const thread of listed.threads) expect(linkTarget(thread.link)).toEqual({ threadId: thread.thread_id })
+    expect(linkTarget(created.thread.link)).toEqual({ threadId: created.thread.thread_id })
+    expect(linkTarget(read.link)).toEqual({ threadId: "dur-peer" })
+    expect(linkTarget(sent.link)).toEqual({ threadId: "dur-peer" })
+    expect(linkTarget(handed.thread.link)).toEqual({ threadId: "dur-peer" })
+    expect(String(read.link)).toStartWith("[peer]")
   })
 })
 

@@ -13,6 +13,7 @@ export { ElementHandle, WindowHandle } from "./run/handles";
 export { type ComputerRunHost, type ComputerRunRequest, type ExecuteTool, runComputerCode } from "./run/runtime";
 export type { ScreenshotOptions, ScreenshotResult } from "./run/screenshot";
 export type { ObserveOptions, ObservationResult } from "./run/observe";
+export type { HoldOptions, HoldMouseOptions } from "./run/input-target";
 export {
 	acquiringEngineChildFactory,
 	type AcquiringEngineChildOptions,

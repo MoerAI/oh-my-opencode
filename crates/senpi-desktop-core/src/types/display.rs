@@ -121,6 +121,11 @@ pub struct DesktopCapabilities {
     /// Windows mandatory integrity level of the engine process.
     pub integrity_level: Option<String>,
     pub screen_locked: bool,
+    /// Captures run through the legacy `screencapture` path, not the
+    /// ScreenCaptureKit worker (B9: macOS < 14, helper missing, or the
+    /// helper failed to start).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy_capture: bool,
 }
 
 impl DesktopCapabilities {
@@ -143,6 +148,7 @@ impl DesktopCapabilities {
             stop_reason: None,
             integrity_level: None,
             screen_locked: false,
+            legacy_capture: false,
         }
     }
 }

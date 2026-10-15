@@ -277,6 +277,7 @@ pub(crate) fn mark_key_window(front: &FrontWindow) -> CoreResult<()> {
         width: 0,
         height: 0,
         focused: false,
+        is_on_screen: None,
         elevated: None,
     };
     let _ = ax::focus_key_window(&window);

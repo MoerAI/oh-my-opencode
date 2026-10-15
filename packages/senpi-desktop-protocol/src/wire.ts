@@ -64,4 +64,6 @@ export interface DesktopCapabilities {
 	/** Windows mandatory integrity level of the engine process. */
 	readonly integrityLevel?: string | null;
 	readonly screenLocked: boolean;
+	/** Captures run through the legacy `screencapture` path, not the ScreenCaptureKit worker (B9). */
+	readonly legacyCapture?: boolean;
 }

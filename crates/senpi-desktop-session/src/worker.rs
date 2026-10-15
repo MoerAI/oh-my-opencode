@@ -22,6 +22,7 @@ const DEFAULT_ARTIFACT_DIR: &str = "senpi-desktop";
 
 /// Owned by the session thread: AX handles are `Rc`, so it never leaves it.
 pub(crate) struct Worker {
+    pub(crate) hold_signal: Option<Arc<senpi_desktop_safety::HoldSignal>>,
     factory: Box<dyn BackendFactory>,
     pub(crate) backend: CoreResult<Box<dyn Backend>>,
     /// `Some` once `session.open` ran; backend requests need it.
@@ -55,6 +56,7 @@ impl Worker {
             ..DesktopSessionOptions::default()
         });
         let mut worker = Self {
+            hold_signal: None,
             factory,
             backend,
             options: None,
@@ -142,6 +144,8 @@ impl Worker {
             Op::Scroll(params) => served(self.scroll(&params, cancelled)),
             Op::TypeText(params) => served(self.type_text(&params, cancelled)),
             Op::KeyChord(params) => served(self.key_chord(&params, cancelled)),
+            Op::HoldKeys(params) => served(self.hold_keys(&params, cancelled)),
+            Op::HoldMouse(params) => served(self.hold_mouse(&params, cancelled)),
             Op::RaiseWindow(params) => served(self.raise_window(&params.window_id, cancelled)),
             Op::AxSnapshot(params) => self.ax_snapshot(&params),
             Op::AxQuery(params) => self.ax_query(&params),

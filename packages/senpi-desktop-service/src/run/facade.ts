@@ -95,6 +95,8 @@ export function createDesktopFacade(scope: RunScope) {
 		scroll: root.scroll.bind(root),
 		type: root.type.bind(root),
 		press: root.press.bind(root),
+		holdKeys: root.holdKeys.bind(root),
+		holdMouse: root.holdMouse.bind(root),
 		/** The element under a point in global logical desktop coordinates (not screenshot pixels). */
 		elementAt: (x: number, y: number): Promise<ElementHandle | null> =>
 			method("elementAt", () => element("ax.elementAt", { target: "desktop", x, y })),

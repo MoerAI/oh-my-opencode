@@ -1,12 +1,17 @@
-//! Quartz capture: TCC preflight, display/window enumeration, and
-//! `screencapture`-based capture with a display-only CoreGraphics fallback.
-//! Never prompts for permission. Known cursor-helper windows are excluded by ScreenCaptureKit.
+//! Screen capture: TCC preflight, display/window enumeration, and the base
+//! `screencapture`/CoreGraphics capture mechanisms. The B9 routing between
+//! the ScreenCaptureKit worker and the legacy path lives in `route.rs`.
+//! Known cursor-helper windows are excluded from every frame by window ID.
+//! Never prompts for permission.
 
 mod displays;
 pub(crate) mod fallback;
+mod filtered;
+mod minimized;
+mod route;
+mod sck;
 pub(crate) mod screencapture;
 mod windows;
-mod filtered;
 
 use image::RgbaImage;
 use senpi_desktop_core::error::{CoreResult, DesktopError, TccPermission};
@@ -77,20 +82,18 @@ impl MacCapture {
     }
 
     pub(crate) fn capture(&self, target: &Target) -> CoreResult<(RgbaImage, FrameGeometry)> {
-        self.require_permission()?;
-        // The guard surrounds the entire dispatch, not just screencapture.
-        // It therefore also covers multi-display batches and CoreGraphics.
-        let lock_path = crate::overlay::lock_path().map_err(|error| {
+        self.capture_with_exclusions(target, &[])
+    }
+
+    /// Runs `capture` under the cursor-overlay exclusion guard: the lock covers
+    /// the whole dispatch (SCK worker, multi-display batches, CoreGraphics), and
+    /// a helper that appeared during the shot fails the frame.
+    fn with_overlay_exclusion<T>(&self, capture: impl FnOnce(&[u32]) -> CoreResult<T>) -> CoreResult<T> {
+        let lock_path = capture_lock_path().map_err(|error| {
             DesktopError::capture_failed(format!("cannot locate account cursor-exclusion cache: {error}"))
         })?;
         self.overlay.capture(&lock_path, crate::focus::window_info, std::thread::sleep, |excluded| {
-            let result = match target {
-                Target::Desktop | Target::Display(_) => {
-                    let selector = target.display_selector().unwrap_or_else(|| self.selector.clone());
-                    self.capture_desktop(&selector, excluded)
-                }
-                Target::Window(id) => self.capture_window(id, excluded),
-            }?;
+            let result = capture(excluded)?;
             // A launcher with another cache domain must not introduce an unfiltered helper.
             let after = crate::focus::window_info()?;
             if after.iter().any(|window| window.cursor_overlay && !excluded.contains(&window.window_number)) {
@@ -100,19 +103,7 @@ impl MacCapture {
         })
     }
 
-    fn require_permission(&self) -> CoreResult<()> {
-        if self.permission_granted() {
-            Ok(())
-        } else {
-            Err(permission_denied())
-        }
-    }
-
-    /// One `screencapture -x -R<rect>` per display, composited. When the tool
-    /// is absent or fails with permission granted, the primary display is
-    /// captured through CoreGraphics instead.
-    fn capture_desktop(&self, selector: &DisplaySelector, excluded: &[u32]) -> CoreResult<(RgbaImage, FrameGeometry)> {
-        self.require_permission()?;
+    fn displays_for(&self, selector: &DisplaySelector) -> CoreResult<Vec<DesktopDisplay>> {
         let focused = if *selector == DisplaySelector::Active {
             match crate::focus::front_window_id() {
                 Ok(Some(id)) => match windows::find(&id.to_string()) {
@@ -131,7 +122,23 @@ impl MacCapture {
         } else {
             None
         };
-        let displays = selector.select(displays::enumerate(selector)?, focused.as_ref())?;
+        selector.select(displays::enumerate(selector)?, focused.as_ref())
+    }
+
+    fn require_permission(&self) -> CoreResult<()> {
+        if self.permission_granted() {
+            Ok(())
+        } else {
+            Err(permission_denied())
+        }
+    }
+
+    /// One `screencapture -x -R<rect>` per display, composited. When the tool
+    /// is absent or fails with permission granted, the primary display is
+    /// captured through CoreGraphics instead.
+    fn capture_desktop(&self, selector: &DisplaySelector, excluded: &[u32]) -> CoreResult<(RgbaImage, FrameGeometry)> {
+        self.require_permission()?;
+        let displays = self.displays_for(selector)?;
         let mut regions = Vec::with_capacity(displays.len());
         for display in &displays {
             let image = if !excluded.is_empty() {
@@ -160,9 +167,7 @@ impl MacCapture {
 
     /// `screencapture -x -o -l <wid>`; window capture has no fallback.
     fn capture_window(&self, id: &str, excluded: &[u32]) -> CoreResult<(RgbaImage, FrameGeometry)> {
-        let window_id = id
-            .parse::<u32>()
-            .map_err(|_| DesktopError::invalid_target(format!("invalid macOS window id '{id}'")))?;
+        let window_id = parse_window_id(id)?;
         self.require_permission()?;
         if excluded.contains(&window_id) {
             return Err(DesktopError::capture_failed("cursor-helper windows are not capture targets"));
@@ -181,6 +186,26 @@ impl MacCapture {
         let geometry = FrameGeometry::for_window(&window, image.width(), image.height());
         Ok((image, geometry))
     }
+}
+
+/// The account's cursor-exclusion lock; tests point it at a private file.
+fn capture_lock_path() -> std::io::Result<std::path::PathBuf> {
+    #[cfg(test)]
+    if let Some(path) = TEST_LOCK_PATH.with_borrow(Clone::clone) {
+        return Ok(path);
+    }
+    crate::overlay::lock_path()
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_LOCK_PATH: std::cell::RefCell<Option<std::path::PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn parse_window_id(id: &str) -> CoreResult<u32> {
+    id.parse::<u32>()
+        .map_err(|_| DesktopError::invalid_target(format!("invalid macOS window id '{id}'")))
 }
 
 /// Hides helper windows from the window list. `helper_ids` are the windows WindowServer

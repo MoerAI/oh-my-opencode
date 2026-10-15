@@ -151,7 +151,7 @@ pub(super) fn pointer(
     clippy::too_many_arguments,
     reason = "the parameters are the native CGEvent fields posted together"
 )]
-fn post_global_mouse(
+pub(super) fn post_global_mouse(
     source: &CGEventSource,
     event_type: CGEventType,
     button: CGMouseButton,

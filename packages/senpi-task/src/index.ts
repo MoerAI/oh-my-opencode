@@ -278,6 +278,7 @@ export type {
 } from "./runners"
 export {
   HOST_TURN_RESUMED_EVENT,
+  TASK_AWAITING_INPUT_EVENT,
   NameRegistry,
   TaskConcurrency,
   adaptInProcessHandle,
@@ -444,6 +445,7 @@ export type {
   DestructionCause,
   DestructionPort,
   InterruptOutcome,
+  RedispatchOutcome,
   SendDelivery,
   SendInput,
   SendOutcome,
@@ -537,6 +539,7 @@ export type {
 export {
   TRANSCRIPT_MAX_CHARS,
   TaskOutputParams,
+  awaitingInputDetails,
   buildTaskSnapshot,
   childSessionDir,
   createTaskOutputTool,

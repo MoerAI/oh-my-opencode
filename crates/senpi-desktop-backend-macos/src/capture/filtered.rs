@@ -43,10 +43,25 @@ pub(crate) fn supported() -> bool {
     }
 }
 
-/// Exclusion IDs still present in the content snapshot; a helper that closed between
-/// enumeration and capture has no pixels left to hide, so it must not fail the frame.
-pub(super) fn present_exclusions(excluded: &[u32], present: impl Fn(u32) -> bool) -> Vec<u32> {
-    excluded.iter().copied().filter(|id| present(*id)).collect()
+/// Exclusion IDs present in the content snapshot. A helper missing from the snapshot is dropped
+/// only when the window list confirms it no longer exists (it has no pixels left to hide); one
+/// that still exists but cannot be excluded fails the frame, so it is never captured unfiltered.
+pub(super) fn resolve_exclusions(
+    excluded: &[u32],
+    in_content: impl Fn(u32) -> bool,
+    alive: impl FnOnce() -> CoreResult<Vec<u32>>,
+) -> CoreResult<Vec<u32>> {
+    let (present, missing): (Vec<u32>, Vec<u32>) = excluded.iter().copied().partition(|id| in_content(*id));
+    if missing.is_empty() {
+        return Ok(present);
+    }
+    let alive = alive()?;
+    if let Some(id) = missing.iter().find(|id| alive.contains(id)) {
+        return Err(DesktopError::capture_failed(format!(
+            "cursor helper window {id} exists but is absent from the capture content; refusing an unfiltered frame"
+        )));
+    }
+    Ok(present)
 }
 
 pub(super) fn capture(
@@ -70,7 +85,11 @@ pub(super) fn capture(
             // SAFETY: These getters return immutable arrays retained for this scope.
             let windows = unsafe { content.windows() };
             // SAFETY: Every entry is a live SCWindow from SCShareableContent.
-            let present = present_exclusions(&excluded_ids, |id| windows.iter().any(|w| unsafe { w.windowID() } == id));
+            let present = resolve_exclusions(
+                &excluded_ids,
+                |id| windows.iter().any(|w| unsafe { w.windowID() } == id),
+                || crate::focus::window_info().map(|all| all.into_iter().map(|w| w.window_number).collect()),
+            )?;
             // SAFETY: Every entry is a live SCWindow from SCShareableContent.
             let excluded: Vec<_> = windows.iter().filter(|w| present.contains(&unsafe { w.windowID() })).collect();
             let filter = if let Some(id) = window {

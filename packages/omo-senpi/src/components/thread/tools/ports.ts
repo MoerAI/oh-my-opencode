@@ -60,7 +60,7 @@ export type ThreadHostViewRequest = {
 export type ThreadHost = {
   readonly socket: string
   readonly listSessions: () => Promise<readonly ThreadHostSession[]>
-  readonly openSession: (params: { readonly cwd?: string; readonly sessionPath?: string; readonly name?: string; readonly forkFrom?: string }) => Promise<ThreadHostSession>
+  readonly openSession: (params: { readonly cwd?: string; readonly sessionPath?: string; readonly name?: string; readonly forkFrom?: string; readonly initialSkills?: readonly string[] }) => Promise<ThreadHostSession>
   readonly getMessages: (sessionId: string) => Promise<readonly ThreadTranscriptEntry[]>
   readonly getState: (sessionId: string) => Promise<{ readonly isStreaming?: boolean; readonly activeTurnId?: string }>
   readonly prompt: (sessionId: string, message: string, options?: { readonly streamingBehavior?: "steer" | "followUp" }) => Promise<{ readonly turnId?: string }>
@@ -96,6 +96,8 @@ export type ThreadToolSurfaceOptions = {
    * whether or not this process ever saw it alive.
    */
   readonly sessionsDirectory?: () => string
+  /** The agent dir whose `skills` directory `thread_create`'s `skills` are looked up in; defaults to `resolveAgentHome`. */
+  readonly agentDir?: () => string
   readonly ensureHost?: () => Promise<void>
   /**
    * The gateway store: the tools' idempotency receipts, bindings and outbox. The component passes
