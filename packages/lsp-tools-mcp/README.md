@@ -98,7 +98,7 @@ node dist/cli.js mcp
 
 Restart an already-running shared daemon after changing this setting. It is not a per-project setting. The daemon's separate 30,000 ms total request limit, including server startup, still applies.
 
-MCP hosts that filter child environments must explicitly forward this variable to the MCP server, for example through the server's configured environment.
+MCP hosts that filter child environments must explicitly forward this variable to the MCP server, for example through the server's configured environment. The shipped OMO Codex plugin does so through its LSP server `env_vars` declaration.
 
 ## Architecture
 
