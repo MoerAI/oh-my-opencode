@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Slow language servers can have more time to publish fresh diagnostics.** Set `OMO_LSP_DIAGNOSTICS_FRESHNESS_TIMEOUT_MS` to a positive integer in milliseconds to override the three-second freshness wait; explicit client options still take precedence. Restart an existing LSP daemon after changing the value. ([#9271](https://github.com/code-yeongyu/oh-my-openagent/issues/9271))
+
 **macOS computer use shows a display-only virtual cursor by default.** The overlay follows the agent's pointer actions without moving your real cursor or changing input permissions; set `computer.showCursor: false` to hide it. ([#9887](https://github.com/code-yeongyu/oh-my-openagent/issues/9887), [#9889](https://github.com/code-yeongyu/oh-my-openagent/pull/9889))
 
 **Internal: the model-version migration skip bookkeeping is cleaned up.** The set of already-migrated models is now built once per run, and the comment describes the source-keyed rule; behaviour is unchanged. ([#10145](https://github.com/code-yeongyu/oh-my-openagent/pull/10145))
