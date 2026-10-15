@@ -8,6 +8,8 @@ import { createTaskRecordStore } from "../store"
 import { bounded, fixture, fixtureHandle, poolInput } from "./__fixtures__/admission"
 import type { WorkpoolAggregateMessage, WorkpoolAggregatePort } from "./aggregate"
 import { NO_HOST_ENDPOINT } from "../lifecycle/host-session"
+import { deliveryFixture } from "./__fixtures__/delivery"
+import { createWorkpoolStore } from "./store"
 
 function acking(messages: WorkpoolAggregateMessage[]): WorkpoolAggregatePort {
   return { enqueue: (message, receipts) => { messages.push(message); receipts.ack() } }
@@ -76,6 +78,29 @@ test("#given notifier throw #when close is empty #then aggregate stays pending, 
   const messages: WorkpoolAggregateMessage[] = []
   f.manager.workpools.bindAggregate(acking(messages))
   expect(messages).toEqual([{ pool_id: pool.pool_id, generation: 1, results: [] }])
+})
+
+test("#given a closing pool whose last binding is refused #when admission fails #then its aggregate is delivered once", async () => {
+  // given
+  const f = deliveryFixture()
+  const messages: WorkpoolAggregateMessage[] = []
+  f.manager.workpools.bindAggregate(acking(messages))
+  const worker = await f.start()
+  f.yieldResults(worker.taskId, worker.epoch, [{ key: "first", data: 1 }])
+  f.push("recovered")
+  f.store.mutate(worker.taskId, record => ({ ...record, burnt_epoch: worker.epoch + 1 }))
+  createWorkpoolStore(f.store.stateDir).mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.key === "recovered"
+    ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } } : item) }))
+  f.manager.workpools.close(f.caller, f.pool.pool_id)
+  const failed = f.event("admission_failed")
+  // when
+  f.children.get(worker.taskId)?.settle({ status: "completed", finalResponse: "turn finished" })
+  await failed
+  // then
+  expect(messages).toMatchObject([{ pool_id: f.pool.pool_id, results: [{ key: "first", data: 1 }, { key: "recovered", error: { code: "worker_not_continuable" } }] }])
+  expect(f.inspect().aggregate).toEqual({ generation: f.pool.generation, delivered: true })
+  f.manager.workpools.close(f.caller, f.pool.pool_id)
+  expect(messages).toHaveLength(1)
 })
 
 test("#given cancel of unstarted items #when a lane is held #then waiters are removed and no spawn happens", async () => {
