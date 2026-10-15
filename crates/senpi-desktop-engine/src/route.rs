@@ -71,6 +71,8 @@ impl Engine {
             Method::Scroll => op(Op::Scroll(parse(params)?)),
             Method::TypeText => op(Op::TypeText(parse(params)?)),
             Method::KeyChord => op(Op::KeyChord(parse(params)?)),
+            Method::HoldKeys => op(Op::HoldKeys(parse(params)?)),
+            Method::HoldMouse => op(Op::HoldMouse(parse(params)?)),
             Method::RaiseWindow => op(Op::RaiseWindow(parse(params)?)),
             Method::AxSnapshot => op(Op::AxSnapshot(parse(params)?)),
             Method::AxQuery => op(Op::AxQuery(parse(params)?)),

@@ -241,15 +241,16 @@ function connectParent(input: ConnectParentInput): ParentSession {
     startChildren: async (count) => {
       const started: StartResult[] = []
       for (let index = 0; index < count; index += 1) {
-        started.push(
-          await manager.start({
-            prompt: `host child ${sessionId} #${index}`,
-            parent_session_id: sessionId,
-            depth: 1,
-            execution_mode: "process",
-            model: HOST_CHILD_MODEL,
-          }),
-        )
+        const result = await manager.start({
+          prompt: `host child ${sessionId} #${index}`,
+          parent_session_id: sessionId,
+          depth: 1,
+          execution_mode: "process",
+          model: HOST_CHILD_MODEL,
+        })
+        // A slow host returns `starting` (#10042); these scenarios need the child admitted first.
+        if (result.kind === "started" && result.starting === true) await manager.whenLaunched?.(result.task_id)
+        started.push(result)
       }
       return started
     },
