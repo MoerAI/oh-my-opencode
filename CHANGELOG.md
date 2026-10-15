@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Memory writes recover after a pre-commit hook rejects content.** The refused write now rolls back its staged changes so a later safe memory write can commit instead of being blocked by the rejected transaction. ([#9982](https://github.com/code-yeongyu/oh-my-openagent/issues/9982))
+
 ## [5.1.33] - 2026-10-13
 
 **omo runs on senpi 2026.10.13: a busy host gives memory back when its sessions end.** An RPC host serving many sessions used to keep the heap of every session it had run until it exited, so a long day of terminal-heavy work held its peak footprint; it now returns freed heap as sessions drop ([senpi#3240](https://github.com/code-yeongyu/senpi/pull/3240), [senpi#3221](https://github.com/code-yeongyu/senpi/pull/3221)). Tool calls through DeepSeek's official API, and gateways that forward to it, stop failing with `400 Invalid schema ... got 'type: null'`, because every tool schema now declares a root `type: "object"` ([senpi#3250](https://github.com/code-yeongyu/senpi/pull/3250)). The Claude subscription lane runs Claude Code 2.1.296 ([senpi#3258](https://github.com/code-yeongyu/senpi/pull/3258)), the model catalog is refreshed from the live providers ([senpi#3248](https://github.com/code-yeongyu/senpi/pull/3248)), large eval data cells no longer stall the shared host ([senpi#3206](https://github.com/code-yeongyu/senpi/pull/3206)), and RPC clients see a scheduled goal continuation and can run it now ([senpi#3208](https://github.com/code-yeongyu/senpi/pull/3208)). Full notes: [senpi 2026.10.13](https://github.com/code-yeongyu/senpi/releases/tag/v2026.10.13).
