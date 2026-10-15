@@ -79,6 +79,12 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
 
     const deliverAs = input.deliverAs ?? DEFAULT_SEND_DELIVERY
     if (record.status === "pending") return enqueuePending(record, input.message, deliverAs)
+    // A first launch the host has not admitted yet (#10042): no session has ever existed for this
+    // task, so there is nothing to revive. Queue the message; the launch drains it once the child starts.
+    if (record.status === "running" && record.host_session === undefined && record.child_session_id === undefined
+      && port.isLaunching?.(record.task_id) === true && port.liveHandle(record.task_id) === undefined) {
+      return enqueuePending(record, input.message, deliverAs)
+    }
     if (port.isEvicting?.(record.task_id) === true) return evictionRefusal(record.task_id)
     // An accepted cancel is final: nothing may revive or steer the child it is stopping (omo#9403).
     if (record.status === "running" && record.cancel_requested !== undefined) {

@@ -18,6 +18,7 @@ import {
   type ThreadToolResult,
 } from "./contracts"
 import { THREAD_FAMILY_PROMPT_GUIDELINES } from "./metadata"
+import { threadLink } from "./thread-link"
 export type { ThreadTranscriptEntry } from "./reader"
 import { hashArgs } from "./gateway/bindings"
 import { GATEWAY_RECEIPT_RETENTION_MS } from "./gateway/constants"
@@ -293,7 +294,10 @@ async function deliverThroughGateway(
   })
   if (sent.kind === "error") return { kind: "error", error: sent.error }
   const facts = { delivery_id: sent.delivery_id, effective_mode: sent.effective_mode, endpoint: sent.endpoint_kind === null ? null : { kind: sent.endpoint_kind } }
-  if (resolvedBy === undefined) return { kind: "ok", thread_id: threadId, delivery: sent.delivery, message_seq: sent.message_seq, deduplicated: sent.deduplicated, ...facts }
+  if (resolvedBy === undefined) {
+    const title = current.sessions.find((session) => (session.durableSessionId ?? session.sessionId) === threadId)?.name
+    return { kind: "ok", thread_id: threadId, link: threadLink(threadId, title), delivery: sent.delivery, message_seq: sent.message_seq, deduplicated: sent.deduplicated, ...facts }
+  }
   const session = targetSession(current, threadId)
   const entry = sendAddressBook(options, current, threadId, true).find((candidate) => candidate.thread_id === threadId)
   const thread = session !== undefined ? summary(session, entry) : entry !== undefined ? degradedSummary(entry) : undefined

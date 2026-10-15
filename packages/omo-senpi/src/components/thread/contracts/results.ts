@@ -26,6 +26,12 @@ export type ThreadSummary = {
   readonly controls?: readonly ("send" | "read" | "rename" | "set_model" | "set_reasoning" | "interrupt")[]
 }
 
+/**
+ * A thread as a tool result names it: `link` is `[title](omo-thread://v1/<thread_id>)` (`thread-link.ts`), pasted when telling the user about the thread.
+ * A `thread_create`, `thread_list` or `thread_read` result stored before links existed and replayed for the same idempotency key (30-day retention) has no `link`.
+ */
+export type ThreadResultSummary = ThreadSummary & { readonly link: string }
+
 export type ThreadDelivery =
   | { readonly kind: "steered"; readonly turn_id: string }
   | { readonly kind: "started"; readonly turn_id: string }
@@ -55,17 +61,18 @@ export type ThreadTranscriptItem = {
 }
 
 export type ThreadCreateResult =
-  | { readonly kind: "ok"; readonly thread: ThreadSummary; readonly deduplicated: boolean }
+  | { readonly kind: "ok"; readonly thread: ThreadResultSummary; readonly deduplicated: boolean }
   | ThreadDataError
 
 export type ThreadListResult =
-  | { readonly kind: "ok"; readonly threads: readonly ThreadSummary[]; readonly scope: "workspace" | "all" }
+  | { readonly kind: "ok"; readonly threads: readonly ThreadResultSummary[]; readonly scope: "workspace" | "all" }
   | ThreadDataError
 
 export type ThreadReadResult =
   | {
       readonly kind: "ok"
       readonly thread_id: string
+      readonly link: string
       readonly items: readonly ThreadTranscriptItem[]
       readonly truncated: boolean
       readonly next_cursor?: string
@@ -80,6 +87,7 @@ export type ThreadSendResult =
   | ({
       readonly kind: "ok"
       readonly thread_id: string
+      readonly link: string
       readonly delivery: ThreadDelivery
       readonly message_seq: number
       readonly deduplicated: boolean
@@ -93,7 +101,7 @@ export type ThreadInterruptResult =
 export type ThreadHandoffResult =
   | ({
       readonly kind: "ok"
-      readonly thread: ThreadSummary
+      readonly thread: ThreadResultSummary
       readonly resolved_by: ThreadAddressResolution
       readonly delivery: ThreadDelivery
       readonly message_seq: number
