@@ -1,3 +1,53 @@
+## 2026-10-15 - Setup e2e tests keep the child's temp files inside the fixture (#10163)
+
+`setup-opencode-providers.test.ts` runs the real launcher from a copied app that has no `node_modules`, so Bun auto-installs the engine's dependencies on first import and extracts them under the temp dir. On Windows those extraction directories (`.typebox`, `.openai`, `.client-bedrock-runtime`) outlived the child and tripped the #9766 temp-leak guard in other PRs' Windows shard. The child now gets `TMPDIR`/`TEMP`/`TMP`/`BUN_TMPDIR` inside the fixture root, which teardown removes. The Bun install cache stays the host's: a cache is not a temp leak, and a fresh per-file cache made the first engine-importing case install about 52k files cold (6.1 s instead of 0.14 s on macOS), which would have made the #10210 Windows timeout worse. One case asserts that the child's `os.tmpdir()` is the fixture's tmp dir, another that the child keeps the host's Bun install cache.
+
+## 2026-10-14 - omo setup carries OpenCode's catalog providers, not only custom blocks (#10158)
+
+Thanks to @taxilian for the report on #8485. OpenCode serves every provider in its models.dev catalog as soon as it has a key. `omo setup` only carried omo's builtins and `provider.<id>` blocks, so a key for a catalog provider like `neuralwatt` was dropped as "a provider omo does not serve", and an OpenCode default model on it was not carried either.
+
+`planOpencodeProviders` now reads OpenCode's own catalog cache (`$XDG_CACHE_HOME/opencode/models.json`, or `OPENCODE_MODELS_PATH`). Each non-builtin provider that OpenCode holds an API key for, or that a config block names, is looked up there and becomes a catalog entry (name, `npm`, `api` URL, non-deprecated models with their limits, reasoning and modalities). That entry goes through the same converter as a `provider.<id>` block. Its key is then imported by the provider stage, and the default model is carried like any custom provider's. A config block for a catalog provider extends the catalog entry the way OpenCode does: provider fields are overlaid, and each model is deep-merged, so overriding `limit.context` keeps the catalog's `limit.output`. The catalog's `env` variable stays a key fallback. A catalog provider omo cannot carry is reported once, as a catalog provider with its reason. A block that routes a catalog provider through its own endpoint (a proxy `baseURL`) still takes the catalog's models; a broken cache is only warned about when some provider depends on it. A cache written for a custom `OPENCODE_MODELS_URL` (`models-<hash>.json`) is not read; setup then says the catalog was not found. When the cache is missing, setup names the providers and says to run OpenCode once.
+
+## 2026-10-14 - Doctor names leftover app-server daemons; review follow-ups to the retirement (#10033)
+
+An app-server daemon started by an older version keeps running after an upgrade. It has no `--mode` and is reparented to init, so `omo doctor` reported it as a session orphaned by a signaled launcher. Doctor now recognizes the `app-server` subcommand right after the engine entry (npm `senpi/dist[/bundle]/cli.js` or the binary runtime) and says the command was removed and the daemon should be stopped; it is still listed in the explicit `omo doctor --reap <pid>` line. A prompt that merely mentions app-server keeps the orphaned-session line.
+
+`bin/lib/launcher.js` calls `refuseRetiredCommand` once instead of checking the command name first, and the compile-entry test title now says the refusal happens before the engine is imported rather than before any import, since legacy state migration may run first.
+
+Review follow-up: the retired-daemon line keeps the `WARN stale engine pid <n>` prefix every other stale engine prints, so scripts that grep for it still see these daemons. `BINARY_ENGINE` and `RETIRED_APP_SERVER` now build on one `BINARY_RUNTIME_EXECUTABLE` pattern, so a change to the binary-runtime path layout is made once.
+
+## 2026-10-12 - OmO Native retires the Codex-compatible app-server command (#10033)
+
+`omo app-server` is no longer a launch path. The npm launcher and the compiled entry answer the retired command with a diagnostic and exit 2 instead of forwarding it to the engine with the OmO extension appended, so the old invocation cannot become a prompt. OmO Native keeps its RPC host, daemon, thread, doctor and every one-shot engine command dispatch unchanged (#9572/#9573 remain the dispatch contract).
+
+`bin/lib/launcher.js` and `compile-entry.ts` share the refusal in `bin/lib/retired-command.js`; `compile-args.ts` drops the app-server extension placement and banner special case; `bin/lib/engine-commands.js` and `bin/lib/doctor.js` no longer name the retired mode. Protocol-only launcher/compile tests are removed with the behavior, the parity test routes every other argv constant the installed engine exports and keeps excluding `APP_SERVER_COMMAND_ARGV` (asserting `app-server` is never handed to the engine) until the pinned engine is a Senpi release without it, and shared-behavior fixtures that borrowed the app-server mode (doctor stale-engine classification, `--` delimiter handling) use remaining modes instead. Full removal lands when the pinned engine is the Senpi release that removes the compatibility implementation; this change is source-only and keeps the current pin.
+
+## 2026-10-11 - Eval smoke and daemon waits cover the engine stop budget (#9836)
+
+The eval smoke derives its shutdown wait and outer execution deadline from the pinned Senpi stop budget instead of 30/60-second cutoffs. It accounts for every endpoint's serial stop request and observation wait, and a shutdown failure includes the owning pids and command output. A normal stop still returns as soon as the generations and claims end.
+
+`daemon stop --all --wait --timeout` cannot shorten the engine's own shutdown budget, including `SENPI_RPC_CHILD_STALLED_STOP_MAX_MS` overrides. The existing 600-second default remains for draining work; it already covers the ordinary engine budget. Senpi does not publicly export the budget in 2026.10.10-12, so one shared helper mirrors its formula, and a compatibility test checks the installed engine's actual `STOP_WAIT_BUDGET_MS` for default, raised and invalid environment values.
+
+## 2026-10-11 - The never-replies doctor test pins the whole probe timeout message (#9742 follow-up)
+
+The fake engine in `computer-use-doctor-failures.test.ts` never replies, so the phase in the timeout report is deterministic. The test asserted only the message shape with `/(phase: [^)]+)$/`, which accepted any phase label; it now asserts the exact message ending in `(phase: requests sent, awaiting engine.hello and capabilities)`.
+
+## 2026-10-09 - Settle native logout refresh failures and crash recovery (#9833)
+
+The regenerated auth bundle distinguishes refresh refusals from unconfirmed outcomes. Both clear locally and exit successfully. The unconfirmed-revocation warning is skipped only for `account_deleted` and `reauth_required`, where the service has already revoked the device; `unauthorized`, `invalid_grant` and every unconfirmed outcome warn. Crash recovery never replays a refresh token marked uncertain.
+
+## 2026-10-09 - Recover native sign-in after TLS and opener failures (#9831 follow-up)
+
+The refreshed authentication bundle treats certificate and proven connection failures as retryable, refreshes safe expired credentials before logout revocation, and preserves an accepted callback despite browser-opener failure. Secret-output and chooser/C1-control regression tests cover the native command surface.
+
+## 2026-10-09 - Harden native service sign-in recovery (#9831)
+
+The regenerated authentication bundle retains offline credentials, prevents replay of refresh tokens with unknown outcomes, sanitizes terminal output, backs off device polling on rate limits, and attempts server-side device revocation on logout while always clearing local credentials.
+
+## 2026-10-09 - Route CLI service sign-in before launching the engine (#9829)
+
+The npm launcher and compiled entry now handle `omo login`, `omo logout`, and `omo whoami` as standalone service commands. They share the toolkit's PKCE/device flows and OS-only credential storage. The npm payload includes a generated command bundle, checked against source before shipping; a runtime without Bun.secrets reports the requirement instead of saving credentials to disk.
+
 ## 2026-10-04 - Every bun is held to the engine's 1.4 floor; a too-old bun you chose says so at startup (#9563)
 
 The engine needs bun 1.4 (`node:sqlite`, and the `worker_threads` compatibility the JS eval kernel uses), and `BUN_MIN_VERSION` said so, but `bin/lib/bun-runtime.js` applied the floor only to a bun it discovered on an npm install. A `bun add -g` install re-exec'd under its bun with no probe, and the POSIX bun-global shim runs bun directly, where "already on bun" stayed put whatever the version. So on bun 1.3.x, `/computer on` failed with `ResolveMessage: No such built-in module: node:sqlite`, the first of several things that could not work there.

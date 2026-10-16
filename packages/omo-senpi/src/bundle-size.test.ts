@@ -103,7 +103,26 @@ const builtExtensionPath = join(packageRoot, "plugin", "extensions", "omo.js")
 // Reduced for #9515: lazy /doctor and /memfs keep maintenance code in sidecars.
 // Bun 1.4.2: tracked dev 1,451,838 -> 1,443,567 bytes (8,271 removed);
 // 1,487,000 leaves approximately 3% headroom. Other memory/thread/LSP slices remain follow-up.
-const BUDGET_BYTES = 1_487_000
+// Raised 1,487,000 -> 1,530,000 for the memory secret boundary (#9653): the evasion-resistant scanner
+// (normalised shadow, span mapping, PEM and split-key classes), the staged-index commit gate and its
+// refusal error, and the redaction at every memory injection point. All of it is first-party code on hot
+// paths (every compile, recall and commit), so it cannot move to a lazy sidecar the way /doctor and /memfs
+// did; the reflection history scan is the one part only maintenance runs need, and it is small. The
+// dependency manifests are unchanged (`git diff origin/dev...HEAD -- package.json bun.lock
+// packages/*/package.json` is empty) and bundle-purity stays green. dev measured 1,483,025 (3,975 bytes of
+// slack left under the previous ceiling); this branch measures 1,489,889 (+6,864) after minification
+// (linux/amd64, node 24 + bun 1.4.2). 1,530,000 keeps ~2.7% headroom rather than the failing value.
+// Raised 1,530,000 -> 1,546,000 in the standalone measured budget PR for #9912.
+// Committed dev grew 1,302,597 -> 1,528,440 bytes over 14.06 days; this +16 KB
+// leaves 17,560 bytes of slack (~1-2 days at the observed rates), not weeks.
+// Raised 1,546,000 -> 1,550,000 in a standalone measured budget PR for #10182 (session_summary, #10184).
+// The per-session summary replaces per-turn usage events, so it runs on every assistant turn and every
+// session shutdown in the entry bundle (rollup window, crash-safe rollup store, schema); it cannot move to a
+// lazy sidecar the way /doctor and /memfs did. A table-driven rewrite already trimmed what it could. The
+// dependency manifests are unchanged. Committed dev measures 1,539,513 bytes; the #10184 branch measures
+// 1,547,296 (+7,783) after minification (linux/arm64, node 24 + bun 1.4.2). 1,550,000 is the measured need
+// plus a 2,704-byte margin, so later growth still has to justify itself rather than ride on slack.
+const BUDGET_BYTES = 1_550_000
 
 describe("omo-senpi bundle size budget", () => {
   it("#given the built extension #when its byte size is measured #then it stays within the documented byte budget", () => {

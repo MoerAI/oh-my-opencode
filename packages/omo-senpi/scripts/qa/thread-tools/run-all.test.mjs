@@ -13,7 +13,7 @@ describe("thread QA summary counters", () => {
       const senpiRoot = join(root, "senpi")
       const desktopRoot = join(root, "desktop")
       for (const path of [
-        join(senpiRoot, "packages/coding-agent/scripts/qa-app-server/lib/env.mjs"),
+        join(senpiRoot, "packages/coding-agent/scripts/qa-shared/lib/env.mjs"),
         ...["ai", "agent", "tui"].map((name) => join(senpiRoot, "packages", name, "dist/index.js")),
         join(desktopRoot, "node_modules/effect/package.json"),
       ]) {
