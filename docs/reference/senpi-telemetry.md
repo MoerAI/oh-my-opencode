@@ -394,15 +394,7 @@ Quirk, documented honestly: the `*_SEND_ANONYMOUS_TELEMETRY` variables treat the
 
 ## Known issue fixed in 5.1.35
 
-Versions 5.0.0-beta.6 through 5.1.34 kept sending events for the rest of a session after telemetry was turned off while that session was running. Turning telemetry off before a session started, or with one of the environment variables above, was never affected.
-
-The events sent after such a mid-session opt-out can't be told apart from consented ones, and PostHog offers no way to delete individual events, so we offer erasure per machine instead. Request it privately through the repository's [private vulnerability reporting form](https://github.com/code-yeongyu/oh-my-openagent/security/advisories/new) (Security tab, "Report a vulnerability"), titled "Telemetry erasure request", and put your telemetry machine id only in that private report, never in a public issue or comment. We delete every event recorded for that id. The machine id is `sha256("omo-senpi:" + hostname)`, the `distinct_id` of those versions; this prints it:
-
-```sh
-node -e 'console.log(require("node:crypto").createHash("sha256").update("omo-senpi:" + require("node:os").hostname()).digest("hex"))'
-```
-
-Since 5.1.35 a session reads the consent setting before every event it captures, reusing a read for at most 5 seconds, and again whenever queued events would be sent. Once the opt-out is read, nothing more is sent, including events already queued.
+OmO Native versions v5.0.0-beta.6 through v5.1.34 kept sending usage events for the rest of a session after telemetry was turned off while that session was running ([#10328](https://github.com/code-yeongyu/oh-my-openagent/issues/10328)). These events are personless and carry a session hash; the ones confirmed in that report are `turn_completed`, `feature_used` and `computer_use_activation`, other usage events may have been sent the same way, and like every OmO Native event they never contain prompt or response text, file paths, or file contents. Turning telemetry off before a session started, or through one of the opt-out environment variables, was never affected. Since v5.1.35 consent is checked when events are sent (a check is reused for at most 5 seconds), and events already queued are dropped once the opt-out is read. Those events can't be told apart from consented ones, so erasure is per install: send a private request through this repository's [private vulnerability reporting form](https://github.com/code-yeongyu/oh-my-openagent/security/advisories/new), titled "Telemetry erasure request", with your install id (the file `omo-senpi/omo-native/install-id` under the agent home), and an operator erases that install's events. Put the id only in that private report, never in a public issue or comment. Events from older versions that are keyed only by the machine hash are erased only where our records pair that hash with your install id and no other install. A history shared by several machines or installs (the same hostname hash) can't be erased automatically; it needs that private request, and where nothing proves the events are yours, they can't be erased.
 
 ## What is never collected
 
