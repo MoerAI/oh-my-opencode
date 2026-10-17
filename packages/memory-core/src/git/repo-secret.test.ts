@@ -194,4 +194,35 @@ describe("GitMemoryRepo secret screening", () => {
     expect(await repo.show("HEAD", path)).toBe("clean body\n")
     expect(await readFile(join(dir, "reference/x.md"), "utf8")).toBe("unrelated change\n")
   })
+
+  it.each(["reference/[x].md", ...(process.platform === "win32" ? [] : [":*.md", ":!*.md"])])("#given staged literal path %s #when unstage runs #then its worktree and staged neighbor survive", async (path) => {
+    for (const tracked of [true, false]) {
+      // given
+      const { dir, repo } = await createRepo()
+      await repo.init({ seedFiles: [
+        { relativePath: "reference/neighbor.md", content: "original neighbor\n" },
+        ...(tracked ? [{ relativePath: path, content: "original target\n" }] : []),
+      ] })
+      await write(dir, path, "staged target\n")
+      await write(dir, "reference/neighbor.md", "staged neighbor\n")
+      const exec = createNodeGitExec()
+      const staged = await exec.run(["--literal-pathspecs", "add", "--", path, "reference/neighbor.md"], { cwd: dir, timeoutMs: 30_000 })
+      expect(staged.code).toBe(0)
+      await write(dir, path, "unstaged target\n")
+
+      // when
+      await repo.unstage(tracked ? [path] : [], tracked ? [] : [path])
+
+      // then
+      const index = await exec.run(["diff", "--cached", "--name-only"], { cwd: dir, timeoutMs: 30_000 })
+      expect(index.code).toBe(0)
+      expect(index.stdout).toBe("reference/neighbor.md\n")
+      const neighbor = await exec.run(["show", ":reference/neighbor.md"], { cwd: dir, timeoutMs: 30_000 })
+      expect(neighbor.code).toBe(0)
+      expect(neighbor.stdout).toBe("staged neighbor\n")
+      expect(await readFile(join(dir, path), "utf8")).toBe("unstaged target\n")
+      expect(await readFile(join(dir, "reference/neighbor.md"), "utf8")).toBe("staged neighbor\n")
+      expect(await repo.status([path])).toBe(`${tracked ? " M" : "??"} ${path}\n`)
+    }
+  })
 })

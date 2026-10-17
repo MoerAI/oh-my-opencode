@@ -2,9 +2,11 @@ import { readFile } from "../fs/resilient"
 import { join } from "node:path"
 
 import { DirtyRepoError, NoEffectiveChangesError, MemorySecretError, type GitCommitAuthor, type GitMemoryRepo } from "../git"
+import { StrandedGitLockError } from "../git/repo-lock-sweep"
 import { SOUL_EDIT_RESULT_LINE, touchesSoulPath } from "../soul"
 import type { LockDomain } from "../locks"
 import type { MemoryToolProvenance } from "./memory"
+import { undoBehindKeptLock } from "./rollback-behind-lock"
 import { MemoryToolError } from "./tool-errors"
 
 export interface CommitMemoryWriteOptions {
@@ -42,6 +44,7 @@ export async function commitMemoryWrite(options: CommitMemoryWriteOptions): Prom
       if (error instanceof NoEffectiveChangesError) {
         throw new MemoryToolError(noChangesMessage ?? "made no effective changes", { cause: error })
       }
+      if (error instanceof StrandedGitLockError) return undoBehindKeptLock(repo, paths, error)
       if (error instanceof DirtyRepoError) throw error
       await repo.restorePaths(paths)
       if (error instanceof MemorySecretError) {
