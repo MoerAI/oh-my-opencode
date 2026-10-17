@@ -186,5 +186,7 @@ export function createWorkpoolDispatcher(ports: {
     for (const controller of completions.values()) controller.abort()
     completions.clear()
   }
-  return { schedule, attach, cancel, stopScheduling }
+  return { schedule, attach, cancel, stopScheduling,
+    isObserving: (taskId: string, epoch: number) => completions.has(`${taskId}:${epoch}`),
+  }
 }
