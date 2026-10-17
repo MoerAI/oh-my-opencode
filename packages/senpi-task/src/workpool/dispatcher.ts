@@ -91,10 +91,10 @@ export function createWorkpoolDispatcher(ports: {
           if (event.kind === "admission_failed") {
             pending.delete(item.item_id)
             // Another engine owner may begin this item's turn after the failing admission last looked at it: a delivery
-            // already past queued under a different run epoch is that owner's live turn, so this failure leaves its item and
+            // already past queued under a different task or run epoch is that owner's live turn, so this failure leaves its item and
             // the pool worker running it alone.
             const othersTurn = (candidate: WorkpoolItem): boolean => candidate.status === "assigned" && candidate.delivery !== undefined &&
-              candidate.delivery.phase !== "queued" && candidate.binding?.run_epoch !== event.run_epoch
+              candidate.delivery.phase !== "queued" && (candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)
             store.mutate(poolId, latest => {
               if (latest.generation !== pool.generation) return latest
               const refused: WorkpoolItem[] = []
