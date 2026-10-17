@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, relative } from "node:path"
+import { join, posix, relative, sep, win32 } from "node:path"
 import { describe, expect, test } from "bun:test"
 
 import { REVIEWED_WRITERS, type ReviewedWriter } from "./consent-gate-reviewed.test-support"
@@ -39,13 +39,21 @@ export function findUngatedWriters(files: readonly SourceFile[], reviewed: reado
   return violations
 }
 
+type PathApi = { readonly relative: (from: string, to: string) => string; readonly sep: string }
+
+// Source names are compared against reviewed entries and prefixes written with "/", so the
+// collection point is the one place a platform path becomes a name.
+export function sourceName(root: string, path: string, paths: PathApi = { relative, sep }): string {
+  return paths.relative(root, path).split(paths.sep).join("/")
+}
+
 export function telemetrySources(root: string): readonly SourceFile[] {
   const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
     .flatMap((entry) => entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)])
   return walk(root)
     .filter((path) => path.endsWith(".ts") && !path.includes(".test.") && !path.includes("test-support"))
     .sort()
-    .map((path) => ({ name: relative(root, path), source: readFileSync(path, "utf8") }))
+    .map((path) => ({ name: sourceName(root, path), source: readFileSync(path, "utf8") }))
 }
 
 const realSources = (): readonly SourceFile[] => telemetrySources(import.meta.dir)
@@ -107,6 +115,13 @@ describe("telemetry consent gate audit", () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+
+  test.each([
+    ["win32", win32, "C:\\repo\\src", "C:\\repo\\src\\components\\telemetry\\index.ts"],
+    ["posix", posix, "/repo/src", "/repo/src/components/telemetry/index.ts"],
+  ])("#given a %s source path #when it is named #then the name uses forward slashes", (_label, paths, root, path) => {
+    expect(sourceName(root, path, paths)).toBe("components/telemetry/index.ts")
   })
 
   test("#given a reviewed entry with no site or no reason #when the audit runs #then both are reported", () => {
