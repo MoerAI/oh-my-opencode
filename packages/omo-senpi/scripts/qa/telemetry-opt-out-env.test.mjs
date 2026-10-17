@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { dirname, join, relative } from "node:path"
+import { dirname, join, posix, relative, sep, win32 } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { shouldDisableTelemetry } from "../../../telemetry-core/src/env.ts"
@@ -78,6 +78,11 @@ describe("QA drivers opt out of telemetry", () => {
   })
 })
 
+// Reported paths are compared with "/"-separated expectations on every platform.
+export function shippedName(pluginRoot, path, paths = { relative, sep }) {
+  return paths.relative(pluginRoot, path).split(paths.sep).join("/")
+}
+
 // Every file under the plugin root ships (extensions/*.js, scripts/install-local.mjs, runtime/, ...),
 // so each one is read; only vendored node_modules are skipped.
 function shippedHelperReferences(pluginRoot) {
@@ -85,7 +90,7 @@ function shippedHelperReferences(pluginRoot) {
     .filter((entry) => entry.isFile() && !join(entry.parentPath, entry.name).includes("node_modules"))
     .map((entry) => join(entry.parentPath, entry.name))
   const leaking = shipped.filter((path) => /telemetry-opt-out-env|withTelemetryOptOut|telemetryLocalSinkEnv/u.test(readFileSync(path, "latin1")))
-  return { scanned: shipped.length, leaking: leaking.map((path) => relative(pluginRoot, path)).sort() }
+  return { scanned: shipped.length, leaking: leaking.map((path) => shippedName(pluginRoot, path)).sort() }
 }
 
 describe("the QA helper never ships", () => {
@@ -93,6 +98,13 @@ describe("the QA helper never ships", () => {
     const { scanned, leaking } = shippedHelperReferences(join(repoRoot, "packages/omo-senpi/plugin"))
     expect(scanned).toBeGreaterThan(0)
     expect(leaking).toEqual([])
+  })
+
+  test.each([
+    ["win32", win32, "D:\\a\\plugin", "D:\\a\\plugin\\scripts\\install-local.mjs"],
+    ["posix", posix, "/a/plugin", "/a/plugin/scripts/install-local.mjs"],
+  ])("#given a %s shipped path #when it is reported #then it uses forward slashes", (_label, paths, root, path) => {
+    expect(shippedName(root, path, paths)).toBe("scripts/install-local.mjs")
   })
 
   test("#given a plugin tree whose bundle and installer name the helper #when it is scanned #then both files are reported", () => {
