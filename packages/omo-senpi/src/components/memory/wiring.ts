@@ -72,7 +72,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   // collection. The composition is built in registerStatic, before any hook can fire.
   const deliveryRef: { current?: KibitzerComposition["delivery"] } = {}
   // One corpus cache for both: the sidecar's read-only memory tool reads the corpus the candidates came from.
-  const corpusCache = new RecallCorpusCache()
+  // Shared: every session on a multi-session host registers this component, and a private cache
+  // per session held one parsed corpus and BM25 index per live session (senpi#3110).
+  const corpusCache = new RecallCorpusCache({ shared: true })
 
   const recallWiring = createMemoryRecallWiring({
     resolveContext,
