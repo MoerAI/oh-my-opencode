@@ -121,7 +121,7 @@ test("#given a closing pool whose last binding is refused #when admission fails 
   expect(messages).toHaveLength(1)
 })
 
-for (const closeBeforeFailure of [true, false]) for (const durableYield of [true, false]) test(`#given uncertain admission and close ${closeBeforeFailure ? "before" : "after"} failure #when the worker completes ${durableYield ? "with" : "without"} a durable yield #then only the final aggregate is delivered`, async () => {
+for (const closeBeforeFailure of [true, false]) for (const durableYield of [true, false]) for (const terminalBeforeFailure of [false, true]) test(`#given uncertain admission and close ${closeBeforeFailure ? "before" : "after"} failure #when the task becomes terminal ${terminalBeforeFailure ? "before" : "after"} failure ${durableYield ? "with" : "without"} a durable yield #then only the final aggregate is delivered`, async () => {
   // given
   const f = deliveryFixture()
   const messages: WorkpoolAggregateMessage[] = []
@@ -130,16 +130,7 @@ for (const closeBeforeFailure of [true, false]) for (const durableYield of [true
   f.yieldResults(worker.taskId, worker.epoch, [{ key: "first", data: 1 }])
   await f.settle(worker.taskId)
   await f.park(worker.taskId)
-  f.followUp(async () => { throw new Error("fixture lost acknowledgment") })
-  const failed = f.event("admission_failed")
-  f.push("late-yield")
-  if (closeBeforeFailure) f.manager.workpools.close(f.caller, f.pool.pool_id)
-  await failed
-  if (!closeBeforeFailure) f.manager.workpools.close(f.caller, f.pool.pool_id)
-  expect(f.inspect().items[1]?.error?.code).toBe("delivery_uncertain")
-  expect(messages).toHaveLength(0)
-  expect(f.inspect().aggregate?.delivered).not.toBe(true)
-  if (durableYield) {
+  const recordDurableYield = () => {
     const pools = createWorkpoolStore(f.store.stateDir)
     const crash = createWorkpoolYieldCapability({ ...pools, mutate: (id, update) => {
       update(pools.load(id))
@@ -147,8 +138,32 @@ for (const closeBeforeFailure of [true, false]) for (const durableYield of [true
     } }, f.store)
     expect(() => crash(worker.taskId, worker.epoch + 1, { op: "yield", results: [{ key: "late-yield", data: 42 }] })).toThrow()
   }
+  f.followUp(async (_message, taskId) => {
+    if (terminalBeforeFailure) {
+      if (durableYield) recordDurableYield()
+      f.store.mutate(taskId, record => ({ ...record, status: "completed" }))
+    }
+    throw new Error("fixture lost acknowledgment")
+  })
+  const failures: ReturnType<typeof f.inspect>[] = []
+  f.manager.workpools.subscribe(event => { if (event.kind === "admission_failed") failures.push(f.inspect()) })
+  const failed = f.event("admission_failed")
+  const idle = terminalBeforeFailure ? f.event("worker_idle") : undefined
+  f.push("late-yield")
+  if (closeBeforeFailure) f.manager.workpools.close(f.caller, f.pool.pool_id)
+  await failed
+  if (!closeBeforeFailure) f.manager.workpools.close(f.caller, f.pool.pool_id)
+  expect(failures).toHaveLength(1)
+  expect(failures[0]?.items[1]?.error?.code).toBe("delivery_uncertain")
+  expect(failures[0]?.workers.find(candidate => candidate.task_id === worker.taskId)).toMatchObject({ status: "busy", run_epoch: worker.epoch + 1 })
   // when
-  await f.settle(worker.taskId)
+  if (idle !== undefined) await bounded(idle)
+  else {
+    expect(messages).toHaveLength(0)
+    expect(f.inspect().aggregate?.delivered).not.toBe(true)
+    if (durableYield) recordDurableYield()
+    await f.settle(worker.taskId)
+  }
   // then
   if (durableYield) expect(messages).toEqual([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", data: 42 }] }])
   else expect(messages).toMatchObject([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", error: { code: "delivery_uncertain" } }] }])
