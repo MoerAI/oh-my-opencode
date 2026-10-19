@@ -393,6 +393,13 @@ describe.skipIf(process.platform === "win32")("tar listing layouts", () => {
 			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 \\355\\225\\234.txt",
 		],
 		[
+			"extracts a non-ASCII root name with a category-only character locale",
+			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 한.txt",
+			/^resolved$/m,
+			{ LC_ALL: "", LANG: "C", LC_CTYPE: "UTF-8", STAND_IN_TAR_CTYPE_ONLY: "1", STAND_IN_TAR_SAME_ENV: "1" },
+			"-rw-r--r--  0 1000   1001        1 Oct  8 20:47 \\355\\225\\234.txt",
+		],
+		[
 			"extracts with the environment it validated the listing under",
 			"-rw-r--r-- 0/0               1 2026-10-08 20:47 bin/tool",
 			/^resolved$/m,
@@ -440,6 +447,7 @@ describe.skipIf(process.platform === "win32")("tar listing layouts", () => {
 				`case " $* " in *" -tvzf "*) [ -z "\${STAND_IN_TAR_SAME_ENV:-}" ] || snap > '${envPath}' ;; *) if [ -n "\${STAND_IN_TAR_SAME_ENV:-}" ] && [ "$(snap)" != "$(cat '${envPath}')" ]; then echo "extraction environment differs from the validated listing" >&2; exit 1; fi; exit 0 ;; esac`,
 				`line=$(cat '${listingPath}')`,
 				`case "\${LC_ALL:-\${LC_CTYPE:-\${LANG:-C}}}" in C|POSIX) [ ! -f '${listingPath}.c' ] || line=$(cat '${listingPath}.c') ;; esac`,
+				`if [ -n "\${STAND_IN_TAR_CTYPE_ONLY:-}" ] && [ "\${LANG:-}" = UTF-8 ]; then line=$(cat '${listingPath}.c'); fi`,
 				'case " $* " in *" --numeric-owner "*) gnu="1000/1001"; bsd="1000   1001" ;; *) gnu="John Doe/Domain Users"; bsd="John Doe Domain Users" ;; esac',
 				'line=$(printf "%s\\n" "$line" | sed -e "s#{gnu-owner}#$gnu#" -e "s#{bsd-owner}#$bsd#")',
 				'case "${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}" in C|POSIX) ;; *) if [ -n "${LANGUAGE:-}" ]; then line=$(printf "%s\\n" "$line" | sed "s/ link to / Verknüpfung zu /"); fi ;; esac',
