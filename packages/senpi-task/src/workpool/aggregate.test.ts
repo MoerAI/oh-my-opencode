@@ -157,6 +157,50 @@ for (const closeBeforeFailure of [true, false]) for (const durableYield of [true
   expect(messages).toHaveLength(1)
 })
 
+for (const flush of ["close", "bind"] as const) for (const durableYield of [true, false]) test(`#given another engine sharing an uncertain turn #when it flushes through ${flush} #then it waits for completion ${durableYield ? "with" : "without"} a durable yield`, async () => {
+  // given
+  const f = deliveryFixture()
+  const messages: WorkpoolAggregateMessage[] = []
+  f.manager.workpools.bindAggregate(acking(messages))
+  const worker = await f.start()
+  f.yieldResults(worker.taskId, worker.epoch, [{ key: "first", data: 1 }])
+  await f.settle(worker.taskId)
+  await f.park(worker.taskId)
+  const other = reopen(f.root)
+  try {
+    if (flush === "close") other.manager.workpools.bindAggregate(acking(messages))
+    f.followUp(async () => { throw new Error("fixture lost acknowledgment") })
+    const failed = f.event("admission_failed")
+    f.push("late-yield")
+    await failed
+    // when
+    if (flush === "close") other.manager.workpools.close(f.caller, f.pool.pool_id)
+    else {
+      f.manager.workpools.close(f.caller, f.pool.pool_id)
+      other.manager.workpools.bindAggregate(acking(messages))
+    }
+    // then
+    expect(f.inspect().items[1]?.error?.code).toBe("delivery_uncertain")
+    expect(messages).toHaveLength(0)
+    expect(f.inspect().aggregate?.delivered).not.toBe(true)
+    if (durableYield) {
+      const pools = createWorkpoolStore(f.store.stateDir)
+      const crash = createWorkpoolYieldCapability({ ...pools, mutate: (id, update) => {
+        update(pools.load(id))
+        throw new Error("fixture crash before pool result replace")
+      } }, f.store)
+      expect(() => crash(worker.taskId, worker.epoch + 1, { op: "yield", results: [{ key: "late-yield", data: 42 }] })).toThrow()
+    }
+    await f.settle(worker.taskId)
+    if (durableYield) expect(messages).toEqual([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", data: 42 }] }])
+    else expect(messages).toMatchObject([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", error: { code: "delivery_uncertain" } }] }])
+    expect(f.inspect().aggregate).toEqual({ generation: f.pool.generation, delivered: true })
+    other.manager.workpools.close(f.caller, f.pool.pool_id)
+    other.manager.workpools.attach(f.caller)
+    expect(messages).toHaveLength(1)
+  } finally { other.manager.workpools.dispose(); other.lifecycle.dispose?.() }
+})
+
 test("#given cancel of unstarted items #when a lane is held #then waiters are removed and no spawn happens", async () => {
   const f = fixture()
   f.concurrency.tryAcquire("test/model", "st_00000001", 0)
