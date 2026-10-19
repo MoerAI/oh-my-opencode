@@ -1,3 +1,7 @@
+## 2026-10-19 - Adopt senpi 2026.10.19 and fold the unpublished 5.1.36 notes into 5.1.37
+
+All exact senpi pins (root, `omo-native`, `omo-senpi` peer/dev and its `senpi-ai`/`senpi-tui` aliases, `senpi-task`, the pin and package-shape tests, the provider-map derivation comment and the catalog-coverage comment) move from `2026.10.18-1` to `2026.10.19`, with the lockfile and the committed Senpi plugin bundle regenerated. 5.1.36 was stamped on dev (#10542) but its publish never ran, so the `[5.1.36]` CHANGELOG heading is removed and its entries stay under `[Unreleased]` for the 5.1.37 cut. senpi-ai 2026.10.19 gzips `api.anthropic.com` request bodies of 4096+ characters by default; the ccapi-route opt-in is a separate follow-up.
+
 
 
 ## 2026-10-18 - Adopt senpi 2026.10.18-1

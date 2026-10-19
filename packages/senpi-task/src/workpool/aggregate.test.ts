@@ -216,6 +216,66 @@ for (const flush of ["close", "bind"] as const) for (const durableYield of [true
   } finally { other.manager.workpools.dispose(); other.lifecycle.dispose?.() }
 })
 
+for (const durableYield of [true, false]) test(`#given a shared closing pool with persisted uncertainty #when a later ordinary admission failure arrives #then reconciliation delivers once ${durableYield ? "with" : "without"} a durable yield`, async () => {
+  // given
+  const f = deliveryFixture()
+  const messages: WorkpoolAggregateMessage[] = []
+  f.manager.workpools.bindAggregate(acking(messages))
+  const worker = await f.start()
+  f.yieldResults(worker.taskId, worker.epoch, [{ key: "first", data: 1 }])
+  await f.settle(worker.taskId)
+  await f.park(worker.taskId)
+  f.manager.workpools.dispose()
+  const other = reopen(f.root)
+  const blocker = "st_00000001"
+  expect(other.concurrency.tryAcquire("test/model", blocker, 0)).toBe(true)
+  try {
+    const pools = createWorkpoolStore(f.store.stateDir)
+    const waiting = other.manager.workpools.waitForEvent(f.pool.pool_id, "waiting", AbortSignal.timeout(5000))
+    const recovered = other.manager.workpools.push(f.caller, f.pool.pool_id, [{ key: "late-yield", input: 1 }]).item_ids[0]?.item_id
+    pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+      ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
+      : item) }))
+    await bounded(waiting)
+    other.manager.workpools.bindAggregate(acking(messages))
+    other.manager.workpools.close(f.caller, f.pool.pool_id)
+    let interleaved = false
+    other.manager.workpools.subscribe(event => {
+      if (event.kind !== "granted" || event.item_id !== recovered) return
+      interleaved = true
+      f.store.mutate(worker.taskId, record => ({ ...record, status: "completed", notification: { ...record.notification, run_epoch: worker.epoch + 1 },
+        revive_delivery_uncertain: { run_epoch: worker.epoch + 1, message_sha256: "0".repeat(64) },
+      }))
+      pools.mutate(f.pool.pool_id, pool => ({ ...pool,
+        items: pool.items.map(item => item.item_id === recovered ? { ...item, status: "error", error: { code: "delivery_uncertain", message: "lost acknowledgment" },
+          delivery: { phase: "dispatching", message_sha256: "0".repeat(64) } } : item),
+        workers: pool.workers.map(candidate => candidate.task_id === worker.taskId ? { ...candidate, run_epoch: worker.epoch + 1, status: "busy" } : candidate),
+      }))
+      if (durableYield) expect(createWorkpoolYieldCapability(pools, f.store)(worker.taskId, worker.epoch + 1, {
+        op: "yield", results: [{ key: "late-yield", data: 42 }],
+      })).toMatchObject({ results: [{ status: "accepted" }] })
+    })
+    const failed = other.manager.workpools.waitForEvent(f.pool.pool_id, "admission_failed", AbortSignal.timeout(5000))
+    // when
+    other.concurrency.releaseLease(blocker, 0)
+    expect(await bounded(failed)).toMatchObject({ task_id: worker.taskId, run_epoch: worker.epoch + 1, error: { code: "worker_not_continuable" } })
+    // then
+    expect(interleaved).toBe(true)
+    expect(pools.load(f.pool.pool_id).items[1]?.error?.code).toBe("delivery_uncertain")
+    expect(pools.load(f.pool.pool_id).workers.find(candidate => candidate.task_id === worker.taskId)).toMatchObject({ status: "busy", run_epoch: worker.epoch + 1 })
+    expect(messages).toHaveLength(0)
+    other.manager.workpools.attach(f.caller)
+    if (durableYield) expect(messages).toEqual([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", data: 42 }] }])
+    else expect(messages).toMatchObject([{ pool_id: f.pool.pool_id, generation: f.pool.generation, results: [{ key: "first", data: 1 }, { key: "late-yield", error: { code: "delivery_uncertain" } }] }])
+    other.manager.workpools.attach(f.caller)
+    expect(messages).toHaveLength(1)
+  } finally {
+    other.manager.workpools.dispose()
+    other.lifecycle.dispose?.()
+    other.concurrency.releaseLease(blocker, 0)
+  }
+})
+
 test("#given two owners recovering the same binding #when the loser fails eligibility after the winner dispatches #then the winner remains able to yield", async () => {
   // given
   const f = deliveryFixture()

@@ -118,6 +118,8 @@ export function createWorkpoolDispatcher(ports: {
                 if (worker.task_id !== event.task_id) return true
                 const task = admission.get(worker.task_id)
                 return task?.status === "running" || (event.error?.code === "delivery_uncertain" && worker.status === "busy" && worker.run_epoch === event.run_epoch) ||
+                  (worker.status === "busy" && items.some(candidate => candidate.error?.code === "delivery_uncertain" &&
+                    candidate.binding?.generation === latest.generation && candidate.binding.task_id === worker.task_id && candidate.binding.run_epoch === worker.run_epoch)) ||
                   (worker.status === "idle" && task !== undefined && task.parent_session_id === latest.parent_session_id &&
                   oneShotPolicyDenial(task) === undefined && (isColdRevivalCandidate(task) ||
                     messageability(task.status, task.residency_state, task.execution_mode, task.killed) === "revive")) ||
