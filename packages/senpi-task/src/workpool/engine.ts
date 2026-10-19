@@ -40,7 +40,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
   function flushAggregate(poolId: PoolId): void {
     const pool = store.load(poolId)
     // Reconciliation marks the shared worker idle only after applying its durable yields.
-    if (pool.items.some(item => item.error?.code === "delivery_uncertain" && item.binding !== undefined &&
+    if (pool.status !== "cancelled" && pool.items.some(item => item.error?.code === "delivery_uncertain" && item.binding !== undefined &&
       pool.workers.some(worker => worker.status === "busy" &&
         worker.task_id === item.binding?.task_id && worker.run_epoch === item.binding?.run_epoch))) return
     // Close-completion: the last worker of a closed pool is gone and no item is outstanding.

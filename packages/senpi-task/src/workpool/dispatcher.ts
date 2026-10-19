@@ -56,6 +56,7 @@ export function createWorkpoolDispatcher(ports: {
         !admission.hasFreeSlot(pool.worker_spec.plan.model)) break
       if (idle !== undefined) reservedWorkers.add(idle.task_id)
       let boundTask: string | undefined = recovery?.task_id
+      let ownsBinding = false
       const current = (): boolean => {
         const latest = store.load(poolId)
         return !disposed && latest.generation === pool.generation && (latest.status === "open" || latest.status === "closing") &&
@@ -80,6 +81,7 @@ export function createWorkpoolDispatcher(ports: {
               workers: [...latest.workers.filter(candidate => candidate.task_id !== taskId), worker],
             }
           })
+          if (bound) ownsBinding = true
           if (bound) for (const assigned of store.load(poolId).items) {
             if (assigned.item_id === item.item_id || assigned.binding?.task_id !== taskId) continue
             pending.get(assigned.item_id)?.cancel()
@@ -90,11 +92,9 @@ export function createWorkpoolDispatcher(ports: {
         event: event => {
           if (event.kind === "admission_failed") {
             pending.delete(item.item_id)
-            // Another engine owner may begin this item's turn after the failing admission last looked at it: a delivery
-            // already past queued under a different task or run epoch is that owner's live turn, so this failure leaves its item and
-            // the pool worker running it alone.
+            // A nonqueued turn this request never bound belongs to another owner, even when its task and epoch match.
             const othersTurn = (candidate: WorkpoolItem): boolean => candidate.status === "assigned" && candidate.delivery !== undefined &&
-              candidate.delivery.phase !== "queued" && (candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)
+              candidate.delivery.phase !== "queued" && (!ownsBinding || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)
             store.mutate(poolId, latest => {
               if (latest.generation !== pool.generation) return latest
               const refused: WorkpoolItem[] = []
