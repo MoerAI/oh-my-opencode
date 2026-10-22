@@ -1,3 +1,5 @@
+import { excludedModelPattern } from "@oh-my-opencode/omo-config-core"
+
 import { RunnerError } from "../in-process/runner-error"
 import type { RunnerFailureReason } from "../in-process/child-handle"
 import { splitModelDecorators } from "../../senpi/explicit-pin"
@@ -22,6 +24,8 @@ export const MODEL_CATALOG_CACHE_TTL_MS = 120_000
 export type RpcModelAdmission = (spec: RpcRunnerSpec) => Promise<void>
 
 export type RpcModelAdmissionOptions = {
+  // omo.json exclude_models: a spawn or revival on an excluded model fails before any probe.
+  readonly excludeModels?: readonly string[]
   readonly buildSpawn?: (spec: RpcRunnerSpec) => RpcSpawnDescriptor
   readonly probe?: (descriptor: RpcSpawnDescriptor) => Promise<ModelCatalogProbeResult>
   readonly now?: () => number
@@ -120,6 +124,13 @@ export function createRpcModelAdmission(options: RpcModelAdmissionOptions = {}):
   return async (spec) => {
     const model = spec.model?.trim()
     if (model === undefined || model.length === 0) return
+    const excludedBy = excludedModelPattern(splitModelDecorators(model).base, options.excludeModels)
+    if (excludedBy !== undefined) {
+      throw new RunnerError({
+        kind: "model_unavailable",
+        message: `process model admission refused ${model}: exclude_models in omo.json keeps it out ("${excludedBy}")`,
+      })
+    }
     const descriptor = buildSpawn(spec)
     const key = profileKey(descriptor)
     const cached = catalogs.get(key)
