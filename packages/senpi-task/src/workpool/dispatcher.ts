@@ -82,6 +82,7 @@ export function createWorkpoolDispatcher(ports: {
             }
           })
           if (bound) ownsBinding = true
+          if (!bound) pending.delete(item.item_id)
           if (bound) for (const assigned of store.load(poolId).items) {
             if (assigned.item_id === item.item_id || assigned.binding?.task_id !== taskId) continue
             pending.get(assigned.item_id)?.cancel()
