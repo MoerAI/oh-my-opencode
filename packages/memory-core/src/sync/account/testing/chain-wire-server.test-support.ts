@@ -10,8 +10,14 @@ import type { BatchEntry, KeyringEntry, SyncAuthor, SyncEntry } from "../../cryp
 import { jcsBytes, sha256B64 } from "../../crypto/vendor/sync-format/jcs.ts"
 import type { KeyringAppendRequest } from "../../recovery/ports.ts"
 
+type Pending = { id: string; account: string; commitment: string; answer: unknown; reveal: unknown; expires_at: number }
+
 export interface ChainWireServer {
   readonly url: string
+  readonly switches: string[]
+  /** Rewrites a reveal before it is stored: a relay substituting the joining device's keys. */
+  tamperReveal: ((reveal: Record<string, unknown>) => Record<string, unknown>) | null
+  pending(): ReadonlyArray<Pending>
   tokenFor(author: SyncAuthor): string
   objectOf(seq: number): Uint8Array | undefined
   replaceObject(seq: number, bytes: Uint8Array): void
@@ -29,6 +35,9 @@ export function startChainWireServer(account: string, chain: SyncEntry[]): Chain
   const objects = new Map<number, { id: string; batchId: string; bytes: Uint8Array }>()
   const uploads = new Map<string, { size: number; sha256: string; data: Uint8Array | null }>()
   const head = () => chain.at(-1)
+  const pairings = new Map<string, Pending>()
+  const switches: string[] = []
+  const hooks: { tamperReveal: ((reveal: Record<string, unknown>) => Record<string, unknown>) | null } = { tamperReveal: null }
   const server = Bun.serve({
     port: 0,
     idleTimeout: 0,
@@ -94,6 +103,27 @@ export function startChainWireServer(account: string, chain: SyncEntry[]): Chain
         objects.set(entry.seq, { id: body.upload_id, batchId: body.idempotency_key, bytes: up.data })
         return Response.json({ seq: entry.seq })
       }
+      if (req.method === "PUT" && path === "/v1/sync/pending") {
+        const body = (await req.json()) as { account: string; commitment: string }
+        const row: Pending = { id: randomBytes(9).toString("base64url"), account: body.account, commitment: body.commitment, answer: null, reveal: null, expires_at: Date.now() + 600_000 }
+        pairings.set(row.id, row)
+        return Response.json(row)
+      }
+      if (req.method === "GET" && path === "/v1/sync/pending") return Response.json({ pending: [...pairings.values()] })
+      const pendingMatch = /^\/v1\/sync\/pending\/([^/]+)(?:\/(answer|reveal))?$/.exec(path)
+      if (pendingMatch !== null) {
+        const row = pairings.get(pendingMatch[1] ?? "")
+        if (row === undefined) return refusal(404, "not_found")
+        if (req.method === "GET" && pendingMatch[2] === undefined) return Response.json(row)
+        const body = (await req.json()) as Record<string, unknown>
+        if (pendingMatch[2] === "answer") row.answer = body
+        if (pendingMatch[2] === "reveal") row.reveal = hooks.tamperReveal === null ? body : hooks.tamperReveal(body)
+        return Response.json(row)
+      }
+      if (req.method === "PUT" && (path === "/v1/account/sync" || /^\/v1\/devices\/[^/]+\/sync$/.test(path))) {
+        switches.push(`${path} ${JSON.stringify(await req.json())}`)
+        return Response.json({ enabled: true })
+      }
       if (req.method === "PUT" && path === "/v1/sync/keys") {
         const request = (await req.json()) as KeyringAppendRequest
         if (request.base_seq !== chain.length) return refusal(409, "stale_base")
@@ -110,6 +140,14 @@ export function startChainWireServer(account: string, chain: SyncEntry[]): Chain
   })
   return {
     url: `http://127.0.0.1:${server.port}`,
+    switches,
+    get tamperReveal() {
+      return hooks.tamperReveal
+    },
+    set tamperReveal(fn) {
+      hooks.tamperReveal = fn
+    },
+    pending: () => [...pairings.values()],
     tokenFor(author) {
       const token = randomBytes(12).toString("base64url")
       authors.set(token, author)

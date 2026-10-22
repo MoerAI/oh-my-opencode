@@ -7,7 +7,6 @@ import { isLockOwnerProvenDead } from "../locks/acquire"
 import { pidAlive, probeUntil } from "../locks/process-liveness.test-support"
 import { existsSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { SAME_UID_GIT_UNINSPECTABLE } from "../git/host-scan-blind.test-support"
 import {
   DEATH_PROOF_BOUND_MS,
   assertLinearCommits,
@@ -126,10 +125,9 @@ describe("one memory identity across real Bun processes (omo #10177 crash consis
   ] as const
 
   for (const { trigger, name } of killTriggers) {
-    // Windows has neither /proc nor lsof, so the repo-in-use scan can never answer there and the
-    // fail-closed sweep keeps every stranded lock by design: these rows' reclaim cannot happen on
-    // Windows (#10391) until kernel-lock liveness (#10322) gives it an answer.
-    test.skipIf(SAME_UID_GIT_UNINSPECTABLE || process.platform === "win32")(`#given a writer SIGKILLed with a stranded .git/${name} #when its peer takes over #then every reachable object survives and the peer's follow-up commits land`, async () => {
+    // Windows has neither /proc, lsof nor the flock-based git-activity lock, so the fail-closed
+    // sweep keeps every stranded lock there by design (#10391).
+    test.skipIf(process.platform === "win32")(`#given a writer SIGKILLed with a stranded .git/${name} #when its peer takes over #then every reachable object survives and the peer's follow-up commits land`, async () => {
       // #given
       const shared = await kit.fixture()
       const killer = kit.harnessFor(crashCommitChildPath, [

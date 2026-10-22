@@ -34,7 +34,15 @@ export type ParentModelFallback = {
   readonly resets?: string
   readonly interrupted_tools?: readonly string[]
   readonly at: string
+  /**
+   * Derived on read, never persisted (#10797): absent once a child is observed on the parent's model;
+   * `switching` while the handoff onto it is in flight, `unconfirmed` when the task ended without a child ever
+   * being observed on it (never spawned, or spawned without reporting its model and died before its first message).
+   */
+  readonly phase?: ParentModelFallbackPhase
 }
+
+export type ParentModelFallbackPhase = "switching" | "unconfirmed"
 
 export type TaskNotification = {
   readonly run_epoch: number

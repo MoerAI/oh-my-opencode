@@ -50,20 +50,54 @@ describe("a non-limit failure never consumes the parent rung (#10750 review)", (
   })
 })
 
-describe("omo's own hop onto the parent's model (#10750 review round 2)", () => {
-  test("#given every category rung is spent #when omo hands the task to the parent's model #then the note shows before the relaunch records its route", () => {
-    // given
-    const spent: TaskRecord = { ...chainRecord(), fallback_models: [PARENT], effective_model: { ...A, source: "category" } }
+describe("omo's own hop onto the parent's model (#10750 review round 2, #10797)", () => {
+  const NOTE = { from_model: A.display, reason: "usage_limit" as const, at: "2026-10-21T00:00:00.000Z" }
+  const handedOff = (): TaskRecord => {
+    const spent: TaskRecord = { ...chainRecord(), status: "running", fallback_models: [PARENT], effective_model: { ...A, source: "category" } }
+    return { ...hop(spent, LIMIT).record, parent_model_fallback: NOTE }
+  }
 
+  test("#given omo hands the task to the parent's model #when no child has reported it yet #then the record still names the last observed model and the note reads as switching", () => {
     // when
-    const handedOff = {
-      ...hop(spent, LIMIT).record,
-      parent_model_fallback: { from_model: A.display, reason: "usage_limit" as const, at: "2026-10-21T00:00:00.000Z" },
-    }
+    const record = handedOff()
 
     // then
-    expect(handedOff.effective_model).toMatchObject({ provider: PARENT.provider, model_id: PARENT.model_id })
-    expect(activeParentModelFallback(handedOff)?.reason).toBe("usage_limit")
+    expect(record.resolved_model).toMatchObject({ provider: PARENT.provider, model_id: PARENT.model_id })
+    expect(record.effective_model).toMatchObject({ provider: A.provider, model_id: A.model_id })
+    expect(activeParentModelFallback(record)).toMatchObject({ reason: "usage_limit", phase: "switching" })
+  })
+
+  // #10807 review rounds 1-2: no ended shape without an observation on the parent's model may render a positive claim.
+  test.each([
+    ["the handoff never started a child", (record: TaskRecord): TaskRecord => record],
+    ["a child spawned without reporting its model and died before its first message", (record: TaskRecord): TaskRecord => ({ ...record, pid: 4242 })],
+    ["no child was ever observed on any model (a start-refusal walk onto the parent's rung)", ({ effective_model: _never, ...record }: TaskRecord): TaskRecord => record],
+  ])("#given %s #when the task has ended #then the note says the run on the parent's model is unconfirmed", (_label, settle) => {
+    // given
+    const { fallback_handoff_epoch: _ended, ...stranded } = handedOff()
+
+    // when
+    const ended: TaskRecord = { ...settle(stranded), status: "error" }
+
+    // then
+    expect(activeParentModelFallback(ended)).toMatchObject({ reason: "usage_limit", phase: "unconfirmed" })
+  })
+
+  test("#given no child was ever observed on any model #when the task is still live on the parent's rung #then the note reads as switching, not ran", () => {
+    // given
+    const { effective_model: _never, ...unobserved } = handedOff()
+
+    // then
+    expect(activeParentModelFallback(unobserved)).toMatchObject({ reason: "usage_limit", phase: "switching" })
+  })
+
+  test("#given the child reports the parent's model #when the note is read #then it reads as ran", () => {
+    // when
+    const observed: TaskRecord = { ...handedOff(), effective_model: { ...PARENT, source: "fallback" } }
+
+    // then
+    expect(activeParentModelFallback(observed)?.phase).toBeUndefined()
+    expect(activeParentModelFallback(observed)?.reason).toBe("usage_limit")
   })
 })
 

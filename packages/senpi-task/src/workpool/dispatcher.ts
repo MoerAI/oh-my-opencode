@@ -57,6 +57,7 @@ export function createWorkpoolDispatcher(ports: {
       if (idle !== undefined) reservedWorkers.add(idle.task_id)
       let boundTask: string | undefined = recovery?.task_id
       let ownsBinding = false
+      let bindingRevision = item.binding?.admission_revision
       const current = (): boolean => {
         const latest = store.load(poolId)
         return !disposed && latest.generation === pool.generation && (latest.status === "open" || latest.status === "closing") &&
@@ -67,7 +68,7 @@ export function createWorkpoolDispatcher(ports: {
         authorize: () => ports.authorize(store.load(poolId)),
         bind: (taskId, epoch) => {
           let bound = false
-          store.mutate(poolId, latest => {
+          const committed = store.mutate(poolId, latest => {
             if (!current()) return latest
             const anchor = latest.items.find(candidate => candidate.item_id === item.item_id)
             if (anchor?.status !== "queued" && !(anchor?.status === "assigned" && anchor.delivery?.phase === "queued" && anchor.binding?.task_id === taskId && anchor.binding.run_epoch === epoch)) return latest
@@ -76,12 +77,17 @@ export function createWorkpoolDispatcher(ports: {
             const prior = latest.workers.find(worker => worker.task_id === taskId)
             const worker: WorkpoolWorker = { task_id: taskId, run_epoch: epoch, status: "busy", completed_turns: prior?.completed_turns ?? 0, idle_since: prior?.idle_since ?? 0 }
             return { ...latest,
-              items: latest.items.map(candidate => candidate.item_id === item.item_id || (idle !== undefined && candidate.status === "queued")
-                ? { ...candidate, status: "assigned", binding: { task_id: taskId, run_epoch: epoch, generation: pool.generation }, delivery: { phase: "queued" } } : candidate),
+              items: latest.items.map(candidate => candidate.item_id === item.item_id || (idle !== undefined && candidate.status === "queued") ||
+                (candidate.status === "assigned" && candidate.delivery?.phase === "queued" && candidate.binding?.task_id === taskId &&
+                  candidate.binding.run_epoch === epoch && candidate.binding.generation === pool.generation)
+                ? { ...candidate, status: "assigned", binding: { task_id: taskId, run_epoch: epoch, generation: pool.generation, admission_revision: latest.revision + 1 }, delivery: { phase: "queued" } } : candidate),
               workers: [...latest.workers.filter(candidate => candidate.task_id !== taskId), worker],
             }
           })
-          if (bound) ownsBinding = true
+          if (bound) {
+            ownsBinding = true
+            bindingRevision = committed.revision
+          }
           if (!bound) pending.delete(item.item_id)
           if (bound) for (const assigned of store.load(poolId).items) {
             if (assigned.item_id === item.item_id || assigned.binding?.task_id !== taskId) continue
@@ -93,9 +99,10 @@ export function createWorkpoolDispatcher(ports: {
         event: event => {
           if (event.kind === "admission_failed") {
             pending.delete(item.item_id)
-            // A nonqueued turn this request never bound belongs to another owner, even when its task and epoch match.
-            const othersTurn = (candidate: WorkpoolItem): boolean => candidate.status === "assigned" && candidate.delivery !== undefined &&
-              candidate.delivery.phase !== "queued" && (!ownsBinding || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)
+            // The bind revision fences queued turns; dispatched legacy turns retain their identity guard.
+            const othersTurn = (candidate: WorkpoolItem): boolean => (candidate.status === "queued" || candidate.status === "assigned") &&
+              (candidate.binding?.admission_revision !== bindingRevision || (candidate.status === "assigned" && candidate.delivery !== undefined &&
+                candidate.delivery.phase !== "queued" && (!ownsBinding || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)))
             store.mutate(poolId, latest => {
               if (latest.generation !== pool.generation) return latest
               const refused: WorkpoolItem[] = []
@@ -116,7 +123,9 @@ export function createWorkpoolDispatcher(ports: {
                 })
               }
               return { ...latest, items, workers: latest.workers.filter(worker => {
-                if (worker.task_id !== event.task_id) return true
+                if (worker.task_id !== event.task_id || !refused.some(candidate =>
+                  (candidate.binding?.task_id === worker.task_id && candidate.binding.run_epoch === worker.run_epoch && candidate.binding.generation === latest.generation) ||
+                  (candidate.item_id === item.item_id && idle?.task_id === worker.task_id && idle.run_epoch === worker.run_epoch))) return true
                 const task = admission.get(worker.task_id)
                 return task?.status === "running" || (event.error?.code === "delivery_uncertain" && worker.status === "busy" && worker.run_epoch === event.run_epoch) ||
                   (worker.status === "busy" && items.some(candidate => candidate.error?.code === "delivery_uncertain" &&
@@ -124,7 +133,8 @@ export function createWorkpoolDispatcher(ports: {
                   (worker.status === "idle" && task !== undefined && task.parent_session_id === latest.parent_session_id &&
                   oneShotPolicyDenial(task) === undefined && (isColdRevivalCandidate(task) ||
                     messageability(task.status, task.residency_state, task.execution_mode, task.killed) === "revive")) ||
-                  latest.items.some(candidate => othersTurn(candidate) && candidate.binding?.task_id === worker.task_id && candidate.binding.run_epoch === worker.run_epoch)
+                  latest.items.some(candidate => othersTurn(candidate) && candidate.binding?.task_id === worker.task_id &&
+                    candidate.binding.run_epoch === worker.run_epoch && candidate.binding.generation === latest.generation)
               }) }
             })
             if (event.error?.code === "delivery_uncertain" && event.task_id !== undefined && event.run_epoch !== undefined) observeCompletion(pool, event.task_id, event.run_epoch)
