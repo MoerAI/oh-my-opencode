@@ -342,6 +342,25 @@ describe("formatTaskRow", () => {
     )
   })
 
+  it("#given a child that moved onto its parent's model #when formatting #then the row names why and when the limit resets (#10750)", () => {
+    const moved = record({
+      task_id: "st_parent_model",
+      status: "running",
+      category: "unspecified-high",
+      parent_model: "chatgpt-subscription/gpt-6.1-sol",
+      parent_model_fallback: {
+        from_model: "anthropic-subscription/claude-opus-5-5",
+        reason: "usage_limit",
+        resets: "3:20am",
+        at: "2026-10-21T01:00:00.000Z",
+      },
+    })
+    const stayed = record({ task_id: "st_category_model", status: "running", category: "unspecified-high" })
+
+    expect(formatTaskRow(moved)).toContain("parent-model:usage limit, resets 3:20am")
+    expect(formatTaskRow(stayed)).not.toContain("parent-model:")
+  })
+
   it("#given a description #when formatting #then the human label leads", () => {
     const row = formatTaskRow(record({
       task_id: "st_described",
