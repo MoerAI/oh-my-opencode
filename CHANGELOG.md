@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Slow language servers can have more time to publish fresh diagnostics.** Set `OMO_LSP_DIAGNOSTICS_FRESHNESS_TIMEOUT_MS` to a positive integer in milliseconds to override the three-second freshness wait; explicit client options still take precedence. Restart an existing LSP daemon after changing the value. ([#9271](https://github.com/code-yeongyu/oh-my-openagent/issues/9271), [#10200](https://github.com/code-yeongyu/oh-my-openagent/pull/10200))
+
+## [5.1.41] - 2026-10-22
+
+
 **The engine moves to senpi 2026.10.21-1: engine hosts start faster and idle far more quietly, Claude subscriptions use the native 1M context again, and desktop threads are lighter ([#10740](https://github.com/code-yeongyu/oh-my-openagent/pull/10740)).** A new engine host starts about 0.1 s faster, and an idle engine host wakes 405 times per 90 s instead of 1,106. Current Claude subscription models (Fable 5, Sonnet 5, Haiku 5.5, Opus 4.7 and later) get their native 1M window back without asking for extra usage, and the Claude subscription lane runs Claude Code 2.1.306. Each desktop thread's engine supervisor starts from its own small program instead of the whole CLI, and messages and tool cards no longer keep duplicate copies (about 640 bytes per message and 2 KB per tool card). Models that models.dev marks deprecated stay available, labeled deprecated, instead of disappearing (GitHub Copilot Claude Opus 4.7, GPT-5.5 and GPT-5.4, Baseten Kimi K2 and others), and the model catalog is refreshed; some models get updated thinking levels (for example Nemotron 3 Ultra: off is now none). A message that was already delivered no longer stays listed under Steering, and with several accounts for one provider a usage limit stops failing turns once its reset has passed; a quota failure now says when it resets.
 
 **Memory sync refuses signatures under weak Ed25519 keys.** Bun's WebCrypto accepts a signature made under a small-order public key, such as the identity key, for any message. The sync client now checks every key and signature it verifies itself, and refuses any keyring record that would bring a weak or malformed signing key into the account's keyring, including keys that appear only inside a fork-resolution's evidence. ([#10743](https://github.com/code-yeongyu/oh-my-openagent/pull/10743), fixes [#10742](https://github.com/code-yeongyu/oh-my-openagent/issues/10742))
@@ -27,7 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **`ulw-research` shows its report inline and checks a visual reproduction against the source ([#10812](https://github.com/code-yeongyu/oh-my-openagent/pull/10812)).** When the host can show an HTML page in the thread (`show_html_page`, `html_render`), the run ends with the report there, before the file paths, on every tier and even when the research was shortened; a built app or 3D scene shown inline no longer stands in for it. When the ask is to recreate something visual, such as a clip rebuilt in 3D, the run puts real frames of the source next to its own output at the same moments, writes down what differs, fixes the biggest gaps, and shows the side-by-side pairs in the report.
 
-**Slow language servers can have more time to publish fresh diagnostics.** Set `OMO_LSP_DIAGNOSTICS_FRESHNESS_TIMEOUT_MS` to a positive integer in milliseconds to override the three-second freshness wait; explicit client options still take precedence. Restart an existing LSP daemon after changing the value. ([#9271](https://github.com/code-yeongyu/oh-my-openagent/issues/9271), [#10200](https://github.com/code-yeongyu/oh-my-openagent/pull/10200))
+
+### Changed
+
+- Combine macOS root-test shards and Codex/Senpi compatibility into one runner job, preserving their existing check names through Ubuntu status jobs. Full-matrix CI now requests two macOS runners per head instead of five, including unchanged native binary parity; fast paths skip the combined allocation ([#10804](https://github.com/code-yeongyu/oh-my-openagent/pull/10804)).
+
+- CI: pull requests run the macOS and Windows legs only when a platform-specific path changes: any path a macOS/Windows-only CI step names (derived from the workflow), native crates, the launcher and platform packaging, the Windows Git Bash runtime, the Codex installer, platform-named sources, and the CI workflows. Pushes to `dev` and merge groups still run every OS, and the `run-full-ci` label forces the full matrix on a pull request ([#10856](https://github.com/code-yeongyu/oh-my-openagent/issues/10856)). ([#10859](https://github.com/code-yeongyu/oh-my-openagent/pull/10859))
 
 ## [5.1.40] - 2026-10-20
 
