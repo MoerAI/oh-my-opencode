@@ -423,6 +423,7 @@ describe("checkExtensionCurrent", () => {
     expect(main).toContain('import("#omo-thread-client-runtime")')
     expect(main).toContain('import("#omo-memory-sync-runtime")')
     expect(main).toContain('import("#omo-feedback-runtime")')
+    expect(main).toContain('import("#omo-claim-receipt-runtime")')
     expect(task).toMatch(/^\/\/ omo:[A-Za-z0-9_-]{43}:[A-Za-z0-9_-]{43}/)
     expect(main).not.toContain('import("#omo-agent-toolkit-runtime")')
     expect(manifest.imports).not.toHaveProperty("#omo-agent-toolkit-runtime")
@@ -437,6 +438,7 @@ describe("checkExtensionCurrent", () => {
       "#omo-telemetry-posthog-runtime": "./extensions/omo-telemetry-posthog.js",
       "#omo-memory-sync-runtime": "./extensions/omo-memory-sync.js",
       "#omo-feedback-runtime": "./extensions/omo-feedback.js",
+      "#omo-claim-receipt-runtime": "./extensions/omo-claim-receipt.js",
       "#omo-thread-client-runtime": "./extensions/omo-thread-client.js",
       "#omo-agent-toolkit-sdk": "./runtime/agent-toolkit-sdk/sdk.js",
     })
