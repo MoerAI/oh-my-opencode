@@ -825,6 +825,16 @@ Records about individuals, stored as cards with an observation ledger.
 | `people.max_entries`      | `40`    | Maximum observation entries per person (1-100)     |
 | `people.max_entry_chars`  | `200`   | Maximum characters per entry (50-500)              |
 
+#### Agreements
+
+Standing agreements with your person, kept in `system/agreements.md` with how many times each was broken. The facts extractor counts a repeated correction against the agreement it repeats; past the threshold the agreement is flagged and you see a notice. Manage the list with `/agreements` (`list`, `add [--project] <text>`, `ack <id>`, `drop <id>`). Agreements you add can only be changed by you.
+
+| Option                             | Default | Description                                                    |
+| ---------------------------------- | ------- | -------------------------------------------------------------- |
+| `agreements.enabled`               | `true`  | Count repeated corrections and announce flagged agreements      |
+| `agreements.needs_human_threshold` | `3`     | Breaks at which an agreement is flagged as needing you (min 1)  |
+| `agreements.max_items`             | `64`    | Ledger size; at the cap the oldest never-reaffirmed agent item is evicted (8-256) |
+
 #### Soul
 
 | Option             | Default | Description                                            |
@@ -841,8 +851,8 @@ Records about individuals, stored as cards with an observation ledger.
 
 | Option           | Default | Description                                    |
 | ---------------- | ------- | ---------------------------------------------- |
-| `sync.enabled`   | `true`  | Sync the memory repository                      |
-| `sync.remote`    | -       | Optional git remote for the memory repository   |
+| `sync.enabled`   | `true`  | End-to-end encrypted memory sync on this device (needs sign-in and sync on for the account) |
+| `sync.remote`    | -       | Deprecated, ignored; the git mirror is set with `/memfs`  |
 | `search.enabled` | `true`  | Enable memory search                            |
 
 In Senpi, run `/sleeptime` to see every resolved memory value, including which ones a per-agent
