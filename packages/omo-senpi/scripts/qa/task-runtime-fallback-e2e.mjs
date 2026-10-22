@@ -174,6 +174,32 @@ const scenarios = [
         : "FAIL",
     }),
   })),
+  // #10750: every model the child's category names is spent, and the parent session runs on another
+  // account. The child must finish on the parent's model, say why on its record, and leave settings alone;
+  // after a tool call the parent's model continues the same turn, so the tool runs exactly once.
+  ...[
+    { name: "parent-model-limit", category: "limitsolo", model: "omo-fallback-mock/limit-fable", toolRuns: 0 },
+    { name: "parent-model-after-tool", category: "toolsolo", model: "omo-fallback-mock/limit-after-tool", toolRuns: 1 },
+  ].map((solo) => ({
+    name: solo.name,
+    parent: { provider: "omo-fallback-parent", model: "parent-gpt" },
+    omoConfig: { categories: { [solo.category]: { model: solo.model } } },
+    checks: (artifacts, stdoutText) => ({
+      final_text: stdoutText.includes(finalText) ? "PASS" : "FAIL",
+      fallback_event: fallbackRecorded(artifacts.log),
+      final_model: artifacts.task?.model === "omo-fallback-parent/parent-gpt" ? "PASS" : "FAIL",
+      parent_model_recorded: artifacts.task?.parent_model === "omo-fallback-parent/parent-gpt" ? "PASS" : "FAIL",
+      parent_model_reason: artifacts.task?.parent_model_fallback?.reason === "usage_limit"
+        && artifacts.task?.parent_model_fallback?.from_model === solo.model
+        && artifacts.task?.parent_model_fallback?.resets === "3pm (Asia/Seoul)"
+        ? "PASS"
+        : "FAIL",
+      tool_runs: (artifacts.log.match(/"type":"tool_execution","payload":\{"tool":"bash"/g) ?? []).length === solo.toolRuns ? "PASS" : "FAIL",
+      settings_byte_identical: artifacts.settingsBefore !== undefined && artifacts.settingsBefore === artifacts.settingsAfter
+        ? "PASS"
+        : "FAIL",
+    }),
+  })),
   {
     name: "chain-exhausted",
     omoConfig: {},
@@ -349,9 +375,9 @@ async function runScenario(scenario, runner, outDir) {
         "--mode",
         "json",
         "--provider",
-        "omo-fallback-mock",
+        scenario.parent?.provider ?? "omo-fallback-mock",
         "--model",
-        "parent",
+        scenario.parent?.model ?? "parent",
         "--session-dir",
         sessionDir,
         "run the fallback category task and report its result",

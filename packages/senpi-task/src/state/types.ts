@@ -167,9 +167,11 @@ export type {
   TaskRunStats,
   TokenCoverageStatus,
 } from "./run-stats-types"
-export { isSpawnSpecV1 } from "./record-types"
+export { isSpawnSpecV1, PARENT_MODEL_FALLBACK_REASONS } from "./record-types"
 export type {
   LegacyProcessSpawnSpec,
+  ParentModelFallback,
+  ParentModelFallbackReason,
   PendingSteeringEntry,
   ReviveDeliveryUncertainty,
   SpawnSpecV1,
