@@ -354,11 +354,22 @@ describe("formatTaskRow", () => {
         resets: "3:20am",
         at: "2026-10-21T01:00:00.000Z",
       },
+      // #10807: "moved" means a child was OBSERVED on the parent's model; an unobserved record reads as switching/unconfirmed.
+      resolved_model: { provider: "chatgpt-subscription", model_id: "gpt-6.1-sol", display: "chatgpt-subscription/gpt-6.1-sol", source: "category" },
+      effective_model: { provider: "chatgpt-subscription", model_id: "gpt-6.1-sol", display: "chatgpt-subscription/gpt-6.1-sol", source: "fallback" },
     })
     const stayed = record({ task_id: "st_category_model", status: "running", category: "unspecified-high" })
+    // #10797: selected but not yet observed on the parent's model, so the row must not claim it runs there.
+    const switching = record({
+      ...moved,
+      task_id: "st_switching",
+      resolved_model: { provider: "chatgpt-subscription", model_id: "gpt-6.1-sol", display: "chatgpt-subscription/gpt-6.1-sol", source: "category" },
+      effective_model: { provider: "anthropic-subscription", model_id: "claude-opus-5-5", display: "anthropic-subscription/claude-opus-5-5", source: "category" },
+    })
 
     expect(formatTaskRow(moved)).toContain("parent-model:usage limit, resets 3:20am")
     expect(formatTaskRow(stayed)).not.toContain("parent-model:")
+    expect(formatTaskRow(switching)).toContain("parent-model:switching, usage limit, resets 3:20am")
   })
 
   it("#given a description #when formatting #then the human label leads", () => {

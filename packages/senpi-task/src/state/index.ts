@@ -27,6 +27,7 @@ export type {
   LegacyProcessSpawnSpec,
   Messageability,
   ParentModelFallback,
+  ParentModelFallbackPhase,
   ParentModelFallbackReason,
   PendingSteeringEntry,
   ResidencyState,
