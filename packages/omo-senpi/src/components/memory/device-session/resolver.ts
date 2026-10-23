@@ -10,9 +10,6 @@ import type { DeviceKeyMaterial, DeviceKeyring } from "@oh-my-opencode/memory-co
 import type { SyncSessionRequest, SyncSessionResolution } from "../sync-runner"
 import type { DeviceAccountSource } from "./account-source"
 
-/** Trust pins live under the memory root, beside (never inside) the identity repositories. */
-export const SYNC_PIN_DIRNAME = "sync-device"
-
 export interface DeviceSessionRuntime {
   readonly openAccountSession: (options: AccountSessionOptions) => Promise<AccountSessionOutcome>
   readonly deviceKeyringFromMaterial: (material: DeviceKeyMaterial) => Promise<DeviceKeyring>

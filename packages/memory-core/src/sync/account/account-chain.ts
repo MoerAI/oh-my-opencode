@@ -7,7 +7,7 @@
 // can be verified, and the next read retries. Epoch keys open only from wraps the verified chain
 // minted.
 
-import type { TrustAnchor } from "../crypto/anchor.ts"
+import type { ChainAnchor } from "../crypto/anchor.ts"
 import { type AcceptedBatch, appendEntries, type ChainRejection, type ChainState, emptyChain } from "../crypto/chain.ts"
 import type { BatchEntry, KeyringEntry, SyncEntry } from "../crypto/entry.ts"
 import type { RejectionCounter } from "../crypto/rejection.ts"
@@ -53,7 +53,7 @@ const toEntry = (row: unknown, keys: ReadonlyMap<number, KeyringEntry>): SyncEnt
 
 export async function openAccountChain(input: {
   readonly account: string
-  readonly anchor: TrustAnchor
+  readonly anchor: ChainAnchor
   readonly keyring: DeviceKeyring
   readonly http: AccountHttp
   readonly rejections: RejectionCounter

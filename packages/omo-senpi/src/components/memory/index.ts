@@ -1,7 +1,5 @@
 import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
-import { join } from "node:path"
-
-import { resolveMemoryRoot } from "@oh-my-opencode/memory-core"
+import { resolveMemoryRoot, syncPinDir } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../config-resolution"
@@ -15,7 +13,7 @@ import { registerMemoryReadClassifier } from "./read-classifier-wiring"
 import { createSessionBinder, readSessionSurface, releaseSession, type SessionState } from "./session-binding"
 import { finalizeIdentityRun } from "./transient-identity"
 import { createCliAccountSource, type DeviceAccountSource } from "./device-session/account-source"
-import { createDeviceSessionResolver, SYNC_PIN_DIRNAME } from "./device-session/resolver"
+import { createDeviceSessionResolver } from "./device-session/resolver"
 import { createSyncRunner, type SyncRunner } from "./sync-runner"
 import { sweepTransientMemoryRuns, type TransientSweep } from "./transient-sweep"
 import { createMemoryWiring, type MemoryWiringOptions } from "./wiring"
@@ -72,7 +70,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         logger: ctx.logger,
         resolveSession: createDeviceSessionResolver({
           source: options.deviceAccount ?? createCliAccountSource({ env }),
-          pinDir: join(resolveMemoryRoot(env, cwd), SYNC_PIN_DIRNAME),
+          pinDir: syncPinDir(resolveMemoryRoot(env, cwd)),
           loadRuntime: () => import("#omo-memory-sync-runtime"),
         }),
       })

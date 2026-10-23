@@ -1,10 +1,10 @@
 import { existsSync } from "../fs/resilient"
-import { mkdir, rm, writeFile } from "../fs/resilient"
-import { dirname, join } from "node:path"
+import { lstat, mkdir, readdir, realpath, rm, writeFile } from "../fs/resilient"
+import { basename, dirname, join } from "node:path"
 import { withGitLockRetry, withSerializedGitConfigMutation } from "./config-lock"
 import { NO_AUTO_MAINTENANCE } from "./no-auto-maintenance"
 import { withStrandedGitLockRecovery } from "./repo-lock-sweep"
-import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
+import { DirtyRepoError, InvalidGitPathError, NoEffectiveChangesError } from "./errors"
 import { commitJudgedByOutcome } from "./commit-outcome"
 import { createNodeGitExec, type GitExec, type GitExecResult } from "./exec"
 import { describeDirtyMarkdownEncodingIssues } from "./porcelain"
@@ -177,12 +177,43 @@ export class GitMemoryRepo {
     const normalized = normalizePathspecs(paths)
     if (normalized.length === 0) return
     const atHead = new Set(await this.lsTree("HEAD"))
-    const tracked = normalized.filter((path) => atHead.has(path))
-    const untracked = normalized.filter((path) => !atHead.has(path))
+    const physicalEntry = async (path: string): Promise<string | undefined> => {
+      try {
+        const full = join(this.dir, path)
+        await lstat(full)
+        const parent = await realpath(dirname(full))
+        const name = basename(full)
+        const foldedName = name.normalize("NFC").toLowerCase()
+        const entries = await readdir(parent)
+        const entry = entries.find(candidate => candidate === name)
+          ?? entries.find(candidate => candidate.normalize("NFC").toLowerCase() === foldedName)
+        return entry === undefined ? undefined : join(parent, entry)
+      } catch (error) {
+        if (error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return undefined
+        throw error
+      }
+    }
+    const headPath = async (path: string): Promise<string> => {
+      if (atHead.has(path)) return path
+      const foldedPath = path.normalize("NFC").toLowerCase()
+      const candidates = [...atHead].filter(candidate => candidate.normalize("NFC").toLowerCase() === foldedPath)
+      if (candidates.length === 0) return path
+      const entry = await physicalEntry(path)
+      if (entry === undefined) return path
+      const matches: string[] = []
+      for (const candidate of candidates) if (await physicalEntry(candidate) === entry) matches.push(candidate)
+      if (matches.length > 1) throw new InvalidGitPathError(`Memory path has multiple tracked HEAD aliases: ${path}`)
+      return matches[0] ?? path
+    }
+    const canonical = [...new Set(await Promise.all(normalized.map(headPath)))]
+    const tracked = canonical.filter((path) => atHead.has(path))
+    const untracked = canonical.filter((path) => !atHead.has(path))
     if (tracked.length > 0) {
       await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
     }
     for (const path of untracked) {
+      // Restoring a tracked entry can make an initially missing case alias resolvable again.
+      if (atHead.has(await headPath(path))) continue
       await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "rm", "-q", "--cached", "--ignore-unmatch", "--", path]))
       await rm(join(this.dir, path), { force: true })
     }
