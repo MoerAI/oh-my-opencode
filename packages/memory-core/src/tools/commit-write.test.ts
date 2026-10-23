@@ -104,6 +104,7 @@ describe("commitMemoryWrite", () => {
   it.each(["canonical first", "alias first", "case-only move"])("#given two case spellings (%s) #when a patch is refused #then tracked data and the next write survive", async (order) => {
     // given
     const { dir, repo } = await hookedRepo()
+    await repo.configSet("core.autocrlf", "true")
     const canonical = "reference/Notes.md"
     const alias = "reference/notes.md"
     const refusedPath = "reference/refused.md"
@@ -126,18 +127,15 @@ describe("commitMemoryWrite", () => {
     }))
 
     // then
-    expect({
-      refusal: error.name,
-      command: error instanceof GitCommandError ? error.argv.find(arg => arg === "add" || arg === "commit") : undefined,
-      head: await repo.head(),
-      tracked: existsSync(join(dir, canonical)) ? await readFile(join(dir, canonical), "utf8") : null,
-      aliasExists: existsSync(join(dir, alias)),
-      refusedExists: existsSync(join(dir, refusedPath)),
-      status: await repo.status(),
-    }).toEqual({
-      refusal: "GitCommandError", command: expect.stringMatching(/^(add|commit)$/), head,
-      tracked: original, aliasExists: caseInsensitiveFs, refusedExists: false, status: "",
-    })
+    const command = error instanceof GitCommandError ? error.argv.find(arg => arg === "add" || arg === "commit") : undefined
+    expect(command === "add" || command === "commit").toBe(true)
+    expect(error.name).toBe("GitCommandError")
+    expect(await repo.head()).toBe(head)
+    expect(await readdir(join(dir, "reference"))).toEqual(["Notes.md"])
+    expect(await readFile(join(dir, canonical))).toEqual(Buffer.from(original))
+    expect(existsSync(join(dir, alias))).toBe(caseInsensitiveFs)
+    expect(existsSync(join(dir, refusedPath))).toBe(false)
+    expect(await repo.status()).toBe("")
     const next = await writeMemory(repo, dir, "reference/recovered.md", original)
     expect(next.affectedPaths).toEqual(["reference/recovered.md"])
     expect(next.sha).not.toBe(head)

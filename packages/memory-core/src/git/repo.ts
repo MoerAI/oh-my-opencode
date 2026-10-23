@@ -209,7 +209,7 @@ export class GitMemoryRepo {
     const tracked = canonical.filter((path) => atHead.has(path))
     const untracked = canonical.filter((path) => !atHead.has(path))
     if (tracked.length > 0) {
-      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
+      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "-c", "core.autocrlf=false", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
     }
     for (const path of untracked) {
       // Restoring a tracked entry can make an initially missing case alias resolvable again.
