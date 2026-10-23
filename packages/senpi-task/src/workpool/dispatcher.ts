@@ -99,8 +99,10 @@ export function createWorkpoolDispatcher(ports: {
         event: event => {
           if (event.kind === "admission_failed") {
             pending.delete(item.item_id)
-            // The bind revision fences queued turns; dispatched legacy turns retain their identity guard.
-            const othersTurn = (candidate: WorkpoolItem): boolean => (candidate.status === "queued" || candidate.status === "assigned") &&
+            // Queued turns remain revision-fenced; the request that began a dispatched identity owns its cleanup even if a later recovery bind replaced that revision.
+            const beganThisTurn = (candidate: WorkpoolItem): boolean => candidate.status === "assigned" && candidate.delivery !== undefined &&
+              candidate.delivery.phase !== "queued" && ownsBinding && candidate.binding?.task_id === event.task_id && candidate.binding?.run_epoch === event.run_epoch
+            const othersTurn = (candidate: WorkpoolItem): boolean => (candidate.status === "queued" || candidate.status === "assigned") && !beganThisTurn(candidate) &&
               (candidate.binding?.admission_revision !== bindingRevision || (candidate.status === "assigned" && candidate.delivery !== undefined &&
                 candidate.delivery.phase !== "queued" && (!ownsBinding || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)))
             store.mutate(poolId, latest => {
