@@ -17,6 +17,36 @@ import {
 } from "./otlp-test-support"
 
 const DAY_MS = 24 * 60 * 60 * 1000
+// A short shutdown cap keeps the shutdown tests fast; the flush deadline leaves the cleanup reserve (cap / 10 here).
+const CAP_MS = 400
+const FLUSH_DEADLINE_MS = 360
+// The outer breaker: far above any cap, so only a shutdown that never returns reaches it.
+const BREAKER_MS = 10_000
+
+/** Records the delay of every timer armed while installed; shutdown's deadlines are plain timers. */
+function recordTimerDelays(): { readonly delays: number[]; readonly restore: () => void } {
+  const original = globalThis.setTimeout
+  const delays: number[] = []
+  const recording = (handler: Parameters<typeof setTimeout>[0], ms?: number, ...args: unknown[]) => {
+    delays.push(Number(ms ?? 0))
+    return original(handler, ms, ...args)
+  }
+  globalThis.setTimeout = recording as unknown as typeof setTimeout
+  return { delays, restore: () => void (globalThis.setTimeout = original) }
+}
+
+/** "settled" when the work settles first, else a named breaker message (never a pass by timing). */
+async function settleOrBreak(work: Promise<unknown>, what: string): Promise<string> {
+  let breaker: ReturnType<typeof setTimeout> | undefined
+  const broke = new Promise<string>((resolve) => {
+    breaker = setTimeout(() => resolve(`breaker: no ${what} within ${BREAKER_MS} ms`), BREAKER_MS)
+  })
+  try {
+    return await Promise.race([work.then(() => "settled"), broke])
+  } finally {
+    clearTimeout(breaker)
+  }
+}
 const roots: (() => void)[] = []
 afterEach(() => {
   for (const cleanup of roots.splice(0)) cleanup()
@@ -182,45 +212,54 @@ describe("spool recovery", () => {
     expect(transport.droppedEvents()).toBe(0)
   }, 60_000)
 
-  test("#given a fetch that never settles #when the transport shuts down #then it returns within 2,600 ms (the 2 s cap plus scheduling slack) and the batch stays on disk", async () => {
+  test("#given a fetch that never settles #when the transport shuts down #then the shutdown cap ends it and the batch stays on disk", async () => {
     // given
     const dir = root()
-    const transport = makeTransport(dir, { fetch: () => new Promise<Response>(() => undefined) })
+    const timers = recordTimerDelays()
+    const transport = makeTransport(dir, { shutdownTimeoutMs: CAP_MS, fetch: () => new Promise<Response>(() => undefined) })
     capture(transport, "feature_used", { feature: "a" })
 
-    // when
-    const started = performance.now()
-    await transport.shutdown()
-    const elapsed = performance.now() - started
+    try {
+      // when
+      const outcome = await settleOrBreak(transport.shutdown(), "shutdown returning once its cap fires")
 
-    // then
-    expect(elapsed).toBeLessThan(2_600)
-    expect(spoolNames(dir).length).toBe(1)
-    expect(spoolNames(dir)[0]).toMatch(/^batch-logs-[0-9a-f-]{36}\.otlp$/)
+      // then
+      expect(outcome).toBe("settled")
+      expect(timers.delays).toContain(CAP_MS)
+      expect(spoolNames(dir).length).toBe(1)
+      expect(spoolNames(dir)[0]).toMatch(/^batch-logs-[0-9a-f-]{36}\.otlp$/)
+    } finally {
+      timers.restore()
+    }
   }, 30_000)
 
-  test("#given shutdown's flush starts with 1.5 s of synchronous work #then shutdown still returns within the 2 s cap measured from the call (plus scheduling slack, far below the 3.5 s a late cap would take)", async () => {
+  test("#given shutdown's flush starts with synchronous work #then both shutdown deadlines were armed before that work ran, so it counts against the cap measured from the call", async () => {
     // given
     const dir = root()
-    let stallNextConsentCheck = false
+    const timers = recordTimerDelays()
+    let armedWhenFlushWorkRan: number[] | undefined
+    let markNextConsentCheck = false
     const consent = (): boolean => {
-      if (stallNextConsentCheck) {
-        stallNextConsentCheck = false
-        Bun.sleepSync(1_500)
+      if (markNextConsentCheck) {
+        markNextConsentCheck = false
+        armedWhenFlushWorkRan = [...timers.delays]
       }
       return true
     }
-    const transport = makeTransport(dir, { consent, fetch: () => new Promise<Response>(() => undefined) })
+    const transport = makeTransport(dir, { consent, shutdownTimeoutMs: CAP_MS, fetch: () => new Promise<Response>(() => undefined) })
     capture(transport, "feature_used", { feature: "a" })
-    stallNextConsentCheck = true
+    markNextConsentCheck = true
 
-    // when
-    const started = performance.now()
-    await transport.shutdown()
-    const elapsed = performance.now() - started
+    try {
+      // when
+      const outcome = await settleOrBreak(transport.shutdown(), "shutdown returning once its cap fires")
 
-    // then
-    expect(elapsed).toBeLessThan(2_600)
-    expect(spoolNames(dir)[0]).toMatch(/^batch-logs-[0-9a-f-]{36}\.otlp$/)
+      // then
+      expect(outcome).toBe("settled")
+      expect(armedWhenFlushWorkRan).toEqual(expect.arrayContaining([FLUSH_DEADLINE_MS, CAP_MS]))
+      expect(spoolNames(dir)[0]).toMatch(/^batch-logs-[0-9a-f-]{36}\.otlp$/)
+    } finally {
+      timers.restore()
+    }
   }, 30_000)
 })
