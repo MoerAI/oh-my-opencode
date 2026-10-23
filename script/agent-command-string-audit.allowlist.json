@@ -40,7 +40,6 @@
     "changes.md: /bin/omo x5",
     "changes.md: omo doctor x19",
     "changes.md: omo install x2",
-    "changes/unreleased/10763.md: omo doctor",
     "docs/guide/binary-install.md: /bin/omo",
     "docs/guide/install.md: /bin/omo x5",
     "docs/guide/install.md: command -v omo",

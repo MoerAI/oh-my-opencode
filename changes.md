@@ -1,3 +1,19 @@
+## 2026-10-22 - Telemetry counts how many accounts you have linked per provider (#10919)
+
+`session_started` gains `connected_account_count`: per provider kind, the number of accounts the engine itself lists for that provider (senpi `getCredentialAccounts`, the list the app's account list shows), used or not. For Claude (`anthropic-subscription`) that is the stored `accounts` list (the managed sign-in sentinel without a list counts zero) plus every `CLAUDE_CODE_OAUTH_TOKEN` env slot; for other providers it is the stored list when non-empty, else the flat credential as one, and env-key slots only when nothing is stored. It is a `kind:count` list over the shipped provider kinds; any other provider is summed into `custom`, and each count is capped at `10_plus`. senpi does not export its listing function, so `account-inventory.ts` (`packages/omo-senpi/src/components/telemetry`) mirrors its rules through the engine's own `@earendil-works/pi-ai` provider and env-variable tables, and `account-inventory.test.ts` asserts parity with the real engine function from the installed senpi dist on every fixture. Only lengths and whether a variable is set are read. An unreadable `auth.json` counts nothing here; the provider inventory reports it once. `docs/reference/senpi-telemetry.md` regenerates the schema block and adds the disclosure row.
+
+## 2026-10-22 - Telemetry counts the providers you signed into, not only the ones you configured (#10887)
+
+`session_started` already sent `provider_count` and `providers`, but they came from `models.json` alone: the custom providers and endpoints a user configured. Providers a user signed into, such as subscriptions or API keys stored in `auth.json`, were missing. In the last 14 days the most common `provider_count` was 0 (about 7,000 installs), and the most common `providers` was empty (about 13,100 installs).
+
+`readOmoNativeInventory` (`packages/omo-senpi/src/components/telemetry/session-inventory.ts`) now also reads the top-level provider names in `auth.json`. It never reads a credential value, account id or key. The retired subscription names `claude-sdk-oauth` and `openai-codex` count as `anthropic-subscription` and `chatgpt-subscription`.
+- `provider_count` is the number of distinct providers the user signed into or configured.
+- Two new numbers on `session_started` split it: `signed_in_provider_count` and `configured_provider_count`.
+- `providers` lists the shipped provider kinds, sorted. Any other provider now appears as one `custom` entry instead of being dropped, so the list agrees with the count.
+- A missing `auth.json` means no sign-in. A malformed one counts no sign-ins and reports the existing `omo_native_inventory_read_failed` diagnostic with a fixed message, never the parser's text, which can quote a credential. The configured providers still count. An unreadable `models.json` no longer hides the signed-in providers.
+
+`docs/reference/senpi-telemetry.md` regenerates the schema block and adds the disclosure row.
+
 ## 2026-10-21 - Memory counts how often a standing agreement had to be repeated (#10780)
 
 A person's standing instructions to the agent now live as one counted ledger, `system/agreements.md`: one line per agreement with a stable id (sha256 of the normalized text), a scope (`global` / `project`), who wrote it (`human` / `agent`), how many times it was broken, and a status. The facts extractor gets a second tool, `record_agreement`: when the person corrects something an existing agreement already covers, it reaffirms that id and the count goes up in the same facts commit; a reaffirm naming an id the extractor was not shown is refused. At `memory.agreements.needs_human_threshold` (default 3) an item turns NEEDS-HUMAN, and each newly flagged item is announced once: one `<memory_notice>` line to the agent and one `omo-memory:agreement-flagged` row to the person. At `max_items` (default 64) a new agreement evicts the oldest agent-written item that was never reaffirmed nor flagged, and the facts commit names it in an `Omo-Agreement-Evicted: <id>` trailer; when nothing is evictable the new agreement is refused and logged. Similar agreements are never merged, so two distinct rules always stay two lines.
@@ -23,6 +39,25 @@ All exact senpi pins (root, `omo-native`, `omo-senpi` peer/dev and its `senpi-ai
 ## 2026-10-19 - git_master.git_env_prefix in omo.json, and git-master's description asks to be loaded (#10613)
 
 `OmoGitMasterSettingsSchema` accepts `git_env_prefix` (default `"GIT_MASTER=1"`, `""` disables, same shell-safe assignment rule as the OpenCode plugin's key) and lists it as native-only in `GIT_MASTER_HARNESS_SUPPORT`; `assets/omo.schema.json` is regenerated and `docs/reference/omo-json.md` documents the key and its per-shell forms. The shared `git-master` SKILL.md description returns to the plugin's wording ("MUST USE for ANY git operations" plus the commit/rebase/squash/history triggers). The OpenCode plugin never auto-injected git-master; models loaded it because of that description, and the softer native one ("skip for ordinary code edits") let them skip it.
+
+## 2026-10-20 - The compiled memory block and its pressure estimate persist by commit (#10642)
+
+A relaunch's first prompt compiled the memory block again: on a 6,867-file memory, `compileMemoryBlockAtRevision` took about 94 ms warm and 3.5 s on a cold git pack (the 3.2 s first session). It lists the tree, reads system blobs and walks history (`pathCommitTimes`), and the pressure estimate added about 25 ms more. Both depend only on the commit and the compile inputs.
+
+- **Store.** `MemoryBlockCache` now takes an optional lazy `store` (`CompiledBlockStore`, `packages/memory-core/src/compile/block-persist.ts`, shipped in the `#omo-recall-store-runtime` sidecar). It keeps each value as one file in the memory repo's `.git` (`omo-memory-block-<sha256>.json`).
+- **Key.** Every value is keyed by `MEMORY_BLOCK_COMPILER_VERSION`, the build, the revision, the template hash, the identity, the projection limits and the full compile options. Bump `MEMORY_BLOCK_COMPILER_VERSION` with any change to the compiled bytes for the same inputs.
+- **Pressure estimate.** It goes through `MemoryBlockCache.remember` under the same key scheme.
+- **Writes.** Atomic (temp file + rename), off the prompt path, and skipped while a `/memfs restore` holds the repository's exclusive gate (`withRecallTermSavesExcluded`). The newest 16 entries are kept.
+- **Derived cache only.** Never committed, pushed, mirrored or synced. A missing, damaged or foreign entry reads as absent and is recompiled.
+- **Store wait.** A compile waits at most 25 ms (`storeBudgetMs`) for the store to load, then compiles as before.
+- **Prebuild.** The prompt handler gained `prebuild(context)`, started fire-and-forget by `afterBind`: it compiles the HEAD block and estimate a new session's first prompt needs. The prompt shares that in-flight compile, so it is never slower than without the prebuild.
+- **Build identity.** `memoryBlockBuild()` is the package version plus the running bundle's size and mtime.
+- **Shutdown.** A `memory-block-settle` step waits for pending writes.
+- **Degraded compiles are never stored (review H1).** `compileMemoryBlockWithReads` reports one reason per git read that failed and made the compile fall back: commit times unavailable (name order), or a system file such as `system/persona.md` left out. `remember` stores a value only when its compute says `persist`; a degraded block serves that turn only and is logged via `onDegraded`, and the next process compiles the commit again.
+- **Source runs persist nothing (M2).** `memoryBlockBuild()` returns `undefined` without a bundle-defined package version, and the wiring then builds an in-memory-only cache, because a source run's compiler changes are invisible to the key.
+- **Prebuild only for new sessions (M1).** A resumed session is pinned to its recorded revision, so it gets no HEAD prebuild that could compete with its own compile.
+- **Shutdown and memory (L2, L3).** `settled()` also waits for in-flight compiles that may store a value. The per-revision pressure promise is dropped once settled; its value stays in the numeric memo. The store keeps 32 entries (L4).
+- **Tests.** `cache-persist.test.ts` also injects `GitTimeoutError` into `pathCommitTimes` and into `show(system/persona.md)`: nothing is stored and a fresh process compiles the full block. It covers: a fresh process reads with zero `lsTree`/`show`/`pathCommitTimes`; a changed revision, limits, identity or build recompiles; entries stay out of every commit and index; a damaged entry is rewritten; restore exclusion; a store that never loads.
 
 ## 2026-10-19 - Recall keeps its BM25 terms on disk and builds excerpts only for returned candidates
 

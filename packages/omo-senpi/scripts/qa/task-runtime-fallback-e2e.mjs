@@ -188,6 +188,11 @@ const scenarios = [
       final_text: stdoutText.includes(finalText) ? "PASS" : "FAIL",
       fallback_event: fallbackRecorded(artifacts.log),
       final_model: artifacts.task?.model === "omo-fallback-parent/parent-gpt" ? "PASS" : "FAIL",
+      // #10797: a handoff no longer writes the next rung as observed, so the child itself must report it.
+      effective_model_observed: artifacts.task?.effective_model?.provider === "omo-fallback-parent"
+        && artifacts.task?.effective_model?.model_id === "parent-gpt"
+        ? "PASS"
+        : "FAIL",
       parent_model_recorded: artifacts.task?.parent_model === "omo-fallback-parent/parent-gpt" ? "PASS" : "FAIL",
       parent_model_reason: artifacts.task?.parent_model_fallback?.reason === "usage_limit"
         && artifacts.task?.parent_model_fallback?.from_model === solo.model

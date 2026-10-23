@@ -1,5 +1,5 @@
 import { optionalRendererText } from "./renderer-text"
-import type { ParentModelFallback, ParentModelFallbackReason } from "./state"
+import type { ParentModelFallback, ParentModelFallbackPhase, ParentModelFallbackReason } from "./state"
 
 const REASON_PHRASES: Readonly<Record<ParentModelFallbackReason, string>> = {
   usage_limit: "hit its usage limit",
@@ -7,6 +7,16 @@ const REASON_PHRASES: Readonly<Record<ParentModelFallbackReason, string>> = {
   unavailable: "was overloaded or unavailable",
   refused: "refused the request",
   error: "failed",
+}
+
+const PHASE_TOKENS: Readonly<Record<ParentModelFallbackPhase, string>> = {
+  switching: "switching",
+  unconfirmed: "unconfirmed",
+}
+
+const PHASE_LEADS: Readonly<Record<ParentModelFallbackPhase, string>> = {
+  switching: "switching to",
+  unconfirmed: "was never confirmed running on",
 }
 
 function resetsSuffix(fallback: ParentModelFallback): string {
@@ -18,7 +28,8 @@ export function parentModelFallbackToken(fallback: ParentModelFallback | undefin
   if (fallback === undefined) return undefined
   const short = fallback.reason === "usage_limit" ? "usage limit" : fallback.reason.replaceAll("_", " ")
   const resets = optionalRendererText(fallback.resets)
-  return `parent-model:${short}${resets === undefined ? "" : `, resets ${resets}`}`
+  const phase = fallback.phase === undefined ? "" : `${PHASE_TOKENS[fallback.phase]}, `
+  return `parent-model:${phase}${short}${resets === undefined ? "" : `, resets ${resets}`}`
 }
 
 /**
@@ -31,7 +42,8 @@ export function describeParentModelFallback(fallback: ParentModelFallback | unde
   const from = optionalRendererText(fallback.from_model) ?? "its category model"
   const detail = fallback.reason === "error" || fallback.reason === "refused" ? optionalRendererText(fallback.detail) : undefined
   const interrupted = (fallback.interrupted_tools ?? []).map((tool) => optionalRendererText(tool)).filter((tool) => tool !== undefined)
-  const head = `ran on the parent session's model ${parent}: ${from} ${REASON_PHRASES[fallback.reason]}${resetsSuffix(fallback)}`
+  const lead = fallback.phase === undefined ? "ran on" : PHASE_LEADS[fallback.phase]
+  const head = `${lead} the parent session's model ${parent}: ${from} ${REASON_PHRASES[fallback.reason]}${resetsSuffix(fallback)}`
   const withDetail = detail === undefined ? head : `${head} (${detail})`
   return interrupted.length === 0 ? withDetail : `${withDetail}; interrupted tool call not run: ${interrupted.join(", ")}`
 }

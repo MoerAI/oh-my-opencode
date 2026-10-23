@@ -118,6 +118,7 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
     <html
       lang="en"
       className={`dark ${GeistSans.variable} ${GeistMono.variable}`}
+      data-omo-build={process.env.OMO_WEB_BUILD_ID || undefined}
       suppressHydrationWarning
     >
       <head>
