@@ -13,6 +13,7 @@ import { planOpencodeProviders } from "../bin/lib/setup-opencode-providers.js"
 import { teardownRoots } from "./teardown.test-support"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
+const REPO_NODE_MODULES = resolve(SOURCE_ROOT, "..", "..", "node_modules")
 const roots: string[] = []
 
 afterEach(() => teardownRoots(roots))
@@ -31,8 +32,10 @@ function fixture(): Fixture {
   mkdirSync(join(root, "home"), { recursive: true })
   mkdirSync(join(root, "tmp"), { recursive: true })
   cpSync(join(SOURCE_ROOT, "bin"), join(app, "bin"), { recursive: true })
+  // The installed omo-ai resolves its pinned engine from its own node_modules; the copied app gets the
+  // workspace's, so reading the engine's model list stays offline (a junction needs no privilege on Windows).
+  symlinkSync(REPO_NODE_MODULES, join(app, "node_modules"), "junction")
   write(join(app, "package.json"), JSON.stringify({ name: "omo-ai", version: "test", type: "module" }))
-  symlinkSync(resolve(SOURCE_ROOT, "../../node_modules"), join(app, "node_modules"), process.platform === "win32" ? "junction" : "dir")
   return {
     home: join(root, "home"),
     agentDir: join(root, "senpi-agent"),
