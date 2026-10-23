@@ -4,6 +4,7 @@ import { messageability } from "../state"
 import { oneShotPolicyDenial } from "../steering/engine-policy"
 import { reconcileWorkerTurn, reconcileWorkpool, uncertainItem } from "./reconcile"
 import type { WorkpoolStore } from "./store"
+import { beginWorkerTurn } from "./worker-turn"
 import { WorkpoolError, type PoolId, type WorkpoolEvent, type WorkpoolItem, type WorkpoolRecord, type WorkpoolWorker } from "./types"
 
 export function orderIdleWorkers(workers: readonly WorkpoolWorker[]): readonly WorkpoolWorker[] {
@@ -56,7 +57,7 @@ export function createWorkpoolDispatcher(ports: {
         !admission.hasFreeSlot(pool.worker_spec.plan.model)) break
       if (idle !== undefined) reservedWorkers.add(idle.task_id)
       let boundTask: string | undefined = recovery?.task_id
-      let ownsBinding = false
+      let beganTurn = false
       let bindingRevision = item.binding?.admission_revision
       const current = (): boolean => {
         const latest = store.load(poolId)
@@ -85,7 +86,6 @@ export function createWorkpoolDispatcher(ports: {
             }
           })
           if (bound) {
-            ownsBinding = true
             bindingRevision = committed.revision
           }
           if (!bound) pending.delete(item.item_id)
@@ -96,15 +96,20 @@ export function createWorkpoolDispatcher(ports: {
           }
           return bound
         },
+        begin: (taskId, epoch, prefix) => {
+          const captured = beginWorkerTurn(stores, { pool_id: poolId, generation: pool.generation, task_id: taskId, run_epoch: epoch }, prefix)
+          if (captured !== undefined) beganTurn = true
+          return captured
+        },
         event: event => {
           if (event.kind === "admission_failed") {
             pending.delete(item.item_id)
             // Queued turns remain revision-fenced; the request that began a dispatched identity owns its cleanup even if a later recovery bind replaced that revision.
             const beganThisTurn = (candidate: WorkpoolItem): boolean => candidate.status === "assigned" && candidate.delivery !== undefined &&
-              candidate.delivery.phase !== "queued" && ownsBinding && candidate.binding?.task_id === event.task_id && candidate.binding?.run_epoch === event.run_epoch
+              candidate.delivery.phase !== "queued" && beganTurn && candidate.binding?.task_id === event.task_id && candidate.binding?.run_epoch === event.run_epoch
             const othersTurn = (candidate: WorkpoolItem): boolean => (candidate.status === "queued" || candidate.status === "assigned") && !beganThisTurn(candidate) &&
               (candidate.binding?.admission_revision !== bindingRevision || (candidate.status === "assigned" && candidate.delivery !== undefined &&
-                candidate.delivery.phase !== "queued" && (!ownsBinding || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)))
+                candidate.delivery.phase !== "queued" && (!beganTurn || candidate.binding?.task_id !== event.task_id || candidate.binding?.run_epoch !== event.run_epoch)))
             store.mutate(poolId, latest => {
               if (latest.generation !== pool.generation) return latest
               const refused: WorkpoolItem[] = []

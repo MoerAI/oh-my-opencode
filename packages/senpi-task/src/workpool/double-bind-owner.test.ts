@@ -4,7 +4,7 @@ import { deliveryFixture } from "./__fixtures__/delivery"
 import { createWorkpoolDispatcher } from "./dispatcher"
 import type { WorkpoolRequest } from "./ports"
 import { createWorkpoolStore } from "./store"
-import { appendAssignedMessages, beginWorkerTurn } from "./worker-turn"
+import { appendAssignedMessages } from "./worker-turn"
 
 function delayedDispatcher(f: ReturnType<typeof deliveryFixture>) {
   const captured = deferred<WorkpoolRequest>()
@@ -60,7 +60,7 @@ for (const beginsWith of ["earlier", "later"] as const) test(`#given two recover
     appendAssignedMessages({ pools, tasks: f.store }, turn)
     const winner = beginsWith === "earlier" ? first : second
     // when
-    expect(beginWorkerTurn({ pools, tasks: f.store }, turn)).toBeDefined()
+    expect(winner.begin(worker.taskId, epoch)).toBeDefined()
     winner.event({ kind: "admission_failed", pool_id: f.pool.pool_id, item_id: itemId, task_id: worker.taskId, run_epoch: epoch,
       error: { code: "worker_not_continuable", message: "ordinary revival failure" } })
     // then

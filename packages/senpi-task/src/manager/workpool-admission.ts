@@ -5,7 +5,7 @@ import { messageability, nextRunEpoch, type TaskRecord } from "../state"
 import { oneShotPolicyDenial } from "../steering/engine-policy"
 import { isColdRevivalCandidate } from "../lifecycle/revive-policy"
 import { createWorkpoolStore } from "../workpool/store"
-import { acknowledgeWorkerTurn, appendAssignedMessages, beginWorkerTurn, WORKPOOL_TURN_MESSAGE } from "../workpool/worker-turn"
+import { acknowledgeWorkerTurn, appendAssignedMessages, WORKPOOL_TURN_MESSAGE } from "../workpool/worker-turn"
 import type { ReviveReservation, SendOutcome } from "../steering/types"
 import { WorkpoolError, type WorkpoolAgent, type WorkpoolCaller, type WorkpoolSpec } from "../workpool/types"
 import type { WorkpoolAdmission, WorkpoolRequest } from "../workpool/ports"
@@ -103,7 +103,7 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
           }
           if (!bindTurn()) return
           appendAssignedMessages(stores, turn)
-          if (beginWorkerTurn(stores, turn) === undefined) return
+          if (input.begin(taskId, epoch) === undefined) return
           const result = await ports.revive(record, WORKPOOL_TURN_MESSAGE, { ok: true, release, commit: () => { transferred = true; ports.trackRevive(taskId, epoch) } })
           if (result.kind !== "revived") {
             if (options.store.load(taskId)?.revive_delivery_uncertain?.run_epoch === epoch) {
@@ -141,7 +141,7 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
           } finally { acquired.lease.release() }
           if (!current()) { await ports.cancel(taskId); return }
           appendAssignedMessages(stores, turn)
-          const captured = beginWorkerTurn(stores, turn, context.managedSpec.prompt)
+          const captured = input.begin(taskId, epoch, context.managedSpec.prompt)
           if (captured === undefined) return
           const result = await ports.launch({ ...context, managedSpec: { ...context.managedSpec, prompt: captured.message } })
           if (!result.ok) throw new WorkpoolError("spawn_failed", result.error)
