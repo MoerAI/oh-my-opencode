@@ -22,11 +22,14 @@ export async function checkExtensionCurrent(options = {}) {
     memoryDoctorOutput,
     memoryMemfsOutput,
     memoryPalaceOutput,
+    deviceAccountOutput,
+    memoryCommandsOutput,
     sessionHistoryOutput,
     recallStoreOutput,
     telemetryPosthogOutput,
     memorySyncOutput,
     threadClientOutput,
+    telemetryRecoveryOutput,
     feedbackOutput,
     claimReceiptOutput,
     gatewayStoreWorkerOutput,
@@ -53,6 +56,8 @@ export async function checkExtensionCurrent(options = {}) {
   const currentMemoryDoctor = await readBuiltEntry(memoryDoctorOutput)
   const currentMemoryMemfs = await readBuiltEntry(memoryMemfsOutput)
   const currentMemoryPalace = await readBuiltEntry(memoryPalaceOutput)
+  const currentDeviceAccount = await readBuiltEntry(deviceAccountOutput)
+  const currentMemoryCommands = await readBuiltEntry(memoryCommandsOutput)
   const currentSessionHistory = await readBuiltEntry(sessionHistoryOutput)
   const currentRecallStore = await readBuiltEntry(recallStoreOutput)
   const currentTelemetryPosthog = await readBuiltEntry(telemetryPosthogOutput)
@@ -72,10 +77,14 @@ export async function checkExtensionCurrent(options = {}) {
   if (currentMemoryDoctor === undefined) return { ok: false, reason: "missing-output", output: memoryDoctorOutput }
   if (currentMemoryMemfs === undefined) return { ok: false, reason: "missing-output", output: memoryMemfsOutput }
   if (currentMemoryPalace === undefined) return { ok: false, reason: "missing-output", output: memoryPalaceOutput }
+  if (currentDeviceAccount === undefined) return { ok: false, reason: "missing-output", output: deviceAccountOutput }
+  if (currentMemoryCommands === undefined) return { ok: false, reason: "missing-output", output: memoryCommandsOutput }
   if (currentSessionHistory === undefined) return { ok: false, reason: "missing-output", output: sessionHistoryOutput }
   if (currentRecallStore === undefined) return { ok: false, reason: "missing-output", output: recallStoreOutput }
   if (currentTelemetryPosthog === undefined) return { ok: false, reason: "missing-output", output: telemetryPosthogOutput }
   if (currentThreadClient === undefined) return { ok: false, reason: "missing-output", output: threadClientOutput }
+  const currentTelemetryRecovery = await readBuiltEntry(telemetryRecoveryOutput)
+  if (currentTelemetryRecovery === undefined) return { ok: false, reason: "missing-output", output: telemetryRecoveryOutput }
   if (currentFeedback === undefined) return { ok: false, reason: "missing-output", output: feedbackOutput }
   if (currentClaimReceipt === undefined) return { ok: false, reason: "missing-output", output: claimReceiptOutput }
   const currentComputerUse = await readBuiltEntry(computerUseOutput)
@@ -99,11 +108,14 @@ export async function checkExtensionCurrent(options = {}) {
     memoryDoctorOutputPath: join(tempRoot, "omo-memory-doctor.js"),
     memoryMemfsOutputPath: join(tempRoot, "omo-memory-memfs.js"),
     memoryPalaceOutputPath: join(tempRoot, "omo-memory-palace.js"),
+    deviceAccountOutputPath: join(tempRoot, "omo-device-account.js"),
+    memoryCommandsOutputPath: join(tempRoot, "omo-memory-commands.js"),
     sessionHistoryOutputPath: join(tempRoot, "omo-session-history.js"),
     recallStoreOutputPath: join(tempRoot, "omo-recall-store.js"),
     telemetryPosthogOutputPath: join(tempRoot, "omo-telemetry-posthog.js"),
     memorySyncOutputPath: join(tempRoot, "omo-memory-sync.js"),
     threadClientOutputPath: join(tempRoot, "omo-thread-client.js"),
+    telemetryRecoveryOutputPath: join(tempRoot, "omo-telemetry-recovery.js"),
     feedbackOutputPath: join(tempRoot, "omo-feedback.js"),
     claimReceiptOutputPath: join(tempRoot, "omo-claim-receipt.js"),
     computerUseOutputPath: join(tempRoot, "omo-computer-use.js"),
@@ -125,11 +137,14 @@ export async function checkExtensionCurrent(options = {}) {
       [currentMemoryDoctor, expected.memoryDoctorOutputPath, memoryDoctorOutput],
       [currentMemoryMemfs, expected.memoryMemfsOutputPath, memoryMemfsOutput],
       [currentMemoryPalace, expected.memoryPalaceOutputPath, memoryPalaceOutput],
+      [currentDeviceAccount, expected.deviceAccountOutputPath, deviceAccountOutput],
+      [currentMemoryCommands, expected.memoryCommandsOutputPath, memoryCommandsOutput],
       [currentSessionHistory, expected.sessionHistoryOutputPath, sessionHistoryOutput],
       [currentRecallStore, expected.recallStoreOutputPath, recallStoreOutput],
       [currentTelemetryPosthog, expected.telemetryPosthogOutputPath, telemetryPosthogOutput],
       [currentMemorySync, expected.memorySyncOutputPath, memorySyncOutput],
       [currentThreadClient, expected.threadClientOutputPath, threadClientOutput],
+      [currentTelemetryRecovery, expected.telemetryRecoveryOutputPath, telemetryRecoveryOutput],
       [currentFeedback, expected.feedbackOutputPath, feedbackOutput],
       [currentClaimReceipt, expected.claimReceiptOutputPath, claimReceiptOutput],
       [currentComputerUse, expected.computerUseOutputPath, computerUseOutput],

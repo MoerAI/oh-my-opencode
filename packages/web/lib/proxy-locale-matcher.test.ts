@@ -13,6 +13,24 @@ const redirectOf = (path: string) => {
   return { status: response.status, location: response.headers.get("location") }
 }
 
+// Shipped desktop builds open https://omo.dev/download (reinstall screen, deb update pill). While the
+// omo.dev page is off, that path must reach the public beta download page instead of a 404.
+describe("desktop download path while the omo.dev download page is off", () => {
+  test.each([
+    "/download",
+    "/download?channel=beta",
+    ...locales.map((locale) => `/${locale}/download`),
+  ])(
+    "#given %s #when requested #then it redirects permanently to the public beta download page",
+    (path) => {
+      expect(redirectOf(path)).toEqual({
+        status: 301,
+        location: "https://get.omo.dev/desktop/beta/",
+      })
+    },
+  )
+})
+
 describe("installation redirects in every locale", () => {
   test("#given the static matcher #when it names localized install paths #then it never lists locales by hand", () => {
     expect(proxySource).not.toMatch(/:locale\(/)
