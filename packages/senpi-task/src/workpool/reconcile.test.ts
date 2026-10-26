@@ -160,31 +160,40 @@ for (const winnerStatus of ["assigned", "completed"] as const) test(`#given anot
   const worker = await f.start()
   await f.settle(worker.taskId)
   const pools = createWorkpoolStore(f.store.stateDir)
-  const recovered = f.push("recovered").item_ids[0]?.item_id
-  pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
-    ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
-    : item) }))
   const load = f.store.load.bind(f.store)
-  let workerLoads = 0
+  let recovered: string | undefined
+  let granted = false
   const spy = spyOn(f.store, "load").mockImplementation(taskId => {
     const record = load(taskId)
-    if (taskId !== worker.taskId || record === null) return record
-    workerLoads += 1
-    if (workerLoads > 1) return { ...record, notification: { ...record.notification, run_epoch: record.notification.run_epoch + 1 } }
+    return !granted || taskId !== worker.taskId || record === null ? record
+      : { ...record, notification: { ...record.notification, run_epoch: record.notification.run_epoch + 1 } }
+  })
+  const unsubscribe = f.manager.workpools.subscribe(event => {
+    if (event.kind !== "granted" || recovered === undefined || event.item_id !== recovered) return
+    granted = true
     pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
       ? { ...item, status: winnerStatus, ...(winnerStatus === "completed" ? { data: 42, yield_sha256: "1".repeat(64) } : {}), delivery: { phase: winnerStatus === "completed" ? "acknowledged" : "dispatching", message_sha256: "0".repeat(64) } }
       : item), workers: [...pool.workers.filter(candidate => candidate.task_id !== worker.taskId),
       { task_id: worker.taskId, run_epoch: worker.epoch + 1, status: winnerStatus === "completed" ? "idle" : "busy", completed_turns: winnerStatus === "completed" ? 1 : 0, idle_since: 0 }] }))
-    return record
   })
   const failed = f.event("admission_failed")
-  // when
-  const refusal = await failed
-  spy.mockRestore()
-  // then
-  expect(refusal).toMatchObject({ item_id: recovered, error: { code: "worker_not_continuable" } })
-  expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: winnerStatus, delivery: { phase: winnerStatus === "completed" ? "acknowledged" : "dispatching" } })
-  expect(pools.load(f.pool.pool_id).workers.find(candidate => candidate.task_id === worker.taskId)).toMatchObject({ run_epoch: worker.epoch + 1, status: winnerStatus === "completed" ? "idle" : "busy" })
+  try {
+    recovered = f.push("recovered").item_ids[0]?.item_id
+    if (recovered === undefined) throw new Error("Missing recovered workpool item")
+    pools.mutate(f.pool.pool_id, pool => ({ ...pool, items: pool.items.map(item => item.item_id === recovered
+      ? { ...item, status: "assigned", binding: { task_id: worker.taskId, generation: pool.generation, run_epoch: worker.epoch + 1 }, delivery: { phase: "queued" } }
+      : item) }))
+    // when
+    const refusal = await failed
+    // then
+    expect(granted).toBe(true)
+    expect(refusal).toMatchObject({ item_id: recovered, error: { code: "worker_not_continuable" } })
+    expect(f.inspect().items.find(item => item.item_id === recovered)).toMatchObject({ status: winnerStatus, delivery: { phase: winnerStatus === "completed" ? "acknowledged" : "dispatching" } })
+    expect(pools.load(f.pool.pool_id).workers.find(candidate => candidate.task_id === worker.taskId)).toMatchObject({ run_epoch: worker.epoch + 1, status: winnerStatus === "completed" ? "idle" : "busy" })
+  } finally {
+    unsubscribe()
+    spy.mockRestore()
+  }
 })
 runRecoveryCases()
 })

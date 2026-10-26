@@ -14,6 +14,7 @@ import type { TransportRecoveryOptions } from "./transport-recovery"
 import type { CatalogModelIdentity } from "../pinned-model-equivalence"
 import type { TaskRecord } from "../../state"
 import type { HostTurnReconciliation, InputEffectStatus, ReconciledTurnNotice } from "./reconcile-turn"
+import type { TaskParentWire } from "../task-parent-control"
 
 /**
  * What a child handle needs FROM a daemon session and what it exposes TO the manager. The seam is
@@ -39,6 +40,8 @@ export interface HostSessionPort {
   readonly socketPath: string
   readonly transportGone: Promise<unknown>
   send(command: HostSessionCommand): Promise<void>
+  // The run hold commands over this connection; absent on ports that cannot carry them.
+  taskParentWire?(): TaskParentWire
   getState(): Promise<HostSessionLiveness>
   onEvent(listener: ChildEventListener): () => void
   onExtensionEvent?(listener: ChildExtensionListener): () => void
@@ -101,6 +104,8 @@ export type HostSessionChildHandle = RpcChildHandle & {
   /** Served by the CURRENT port, so they keep working after a reattach. */
   getEntries(since?: string): Promise<RpcEntriesResult>
   switchSession(sessionPath: string): Promise<RpcSwitchSessionResult>
+  /** Publish the task's status in the session's context (`task_status`) before a detach leaves it loaded. */
+  publishTaskStatus(status: TaskRecord["status"]): Promise<void>
   /** Drop this child's connection and leave the session running on the daemon. */
   detach(): Promise<void>
   /** End the session on the host without aborting a turn first (`clean`). */
