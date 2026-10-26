@@ -690,7 +690,10 @@ class TaskManagerImpl implements TaskManager {
   }
 
   get(taskId: string): TaskRecord | undefined {
-    return this.#tryLoad(taskId) ?? undefined
+    const record = this.#tryLoad(taskId)
+    if (record === null) return undefined
+    const liveness = this.#live.get(taskId)?.handle.liveness?.()
+    return liveness === undefined ? record : { ...record, host_liveness: liveness }
   }
 
   // senpi#3266: the one-step action out of "resumed, waiting for input" that keeps the work. The
@@ -867,6 +870,8 @@ class TaskManagerImpl implements TaskManager {
     const records = this.#options.store.list().records
     const filtered = scope.scope === "all" ? records : records.filter((record) => inSession(record, scope.session_id))
     return filtered.map((record) => {
+      const liveness = this.#live.get(record.task_id)?.handle.liveness?.()
+      if (liveness !== undefined) record = { ...record, host_liveness: liveness }
       const lastSeen = this.#live.get(record.task_id)?.handle.lastSeen?.()
       if (lastSeen !== undefined) record = { ...record, last_seen_at: new Date(lastSeen).toISOString() }
       const position = record.status === "pending" ? this.#concurrency.queuePosition(record.model, record.task_id) : undefined
@@ -1386,6 +1391,10 @@ class TaskManagerImpl implements TaskManager {
       runStats: this.#runStats, fallbackExhaustions: this.#nativeFallbackExhaustions, failedTurns: this.#failedTurns,
       reopen: () => reopenSelfResumedTurn(this.#selfResumedPorts, taskId, handle),
       onMotion: () => this.#clearAwaitingInput(taskId),
+      onLiveness: (status) => {
+        if (status.state === "running") void this.#steering.notifyStarted(taskId)
+      },
+      onLivenessNotice: (record, status) => this.#options.onChildLiveness?.(record, status),
       onExtensionEvent: (event) => {
         const record = this.#tryLoad(taskId)
         if (record != null && record.host_pid === this.#hostPid) this.#options.onChildExtensionEvent?.(event, record)

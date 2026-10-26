@@ -239,7 +239,7 @@ When the session has a tool that shows a self-contained HTML page inline in the 
 
 ## 10. Command reference
 
-Invoke every command as `node "$SKILL_DIR/scripts/report-tools.mjs" <command>`. Exit codes for all of them: `0` pass, `1` semantic failure, `2` usage or IO error.
+Invoke every command as `node "$SKILL_DIR/scripts/report-tools.mjs" <command>`. Exit codes: `0` pass, `1` semantic failure, `2` usage or IO error. `fact polish-apply` deliberately permits partial application: exit `0` means the output was written, not that every edit applied. Check its top-level JSON `applied` boolean (`false` if any edit was rejected or unlocated); `data.applied` remains the accepted-edit count.
 
 | Command | Flags | Exit `1` when |
 | --- | --- | --- |

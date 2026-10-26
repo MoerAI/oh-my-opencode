@@ -9,6 +9,7 @@ import { HOST_TURN_RESUMED_EVENT } from "./host-turn-resumed"
 import type { EffectiveModel } from "../runners/pinned-model-equivalence"
 import type { ReconciledTurnNotice } from "../runners/rpc-host/reconcile-turn"
 import type { NativeRunPause } from "../pause/native-child-pause"
+import type { HostLivenessStatus } from "../runners/rpc-host/handle-heartbeat"
 
 export type { RunnerOutcome } from "../runners/in-process/child-handle"
 
@@ -33,6 +34,8 @@ export type ManagedChildListener = (event: ManagedChildEvent) => void
 // handle surfaces are normalized here: a promise-returning dispose, an optional pid/sessionId, and a
 // single waitForOutcome() that yields the unified RunnerOutcome for either runner.
 export type ManagedChildHandle = {
+  liveness?(): HostLivenessStatus
+  onLiveness?(listener: (status: HostLivenessStatus) => void): () => void
   reconcileInputs?(): Promise<void>
   readonly task_id: string
   // The child engine's run hold controls; absent when that engine has none (senpi#3811).
@@ -133,6 +136,8 @@ export function adaptRpcHandle(handle: RpcChildHandle): ManagedChildHandle {
     ...(isHostSessionHandle(handle)
       ? {
           onParked: (listener) => handle.onParked(listener),
+          liveness: () => handle.liveness(),
+          onLiveness: (listener) => handle.onLiveness(listener),
           onReplaced: (listener) => handle.onReplaced(listener),
           onDurableSessionId: (listener) => handle.onDurableSessionId(listener),
           transportRecovering: () => handle.transportRecovering(),

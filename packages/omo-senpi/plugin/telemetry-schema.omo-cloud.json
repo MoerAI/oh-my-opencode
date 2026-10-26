@@ -122,6 +122,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -173,6 +174,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -224,6 +226,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -275,6 +278,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -326,6 +330,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -377,6 +382,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -428,6 +434,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -479,6 +486,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -530,6 +538,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -581,6 +590,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -1059,6 +1069,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -1431,6 +1442,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -1613,6 +1625,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -2269,6 +2282,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -2540,6 +2554,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -2663,6 +2678,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -2786,6 +2802,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3131,6 +3148,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3182,6 +3200,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3288,6 +3307,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3457,6 +3477,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3507,6 +3528,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3557,6 +3579,7 @@
         "values": [
           "qwen3.6-flash",
           "qwen3.8-max-preview",
+          "claude-fable-5-5",
           "claude-fable-5",
           "claude-fable-5-1",
           "claude-haiku-4-5",
@@ -3846,5 +3869,5 @@
       }
     }
   },
-  "sha256": "5162a7d4185760b68a1cad8f73db420c32acaa00e71d21f926fb2032f2b66507"
+  "sha256": "e20fed8c6c81226792bb902ad7a07edfbe6f4988113ac1d3783ac9aa84a8e89e"
 }

@@ -802,6 +802,7 @@ describe("dag tool control verb refusal vocabulary", () => {
     { code: "node_not_found", message: 'unknown dag node "ghost"' },
     { code: "node_not_retryable", message: 'dag node "plan" already completed' },
     { code: "node_not_continuable", message: 'dag node "plan" cannot be continued' },
+    { code: "node_unresponsive", message: "HOST_STATUS_SENTINEL" },
     { code: "run_still_active", message: "run is still active" },
     { code: "invalid_arguments", message: "a retry prompt override requires exactly one explicit node id" },
   ] as const

@@ -23,6 +23,7 @@ export interface HostRpcClient extends HostRunHoldClient {
   onEvent(listener: (record: unknown) => void): () => void
   openSession(options: HostOpenSessionWire): Promise<{ sessionId: string; attached?: boolean }>
   closeSession(sessionId?: string): Promise<void>
+  listSessions?(options: { include_workers: boolean }): Promise<readonly { sessionId: string }[]>
   sendExtensionUIResponse(response: RpcExtensionUIResponse): Promise<void>
   prompt(message: string, options?: { streamingBehavior?: "steer" | "followUp"; clientMessageId?: string }): Promise<HostPromptDisposition>
   steer(message: string, images?: undefined, recovery?: { clientMessageId?: string }): Promise<HostQueuedInputDisposition>

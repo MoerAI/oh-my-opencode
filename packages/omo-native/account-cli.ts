@@ -5,6 +5,7 @@ import {
   createCredentialStore,
   type CredentialStore,
   CredentialStoreError,
+  INTERACTIVE_READ_WAIT,
   KeychainLockedError,
   SecretServiceUnavailableError,
 } from "../omo-opencode/src/cli/service-auth/keystore"
@@ -178,7 +179,7 @@ export async function runAccountCommand(args: readonly string[]): Promise<void> 
     {
       api,
       get store() {
-        store ??= createCredentialStore(api)
+        store ??= createCredentialStore(api, { wait: INTERACTIVE_READ_WAIT })
         return store
       },
       pinDir: () => syncPinDir(resolveMemoryRoot(process.env, process.cwd())),

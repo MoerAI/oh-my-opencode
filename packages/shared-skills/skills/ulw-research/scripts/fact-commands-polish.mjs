@@ -6,7 +6,8 @@
 // rejected (major) or unlocated (minor) edit leaves its region unchanged and is listed with its
 // index and reason so the orchestrator can re-send it; every rejection reason is printed verbatim, one
 // line per rejected edit (index and the first 60 characters of its before), in the summary and in
-// data.rejected_reasons. It exits 0 whenever it wrote the output.
+// data.rejected_reasons. It exits 0 whenever it wrote the output; json.applied is false when
+// any edit was rejected or unlocated, independently of data.applied's accepted-edit count.
 // polish-diff is the whole-document backstop (polish-diff.mjs) between the pre-polish artifact
 // and any later copy; it exits 1 on a blocker. pairsChangedSince keeps only the pairs whose
 // sentence text (normalized) is not in the pre-polish artifact that a fill map names, so the
@@ -77,7 +78,7 @@ function runPolishApply(args) {
 	const data = { out: resolve(flags.out), ...counts, applied_indexes: result.applied, input_sha256: sha256Of(html), edits_sha256: sha256Of(editsText), out_sha256: sha256Of(result.out) }
 	const rejected_reasons = result.rejected.map((entry) => rejectionLine(entry, edits[entry.index]))
 	const summary = [`fact polish-apply: ${counts.applied} applied, ${counts.rejected} rejected, ${counts.unlocated} unlocated of ${edits.length} edit(s)`, ...rejected_reasons].join("\n")
-	return { json: { command: "fact polish-apply", status: "pass", exitCode: 0, defects, data: { ...data, rejected_reasons } }, summary, exitCode: 0 }
+	return { json: { command: "fact polish-apply", status: "pass", exitCode: 0, applied: counts.rejected === 0 && counts.unlocated === 0, defects, data: { ...data, rejected_reasons } }, summary, exitCode: 0 }
 }
 
 function runPolishDiff(args) {

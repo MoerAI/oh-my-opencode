@@ -336,12 +336,12 @@ export function isOmoNativeTelemetryConfigEnabled(
   accountHomeDir: string = userInfo().homedir,
   selection?: ConfigSelection,
 ): boolean {
-  const shared: Record<string, string | undefined> = { ...env }
-  for (const key of CONFIG_SELECTION_ENV_KEYS) delete shared[key]
+  const neutral: Record<string, string | undefined> = { ...env }
+  for (const key of CONFIG_SELECTION_ENV_KEYS) delete neutral[key]
+  const shared = selection === undefined ? neutral : withConfigSelection(neutral, selection)
   // The account's own home, unless the record names the home its writer read (HOME, or USERPROFILE on Windows).
-  const ownHome = selection?.HOME === undefined && selection?.USERPROFILE === undefined
-  if (ownHome) shared.HOME = accountHomeDir
-  return configEnabled(options, eventCtx, selection === undefined ? shared : withConfigSelection(shared, selection))
+  if (shared.HOME === undefined && shared.USERPROFILE === undefined) shared.HOME = accountHomeDir
+  return configEnabled(options, eventCtx, shared)
 }
 
 function configEnabled(
