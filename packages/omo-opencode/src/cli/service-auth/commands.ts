@@ -3,7 +3,7 @@ import { isCancel, select, confirm } from "@clack/prompts"
 import { openSignInBrowser } from "./browser"
 import { deviceName, devicePlatform } from "./device-name"
 import { loginDevice } from "./device-flow"
-import { createCredentialStore } from "./keystore"
+import { createCredentialStore, INTERACTIVE_READ_WAIT } from "./keystore"
 import { BrowserUnavailable, loginLoopback } from "./loopback"
 import { type ChooseDevice, type ListedDevice, RequestFailure, serviceOrigin, SignInError } from "./protocol"
 import { createSession, type Session } from "./session"
@@ -60,7 +60,7 @@ async function run(action: "login" | "logout" | "whoami", options: Options): Pro
   process.once("SIGTERM", cancel)
   try {
     const api = serviceOrigin(options.api ?? process.env.OMO_SERVICE_API_URL ?? "https://api.omo.dev")
-    const store = createCredentialStore(api)
+    const store = createCredentialStore(api, { wait: INTERACTIVE_READ_WAIT })
     const session = createSession({ api, store, signal: controller.signal })
     if (action === "logout") {
       const revoked = await session.logout()
