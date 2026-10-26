@@ -58,7 +58,7 @@
         "@typescript/typescript6": "6.0.2",
         "@xterm/addon-unicode11": "^0.9.0",
         "@xterm/xterm": "^6.0.0",
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
         "commander": "^15.0.0",
         "diff": "^9.0.0",
         "js-yaml": "^5.4.2",
@@ -106,7 +106,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
       },
     },
     "packages/boulder-state": {
@@ -146,7 +146,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
       },
     },
     "packages/hashline-core": {
@@ -182,14 +182,14 @@
       },
       "devDependencies": {
         "@types/proper-lockfile": "4.1.4",
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
       },
     },
     "packages/mcp-stdio-core": {
       "name": "@oh-my-opencode/mcp-stdio-core",
       "version": "0.1.0",
       "devDependencies": {
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
       },
     },
     "packages/memory-core": {
@@ -213,7 +213,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
       },
     },
     "packages/omo-config-core": {
@@ -298,7 +298,7 @@
         "@code-yeongyu/senpi": "2026.10.25-2",
         "@earendil-works/pi-ai": "npm:@code-yeongyu/senpi-ai@2026.10.25-2",
         "@types/node": "26.6.2",
-        "bun-types": "1.4.3",
+        "bun-types": "1.4.4",
         "terser": "5.51.2",
       },
       "peerDependencies": {
@@ -1267,7 +1267,7 @@
 
     "bun-ffi-structs": ["bun-ffi-structs@0.3.1", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-3gM7PpVWLyrwxWjcilSiGuhWanhZivvo6l0u573NziPH6f/gwk6McbaYgn7oJWov6pKGRTDbrg94W5DcJsKTtQ=="],
 
-    "bun-types": ["bun-types@1.4.3", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
+    "bun-types": ["bun-types@1.4.4", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-yjrJh5oGX7mMPKGd19YXyIjmEuj4G4zNC30bs7PM9Az7NQ3ndF3j6hbeRdvJTRQEhJ/FYQwW0a2moweEi2hMxQ=="],
 
     "bundle-name": ["bundle-name@4.1.1", "", { "dependencies": { "run-applescript": "^7.0.0" } }, "sha512-DdH81/zPLVS11EUgWq3tEu/xn+EzljlMYooDNdzWEnFha3R3NBMpMV1UqYIpjYHV/SgpFKMIX1Oh7o06SjM/oA=="],
 
