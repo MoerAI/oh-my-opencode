@@ -14,6 +14,7 @@
 import { CLAIM_ATTRIBUTE, CLAIM_KINDS, claimSatisfied, unmarkedKinds, unmarkedRequires } from "./claim-kinds.mjs"
 import { proseSentences } from "./fidelity-binding.mjs"
 import { clip } from "./fidelity-trace.mjs"
+import { isClaimSegment } from "./sources-citation.mjs"
 import { proseText } from "./html-lite.mjs"
 
 const marked = (node) => node.attrs?.[CLAIM_ATTRIBUTE] !== undefined
@@ -77,8 +78,8 @@ export function claimChecks(ctx, rows, provenanceOf, flag) {
 		flag(entry.defect, fact, `${row.fact_id} is marked ${name}, but it is a ${row.kind} row${source}`)
 	}
 	for (const block of proseSentences(ctx)) {
-		if (block.kind === "sources" || block.kind === "toc") continue
-		for (const sentence of block.sentences) {
+		if (block.kind === "toc") continue
+		for (const sentence of block.kind === "sources" ? block.sentences.filter((s) => isClaimSegment(s.text)) : block.sentences) {
 			for (const name of unmarkedKinds(sentence.text)) {
 				const covered = sentence.facts.length > 0 ? sentence.facts.every((fact) => nearestKind(fact.node) === name) : nearestKind(block.owner) === name
 				if (covered) continue

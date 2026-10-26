@@ -31,7 +31,7 @@ export const DEFECT_CODES = deepFreeze({
 	en_dash_in_prose: { severity: "minor", integrity: false, hint: "Use a hyphen for compounds; keep the en dash only between numbers." },
 	heading_too_long: { severity: "minor", integrity: false, hint: "Shorten the heading to one line (26 Korean characters or 12 English words)." },
 	heading_generic: { severity: "minor", integrity: false, hint: "Make the heading carry the section's claim instead of a generic label." },
-	unsourced_number: { severity: "major", integrity: false, hint: "Tag the number MEASURED / ASSUMED / DERIVED or cite its source in the same paragraph." },
+	unsourced_number: { severity: "major", integrity: false, hint: "Tag the number MEASURED / ASSUMED / DERIVED or cite its source in the same paragraph; under Sources only citation-field numbers and names (a hash, #12, GPT-4, Q3, 10-Q) are exempt, so quote a reference title that carries a code or a figure, or wrap it in <cite>: an unquoted one is checked, and 10-K / 8-K stay numerals because K is a multiplier. A slashed N/M reads as a month/day, so a fraction or a score (2/3, 7/12) under Sources is not checked (#11386): write it as a percent or tag it." },
 	chart_without_figure: { severity: "major", integrity: false, hint: "Wrap the image or chart in a figure container with a caption." },
 	chart_svg_no_text: { severity: "major", integrity: false, hint: "Give the chart a title, axis labels, units, and value labels as SVG text." },
 	chart_svg_missing_labels: { severity: "minor", integrity: false, hint: "Add the missing title, axis ticks, or unit label to the chart." },

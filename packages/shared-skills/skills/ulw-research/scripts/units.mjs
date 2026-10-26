@@ -21,6 +21,9 @@ const TABLE = [
 	["s", "time", "1", "open", ["sec", "secs", "second", "seconds", "\uCD08"]], // cho
 	["min", "time", "60", "closed", ["mins", "minute", "minutes", "\uBD84"]], // bun
 	["h", "time", "3600", "closed", ["hr", "hrs", "hour", "hours", "\uC2DC\uAC04"]], // sigan
+	// Months and years are a calendar dimension of their own (a year is no fixed number of seconds).
+	["mo", "calendar", "1", "l", []], // gaewol
+	["yr", "calendar", "12", "closed", ["yrs"]], // nyeon
 	["B", "data", "1", "open", ["byte", "bytes", "\uBC14\uC774\uD2B8"]], // baiteu
 	["KB", "data", "1000", "open", ["\uD0AC\uB85C\uBC14\uC774\uD2B8"]],
 	["MB", "data", "1000000", "open", ["\uBA54\uAC00\uBC14\uC774\uD2B8"]],
@@ -28,13 +31,13 @@ const TABLE = [
 	["TB", "data", "1000000000000", "open", ["\uD14C\uB77C\uBC14\uC774\uD2B8"]],
 	["C", "temperature", "1", "open", ["\u00B0C", "\u2103", "celsius", "\uC12D\uC528"], "0"], // do
 	["F", "temperature", "5/9", "open", ["\u00B0F", "\u2109", "fahrenheit", "\uD654\uC528"], "-160/9"], // do
-	["%", "percent", "1", "open", ["percent", "\uD37C\uC13C\uD2B8", "\uD504\uB85C"]], // peosenteu
+	["%", "percent", "1", "open", ["percent", "pct", "\uD37C\uC13C\uD2B8", "\uD504\uB85C"]], // peosenteu
 	["\u2030", "percent", "0.1", "l", ["permille", "\uD37C\uBC00"]], // peomil
 	["%p", "percentage-point", "1", "open", ["pp", "%pt", "percentage point", "percentage points", "\uD37C\uC13C\uD2B8\uD3EC\uC778\uD2B8", "%\uD3EC\uC778\uD2B8"]],
 	["x", "multiple", "1", "open", ["\u00D7", "times", "\uBC30"]], // bae
 	["e3", "scale", "1000", "closed", ["k", "thousand", "\uCC9C"]], // cheon
 	["e4", "scale", "10000", "closed", ["\uB9CC"]], // man
-	["e6", "scale", "1000000", "closed", ["M", "million", "\uBC31\uB9CC"]], // baengman
+	["e6", "scale", "1000000", "closed", ["M", "mn", "million", "\uBC31\uB9CC"]], // baengman
 	["e8", "scale", "100000000", "closed", ["\uC5B5"]], // eok
 	["e9", "scale", "1000000000", "closed", ["bn", "billion", "\uC2ED\uC5B5"]], // sibeok
 	["e12", "scale", "1000000000000", "open", ["trillion", "\uC870"]], // jo

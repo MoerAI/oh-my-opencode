@@ -59,6 +59,41 @@ async function resolveThroughFreshnessWindow<T>(clock: ControlledClock, start: (
 const FRESHNESS_WINDOW_MS = 500;
 
 describe("LspClient diagnostics freshness", () => {
+	it("#given repeated silent diagnostics with maximum configured freshness #when each wait is aborted #then its timer is disposed immediately", async () => {
+		const clock = new ControlledClock();
+		const cleared: ReturnType<typeof setTimeout>[] = [];
+		const context = await makeConfiguredClient(
+			{},
+			{
+				timerProvider: {
+					now: clock.now,
+					setTimeout: clock.setTimeout,
+					clearTimeout(timer) {
+						cleared.push(timer);
+						clock.clearTimeout(timer);
+					},
+				},
+			},
+			"2147483647",
+		);
+
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			const controller = new AbortController();
+			const reason = new Error(`diagnostics cancelled ${attempt}`);
+			const scheduled = clock.waitForScheduled(clock.scheduledDelays.length + 1);
+			const pending = context.client.diagnostics(context.source, controller.signal);
+			const rejection = pending.then(() => null, (error: unknown) => error);
+			await scheduled;
+			expect(clock.scheduledDelays.at(-1)).toBe(2_147_483_647);
+			const clearedBefore = cleared.length;
+
+			controller.abort(reason);
+
+			expect(await rejection).toBe(reason);
+			expect(cleared).toHaveLength(clearedBefore + 1);
+		}
+	});
+
 	it.each([
 		{ envTimeout: undefined, explicitTimeout: undefined, expectedBudget: 3_000 },
 		{ envTimeout: "6000", explicitTimeout: undefined, expectedBudget: 6_000 },

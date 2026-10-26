@@ -66,8 +66,8 @@ function entryHtml(text, entry, rows) {
 	if (entry.translates) return `<span data-translates="${escapeHtml(entry.translates)}">${projectMarkdownInline(body.replace(/^<!--[\s\S]*?-->\s*/u, ""))}</span>`
 	if (!row) return `<data data-fact="${escapeHtml(entry.fact_id)}">${escapeHtml(body)}</data>`
 	const quoted = row.kind === "quote" ? parseRenderedQuote(body) : null
-	if (quoted) return renderQuote(row, entry.selector ?? "full", quoted.text, "html")
-	return row.kind === "quote" ? null : renderValueHtml(row, body)
+	if (quoted) return renderQuote(row, entry.selector ?? "full", quoted.text, "html", entry.claimKind)
+	return row.kind === "quote" ? null : renderValueHtml(row, body, { mode: entry.mode, claimKind: entry.claimKind ?? null })
 }
 
 /** [from, to) of the filled text as HTML, each intact fill-map entry rebuilt as its fill element. */

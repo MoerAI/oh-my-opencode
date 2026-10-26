@@ -291,7 +291,7 @@ export class LspClient extends LspClientConnection {
 				return this.freshnessTimeout(absPath);
 			}
 			const waitMs = push.status === "wait" ? Math.min(push.waitMs, remainingMs) : remainingMs;
-			await waitForDiagnosticsActivity(this.documents.waitForDiagnosticsActivity(snapshot, waitMs), signal);
+			await waitForDiagnosticsActivity(this.documents.waitForDiagnosticsActivity(snapshot, waitMs, signal), signal);
 		}
 	}
 
