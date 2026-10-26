@@ -11,8 +11,10 @@ import { describeDirtyMarkdownEncodingIssues } from "./porcelain"
 import { GitPathStateStore } from "./path-state"
 import { authorFlags, commandError, normalizePathspecs, normalizeSeedPath } from "./repo-arguments"
 import { runMemoryRepoMaintenance } from "./repo-maintenance"
+import { ensureRepoConfigDefaults } from "./repo-config-defaults"
 import { PathCommitTimes } from "./repo-commit-times"
-import { GitRevisionReads } from "./repo-revision-reads"
+import { GitRevisionReads, type GitRevisionRunner } from "./repo-revision-reads"
+import { errnoCode } from "./proc-view"
 import { assertNoUnrelatedChanges } from "./repo-status"
 import { settlePendingRollback } from "./pending-rollback"
 import { assertNoSecretLikeStaging } from "./repo-secret-staging"
@@ -37,6 +39,7 @@ export type {
 } from "./repo-types"
 
 const GIT_TIMEOUT_MS = 30_000
+const LITERAL_PATHSPECS = "--literal-pathspecs"
 // `git commit` runs the memory hooks (secret screening, frontmatter checks, the mirror push) on
 // top of the write itself, and on a loaded host that took longer than GIT_TIMEOUT_MS: the commit
 // was killed after updating HEAD and stranded HEAD.lock (omo #10199 field incident). A commit
@@ -66,13 +69,15 @@ export class GitMemoryRepo {
     this.pathState = new GitPathStateStore(this.dir, this.exec)
     this.hookInstaller = options.installHooks ?? (() => undefined)
     this.commitTimeoutMs = options.commitTimeoutMs ?? COMMIT_TIMEOUT_MS
-    this.reads = new GitRevisionReads({
+    const git: GitRevisionRunner = {
+      dir: this.dir,
       run: (argv, timeoutMs) => this.git(argv, timeoutMs),
       result: (argv, stdin) => this.gitResult(argv, stdin),
-    })
+    }
+    this.reads = new GitRevisionReads(git)
     this.commitTimes = new PathCommitTimes(
       this.dir,
-      { run: (argv, timeoutMs) => this.git(argv, timeoutMs), result: (argv, stdin) => this.gitResult(argv, stdin) },
+      git,
       (revision) => this.reads.lsTree(revision),
     )
   }
@@ -152,9 +157,7 @@ export class GitMemoryRepo {
   }
 
   async status(paths: readonly string[] = []): Promise<string> {
-    const normalized = normalizePathspecs(paths)
-    const suffix = normalized.length > 0 ? ["--", ...normalized] : []
-    return (await this.git(["--literal-pathspecs", "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", ...suffix])).stdout
+    return (await this.git([LITERAL_PATHSPECS, "-c", "core.quotePath=false", "status", "--porcelain", "--untracked-files=all", "--", ...normalizePathspecs(paths)])).stdout
   }
 
   head(): Promise<string | null> { return this.reads.head() }
@@ -175,46 +178,50 @@ export class GitMemoryRepo {
    */
   async restorePaths(paths: readonly string[]): Promise<void> {
     const normalized = normalizePathspecs(paths)
-    if (normalized.length === 0) return
+    if (!normalized.length) return
     const atHead = new Set(await this.lsTree("HEAD"))
+    const foldPath = (path: string): string => path.normalize("NFC").toLowerCase()
     const physicalEntry = async (path: string): Promise<string | undefined> => {
       try {
         const full = join(this.dir, path)
         await lstat(full)
         const parent = await realpath(dirname(full))
         const name = basename(full)
-        const foldedName = name.normalize("NFC").toLowerCase()
+        const foldedName = foldPath(name)
         const entries = await readdir(parent)
-        const entry = entries.find(candidate => candidate === name)
-          ?? entries.find(candidate => candidate.normalize("NFC").toLowerCase() === foldedName)
-        return entry === undefined ? undefined : join(parent, entry)
+        const entry = entries.includes(name) ? name : entries.find(candidate => foldPath(candidate) === foldedName)
+        return entry && join(parent, entry)
       } catch (error) {
-        if (error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return undefined
+        const code = errnoCode(error)
+        if (code === "ENOENT" || code === "ENOTDIR") return undefined
         throw error
       }
     }
     const headPath = async (path: string): Promise<string> => {
       if (atHead.has(path)) return path
-      const foldedPath = path.normalize("NFC").toLowerCase()
-      const candidates = [...atHead].filter(candidate => candidate.normalize("NFC").toLowerCase() === foldedPath)
-      if (candidates.length === 0) return path
-      const entry = await physicalEntry(path)
-      if (entry === undefined) return path
-      const matches: string[] = []
-      for (const candidate of candidates) if (await physicalEntry(candidate) === entry) matches.push(candidate)
-      if (matches.length > 1) throw new InvalidGitPathError(`Memory path has multiple tracked HEAD aliases: ${path}`)
-      return matches[0] ?? path
+      const foldedPath = foldPath(path)
+      let entry: string | undefined
+      let match: string | undefined
+      for (const candidate of atHead) {
+        if (foldPath(candidate) !== foldedPath) continue
+        entry ??= await physicalEntry(path)
+        if (!entry) return path
+        if (await physicalEntry(candidate) !== entry) continue
+        if (match) throw new InvalidGitPathError(`Multiple tracked HEAD aliases: ${path}`)
+        match = candidate
+      }
+      return match ?? path
     }
     const canonical = [...new Set(await Promise.all(normalized.map(headPath)))]
     const tracked = canonical.filter((path) => atHead.has(path))
     const untracked = canonical.filter((path) => !atHead.has(path))
-    if (tracked.length > 0) {
-      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "-c", "core.autocrlf=false", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
+    if (tracked.length) {
+      await withStrandedGitLockRecovery(this.dir, () => this.git([LITERAL_PATHSPECS, "-c", "core.autocrlf=false", "restore", "--source=HEAD", "--staged", "--worktree", "--", ...tracked]))
     }
     for (const path of untracked) {
       // Restoring a tracked entry can make an initially missing case alias resolvable again.
       if (atHead.has(await headPath(path))) continue
-      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "rm", "-q", "--cached", "--ignore-unmatch", "--", path]))
+      await withStrandedGitLockRecovery(this.dir, () => this.git([LITERAL_PATHSPECS, "rm", "-q", "--cached", "--ignore-unmatch", "--", path]))
       await rm(join(this.dir, path), { force: true })
     }
   }
@@ -222,10 +229,10 @@ export class GitMemoryRepo {
   /** Undo staged entries only; the working tree is left exactly as it is. */
   async unstage(tracked: readonly string[], untracked: readonly string[]): Promise<void> {
     if (tracked.length > 0) {
-      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "restore", "--source=HEAD", "--staged", "--", ...tracked]))
+      await withStrandedGitLockRecovery(this.dir, () => this.git([LITERAL_PATHSPECS, "restore", "--source=HEAD", "--staged", "--", ...tracked]))
     }
     if (untracked.length > 0) {
-      await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "rm", "-q", "--cached", "-f", "--ignore-unmatch", "--", ...untracked]))
+      await withStrandedGitLockRecovery(this.dir, () => this.git([LITERAL_PATHSPECS, "rm", "-q", "--cached", "-f", "--ignore-unmatch", "--", ...untracked]))
     }
   }
 
@@ -268,16 +275,12 @@ export class GitMemoryRepo {
     })
   }
 
-  private async ensureIdentity(authorName: string): Promise<void> {
-    if ((await this.configGet("omo.agentId")) !== this.agentId) await this.configSet("omo.agentId", this.agentId)
-    if (!(await this.configGet("user.email"))) await this.configSet("user.email", `${this.agentId}@omo.local`)
-    if (!(await this.configGet("user.name"))) await this.configSet("user.name", authorName)
-    if ((await this.configGet("commit.gpgsign")) === null) await this.configSet("commit.gpgsign", "false")
-    if ((await this.configGet("gc.auto")) === null) await this.configSet("gc.auto", "0")
+  private ensureIdentity(authorName: string): Promise<void> {
+    return ensureRepoConfigDefaults(this, { result: (argv, stdin) => this.gitResult(argv, stdin) }, authorName)
   }
 
   private async stage(paths: readonly string[]): Promise<void> {
-    await withStrandedGitLockRecovery(this.dir, () => this.git(["--literal-pathspecs", "add", "-A", "--", ...paths]))
+    await withStrandedGitLockRecovery(this.dir, () => this.git([LITERAL_PATHSPECS, "add", "-A", "--", ...paths]))
   }
 
   private async hasPathChanges(paths: readonly string[]): Promise<boolean> {
