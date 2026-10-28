@@ -141,7 +141,7 @@ export function DagGraphView({
   )
 
   const toolbarButton =
-    "text-text-mid hover:bg-ink-3 hover:text-text-hi focus-visible:outline-accent ease-standard flex size-11 cursor-pointer items-center justify-center transition-colors duration-[var(--dur-micro)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-40"
+    "text-text-mid hover:bg-ink-3 hover:text-text-hi ease-standard flex size-11 cursor-pointer items-center justify-center transition-colors duration-[var(--dur-micro)] focus-ring disabled:pointer-events-none disabled:opacity-40"
 
   return (
     <div

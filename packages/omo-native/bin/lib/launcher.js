@@ -146,6 +146,7 @@ export async function runLauncher(args = process.argv.slice(2)) {
   if (command === "thread") {
     process.exitCode = await runThreadCommand(args.slice(1), {
       engine: { run: engineHostCall },
+      reinstall: `Reinstall omo with: ${updateTarget().command}, then retry.`,
       pluginRoot: join(packageRoot, "plugin"),
       agentDir: canonicalAgentDir(),
       env: process.env,

@@ -3,7 +3,8 @@
 // reader lane gets and nothing else (with --changed-since, only the pairs whose sentence polish
 // rewrote); it honours the brief's `meaning check` field and writes
 // `{ skipped: true }` when it is off. fact meaning-check ingests the readers' verdict files
-// (meaning-check.mjs), writes fidelity-meaning-defects.json (a fidelity record bound to the pairs'
+// (meaning-check.mjs), writes the meaning record of one edition (fidelity-meaning-defects.<format>.json
+// with --edition, else the legacy fidelity-meaning-defects.json; a fidelity record bound to the pairs'
 // artifact_sha256 and report, through writeFidelityRecord), and records the run in
 // fidelity-calibration.jsonl: a header with the promotion criterion on first write, then per run
 // one run line plus one line per flagged pair. The run id hashes the inputs only, so a rerun or a
@@ -15,13 +16,13 @@ import { existsSync, readFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 
 import { CliError, parseArgs, readJsonFile, sha256Of, writeJsonAtomic, writeTextAtomic } from "./cli-support.mjs"
-import { countDefects } from "./contracts.mjs"
+import { countDefects, DELIVERABLE_FORMATS } from "./contracts.mjs"
 import { ledgerFrom, markdownAsHtml, readEdition, sessionOf } from "./fact-commands-verify.mjs"
 import { pairsChangedSince } from "./fact-commands-polish.mjs"
 import { extractPairs, PAIR_KINDS } from "./fact-pairs.mjs"
 import { FIDELITY_INCOMPLETE } from "./fidelity-brief.mjs"
 import { briefPathOf, lockedBrief, meaningCheckEnabled } from "./fidelity-policy.mjs"
-import { MEANING_RECORD, writeFidelityRecord } from "./fidelity-records.mjs"
+import { MEANING_RECORD, meaningRecordName, writeFidelityRecord } from "./fidelity-records.mjs"
 import { blocksDelivery } from "./gates-fidelity.mjs"
 import { ingestVerdicts, unverifiedDefects, VERDICT_SCHEMA } from "./meaning-check.mjs"
 
@@ -124,8 +125,9 @@ function skippedRefusal(flags, parsed) {
 
 function runMeaningCheck(args) {
 	const { flags } = args
-	const usage = "usage: fact meaning-check --pairs pairs.json --verdicts cheap.json [--verdicts strong.json] [--dispute P<n> --reason TEXT] [--run-id ID] [--calibration F] [--brief brief.md] [--out F]"
+	const usage = "usage: fact meaning-check --pairs pairs.json --verdicts cheap.json [--verdicts strong.json] [--dispute P<n> --reason TEXT] [--run-id ID] [--calibration F] [--brief brief.md] [--edition FORMAT] [--out F]"
 	if (flags.pairs === undefined || !Array.isArray(flags.verdicts)) throw new CliError(usage)
+	if (flags.edition !== undefined && !DELIVERABLE_FORMATS.includes(flags.edition)) throw new CliError(`--edition must be a deliverable format (${DELIVERABLE_FORMATS.join(", ")}), got ${flags.edition}`)
 	const session = sessionOf(flags)
 	const { parsed, refusal } = lockedBrief("fact meaning-check", flags)
 	if (refusal) return { ...refusal, json: { ...refusal.json, error: FIDELITY_INCOMPLETE } }
@@ -146,7 +148,7 @@ function runMeaningCheck(args) {
 	} catch (error) {
 		throw new CliError(`invalid verdict input: ${error.message}`)
 	}
-	const out = resolve(flags.out ?? inSession(session, MEANING_RECORD, "--out"))
+	const out = resolve(flags.out ?? inSession(session, flags.edition === undefined ? MEANING_RECORD : meaningRecordName(flags.edition), "--out"))
 	const calibration = resolve(flags.calibration ?? join(session ?? dirname(out), CALIBRATION_FILE))
 	const runId = flags["run-id"] ?? sha256Of([pairsText, ...verdictTexts].join("\0")).slice(0, 16)
 	const pairsSha = pairsDoc.pairs_sha256 ?? sha256Of(pairsText)

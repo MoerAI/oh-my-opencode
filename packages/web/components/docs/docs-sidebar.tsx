@@ -60,7 +60,7 @@ export function DocsSidebar({
                   data-active={isActive ? "true" : undefined}
                   onClick={() => onSelect(section.id)}
                   className={cn(
-                    "focus-visible:outline-accent-32 ease-standard relative -ml-px flex min-h-11 w-full items-center px-4 text-left text-sm transition-colors duration-[var(--dur-micro)] focus-visible:outline-2 focus-visible:-outline-offset-2 lg:min-h-9",
+                    "ease-standard focus-ring-inset relative -ml-px flex min-h-11 w-full items-center px-4 text-left text-sm transition-colors duration-[var(--dur-micro)] lg:min-h-9",
                     "before:bg-accent before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:opacity-0 before:transition-opacity before:duration-[var(--dur-micro)] before:content-['']",
                     isActive
                       ? "text-text-hi before:opacity-100"

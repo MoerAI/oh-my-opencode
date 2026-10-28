@@ -197,4 +197,35 @@ describe("temp-home detection is path-correct on every platform (#10935)", () =>
     mkdirSync(join(root, "inner"))
     expect(automatedRunReason({ HOME: join(root, "inner") }, { tmpdir: () => root, posixTempRoots: [] })).toBe("ephemeral_home")
   })
+
+  it.skipIf(process.platform === "win32")("#given a missing lexical HOME whose raw path links outside temp #then it is ephemeral, never telemetry ON", () => {
+    const base = home()
+    const root = join(base, "temp")
+    const outside = join(base, "outside")
+    mkdirSync(root, { recursive: true })
+    mkdirSync(join(outside, "subdir"), { recursive: true })
+    mkdirSync(join(outside, "onlyout"))
+    symlinkSync(join(outside, "subdir"), join(root, "jump"))
+    const rawHome = `${root}/jump/../onlyout`
+
+    // path.join collapses `jump/..` lexically: the id would be written in <root>/onlyout, which does not exist and is inside temp.
+    expect(join(rawHome, ".omo")).toBe(join(root, "onlyout", ".omo"))
+    expect(automatedRunReason({ HOME: rawHome }, { tmpdir: () => root, posixTempRoots: [] })).toBe("ephemeral_home")
+  })
+
+  it.skipIf(process.platform === "win32")("#given literal dot-dot after a symlink in HOME #then temp detection agrees with where the id is written", () => {
+    const base = home()
+    const root = join(base, "temp")
+    const outside = join(base, "outside")
+    mkdirSync(join(root, "home"), { recursive: true })
+    mkdirSync(join(outside, "subdir"), { recursive: true })
+    mkdirSync(join(outside, "home"))
+    symlinkSync(join(outside, "subdir"), join(root, "jump"))
+    const rawHome = `${root}/jump/../home`
+
+    // path.join(rawHome, ".omo") collapses `jump/..` lexically, so the id would land in <root>/home: inside temp.
+    expect(join(rawHome, ".omo")).toBe(join(root, "home", ".omo"))
+    expect(automatedRunReason({ HOME: rawHome }, { tmpdir: () => root, posixTempRoots: [] })).toBe("ephemeral_home")
+    expect(automatedRunReason({ HOME: join(root, "home") }, { tmpdir: () => root, posixTempRoots: [] })).toBe("ephemeral_home")
+  })
 })

@@ -53,6 +53,12 @@ describe("checkExtensionCurrent", () => {
     expect(await checkExtensionCurrent(outputs)).toMatchObject({ ok: false, reason: "missing-output", output: outputs.toolkitSdkOutputPath })
   })
 
+  test("#given a missing OTLP sidecar #when freshness is checked #then it reports that output", async () => {
+    const outputs = await mutableOutputs()
+    await rm(outputs.telemetryOtlpOutputPath)
+    expect(await checkExtensionCurrent(outputs)).toMatchObject({ ok: false, reason: "missing-output", output: outputs.telemetryOtlpOutputPath })
+  })
+
   test("#given the rollback migration runtime #when built #then its store entry and migration event are present", async () => {
     const outputs = await sharedOutputs()
     expect(outputs.rollbackRuntimeInputs.some(input => input.endsWith("src/extension/rollback-migrate-runtime.ts"))).toBe(true)
@@ -407,6 +413,26 @@ describe("checkExtensionCurrent", () => {
     expect(await readFile(telemetryPosthogOutputPath, "utf8")).not.toContain("#omo-telemetry-posthog-runtime")
   })
 
+  test("#given the split telemetry build #when inputs and bytes are inspected #then OTLP and its SDKs stay outside the small main entry", async () => {
+    const { mainInputs, telemetryOtlpInputs, telemetryOtlpOutputPath, outputPath } = await sharedOutputs()
+    for (const pattern of [
+      /node_modules\/(?:@opentelemetry|@bufbuild)\//,
+      /telemetry-core\/src\/otlp-entry\.ts$/,
+      /telemetry\/otlp-(?:runtime|projection)\.ts$/,
+    ]) {
+      expect(mainInputs.some(input => pattern.test(toPortableBuildPath(input)))).toBe(false)
+      expect(telemetryOtlpInputs.some(input => pattern.test(toPortableBuildPath(input)))).toBe(true)
+    }
+    const main = await readFile(outputPath, "utf8")
+    expect(main).toContain('import("#omo-telemetry-otlp-runtime")')
+    // Measured, not estimated (#11431 review): origin/dev 1,422,748 B; #11431 head 0b551794 1,423,520 B (1 B under the
+    // old 1_419_425 + 4_096 cap); this branch 1,423,766 B after the persisted-opt-out spool purge (node 24, bun 1.4.4,
+    // linux x64). Base reset to the measurement with the standing 4,096 B headroom; bundle-size.test.ts's 1,425,000 B
+    // budget stays the binding package ceiling.
+    expect(Buffer.byteLength(main)).toBeLessThanOrEqual(1_423_766 + 4_096)
+    expect(await readFile(telemetryOtlpOutputPath, "utf8")).not.toContain("#omo-telemetry-otlp-runtime")
+  })
+
   test("#given the split extension build #when sync inputs are inspected #then the Loro engine and its wasm live only in the sync sidecar", async () => {
     const { mainInputs, memorySyncInputs, memorySyncOutputPath, outputPath } = await sharedOutputs()
     for (const suffix of [
@@ -484,6 +510,7 @@ describe("checkExtensionCurrent", () => {
     expect(main).toContain('import("#omo-session-history-runtime")')
     expect(main).toContain('import("#omo-recall-store-runtime")')
     expect(main).toContain('import("#omo-telemetry-posthog-runtime")')
+    expect(main).toContain('import("#omo-telemetry-otlp-runtime")')
     expect(main).toContain('import("#omo-thread-client-runtime")')
     expect(main).toContain('import("#omo-telemetry-recovery-runtime")')
     expect(posthog).toContain('import("#telemetry-immediate-send")')
@@ -504,6 +531,7 @@ describe("checkExtensionCurrent", () => {
       "#omo-session-history-runtime": "./extensions/omo-session-history.js",
       "#omo-recall-store-runtime": "./extensions/omo-recall-store.js",
       "#omo-telemetry-posthog-runtime": "./extensions/omo-telemetry-posthog.js",
+      "#omo-telemetry-otlp-runtime": "./extensions/omo-telemetry-otlp.js",
       "#omo-memory-sync-runtime": "./extensions/omo-memory-sync.js",
       "#omo-feedback-runtime": "./extensions/omo-feedback.js",
       "#omo-claim-receipt-runtime": "./extensions/omo-claim-receipt.js",

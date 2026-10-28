@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { withLock } from "@oh-my-opencode/team-core/team-state-store/locks"
+import { signInHint } from "./accounts-gate"
 import { credentialId, type CredentialStore, CredentialStoreError } from "./keystore"
 import {
   ApiRefusal,
@@ -10,12 +11,15 @@ import {
   deviceListSchema,
   jsonRequest,
   parseReply,
+  refusalGuidance,
+  refusalMessage,
   requestApi,
   RequestFailure,
   serviceOrigin,
   SignInError,
   tokenSchema,
 } from "./protocol"
+import { clearSignedOutMarker, readSignedOutMarker, signedOutMarkerPath, writeSignedOutMarker } from "./signed-out-marker"
 
 // `code` is the service's terminal refusal code, never its message.
 export class SessionEnded extends SignInError {
@@ -38,6 +42,7 @@ export function createSession(options: { readonly api: string; readonly store: C
   const { store, signal } = options
   const directory = join(options.home ?? homedir(), ".omo", "session-locks")
   const lockPath = join(directory, `${credentialId(api)}.lock`)
+  const markerPath = signedOutMarkerPath(options.home ?? homedir(), credentialId(api))
   async function locked<T>(action: () => Promise<T>): Promise<T> {
     await mkdir(directory, { recursive: true, mode: 0o700 })
     signal?.throwIfAborted()
@@ -53,7 +58,7 @@ export function createSession(options: { readonly api: string; readonly store: C
   const request = (path: string, init: RequestInit) => requestApi(api, path, init, signal)
   const uncertain = () =>
     new SignInError(
-      "The refresh outcome is unknown. Saved credentials and keys were retained, but this refresh token will not be sent again. Retry sign-in with omo login.",
+      `The refresh outcome is unknown. Saved credentials and keys were retained, but this refresh token will not be sent again. ${signInHint("again")}`,
       true,
     )
   async function refreshedAccess(current: Credentials): Promise<string> {
@@ -71,8 +76,8 @@ export function createSession(options: { readonly api: string; readonly store: C
         await store.clear()
         throw new SessionEnded(
           error.code === "reauth_required"
-            ? "This session was ended because its refresh token was reused. Sign in again with omo login."
-            : "Sign in again with omo login.",
+            ? `This session was ended because its refresh token was reused. ${signInHint("again")}`
+            : refusalMessage(refusalGuidance(error.code, error.status)),
           DEVICE_REVOKING_REFUSALS.has(error.code),
           error.code,
         )
@@ -91,15 +96,22 @@ export function createSession(options: { readonly api: string; readonly store: C
       await store.read()
     },
     async save(value: Credentials) {
-      await locked(() => store.write(value))
+      await locked(async () => {
+        await store.write(value)
+        await clearSignedOutMarker(markerPath)
+      })
     },
+    /** The marker an explicit `omo logout` left, or null; only an empty store makes it meaningful. */
+    signedOutMarker: () => readSignedOutMarker(markerPath),
+    clearSignedOutMarker: () => clearSignedOutMarker(markerPath),
     async update<T>(action: (current: Credentials | null) => Promise<T>): Promise<T> {
       return locked(async () => action(await store.read()))
     },
     async logout(): Promise<boolean> {
       return locked(async () => {
+        let current: Credentials | null = null
         try {
-          const current = await store.read()
+          current = await store.read()
           if (current !== null) {
             if (current.refreshState === "uncertain") return false
             const access = Date.parse(current.accessTokenExpiresAt) <= Date.now() ? await refreshedAccess(current) : current.accessToken
@@ -114,6 +126,9 @@ export function createSession(options: { readonly api: string; readonly store: C
           if (error instanceof SignInError) return false
           throw error
         } finally {
+          // Marker first: it only counts once the store is empty, so an unlocked reader never sees an empty store
+          // without it, and a failed marker write leaves the credentials in place instead of half-signing-out.
+          await writeSignedOutMarker(markerPath, current?.device.id ?? null)
           await store.clear()
         }
       })
@@ -121,7 +136,7 @@ export function createSession(options: { readonly api: string; readonly store: C
     async accessToken(): Promise<string> {
       return locked(async () => {
         const current = await store.read()
-        if (current === null) throw new SignInError("Not signed in. Run omo login.")
+        if (current === null) throw new SignInError(`Not signed in. ${signInHint("first")}`)
         return refreshedAccess(current)
       })
     },

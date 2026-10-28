@@ -63,7 +63,7 @@ export function DocsShell({
           aria-expanded={isMenuOpen}
           aria-controls="docs-sidebar-panel"
           onClick={() => setIsMenuOpen((open) => !open)}
-          className="text-text-hi focus-visible:outline-accent-32 ease-standard flex min-h-11 w-full items-center justify-between gap-3 px-4 text-sm font-medium transition-colors duration-[var(--dur-micro)] focus-visible:outline-2 focus-visible:-outline-offset-2 sm:px-5 lg:hidden"
+          className="text-text-hi ease-standard focus-ring-inset flex min-h-11 w-full items-center justify-between gap-3 px-4 text-sm font-medium transition-colors duration-[var(--dur-micro)] sm:px-5 lg:hidden"
         >
           <span>{mobileHeader}</span>
           <ChevronDown
@@ -100,7 +100,7 @@ export function DocsShell({
         aria-label={mobileHeader}
         tabIndex={0}
         onClickCapture={handleInternalLinkClick}
-        className="focus-visible:outline-accent-32 min-h-0 min-w-0 focus-visible:outline-2 focus-visible:-outline-offset-2 lg:overflow-auto"
+        className="focus-ring-inset min-h-0 min-w-0 lg:overflow-auto"
       >
         <div className="mx-auto w-full max-w-3xl px-4 pt-10 pb-24 sm:px-5 lg:px-8 lg:pt-12">
           {children}

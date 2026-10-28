@@ -823,6 +823,8 @@ jobs:
           # The merge gate reads this map at the base tip to tell whether a PR can change a committed
           # bundle; it is traced from the three generators above, so a stale map is a red build.
           bun run bundle-inputs:check
+          # Every launcher's SENPI_BRAND logo comes from this generated module; it must match the icon asset.
+          bun run brand-logo:check
 
       - name: Run Senpi compatibility tests
         id: senpi-tests-posix

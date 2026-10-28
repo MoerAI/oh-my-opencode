@@ -15,6 +15,8 @@ import type { HostRunHoldClient } from "./task-parent-wire"
 export type HostPromptDisposition = Awaited<ReturnType<RpcClient["prompt"]>>
 /** How the host settled a steer/follow-up: delivered to the running turn, or queued behind it. */
 export type HostQueuedInputDisposition = Awaited<ReturnType<RpcClient["steer"]>>
+/** What the host holds for each input id (`get_pending_inputs`, senpi#3549). */
+export type HostPendingInputs = Awaited<ReturnType<RpcClient["getPendingInputs"]>>
 
 /** omo's structural view of the engine's `RpcClient`; the pinned engine may predate its fields. */
 export interface HostRpcClient extends HostRunHoldClient {
@@ -23,10 +25,13 @@ export interface HostRpcClient extends HostRunHoldClient {
   onEvent(listener: (record: unknown) => void): () => void
   openSession(options: HostOpenSessionWire): Promise<{ sessionId: string; attached?: boolean }>
   closeSession(sessionId?: string): Promise<void>
+  listSessions?(options: { include_workers: boolean }): Promise<readonly { sessionId: string }[]>
   sendExtensionUIResponse(response: RpcExtensionUIResponse): Promise<void>
   prompt(message: string, options?: { streamingBehavior?: "steer" | "followUp"; clientMessageId?: string }): Promise<HostPromptDisposition>
   steer(message: string, images?: undefined, recovery?: { clientMessageId?: string }): Promise<HostQueuedInputDisposition>
   followUp(message: string, images?: undefined, recovery?: { clientMessageId?: string }): Promise<HostQueuedInputDisposition>
+  /** Absent on an engine before senpi#3549. */
+  getPendingInputs?(knownClientMessageIds?: readonly string[]): Promise<HostPendingInputs>
   abort(): Promise<void>
   getState(): Promise<RpcSessionState>
   getAvailableModels(): ReturnType<RpcClient["getAvailableModels"]>

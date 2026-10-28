@@ -265,7 +265,9 @@
     --destructive-foreground: var(--text-hi);
     --border: var(--line);
     --input: var(--line-strong);
-    --ring: var(--accent-32);
+    --ring: var(--accent);
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
 
     /* Typography families */
     --font-geist-sans: var(--font-geist-sans);
@@ -276,9 +278,36 @@
   }
 }
 
+/*
+ * §8 Focus ring, the one recipe: a solid --ring outline outside the box. focus-ring-inset draws
+ * the same ring inside the box for elements whose container clips (scroll viewports,
+ * overflow-hidden frames, full-width rows). --ring must hold 3:1 against every ink
+ * (lib/focus-ring.test.ts); swapping the ring colour is a one-line change to --ring.
+ */
+@utility focus-ring {
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--ring);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
+    /* The resting outline colour is already --ring, so transition-colors never fades the ring in from currentColor. */
+    outline-color: var(--ring);
+  }
+  /* Elements without a focus-ring class (prose links, third-party markup) get the same ring. */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--ring);
+    outline-offset: var(--focus-ring-offset);
   }
   body {
     @apply bg-background text-foreground;

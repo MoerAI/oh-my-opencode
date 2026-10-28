@@ -58,7 +58,7 @@ export function DagNodeCard({
       aria-label={`${node.label}: ${node.state}, ${node.category} on ${node.model}`}
       className={cn(
         "border-line bg-ink-1 ease-standard absolute flex cursor-pointer flex-col gap-0.5 overflow-hidden border px-2.5 py-2 text-left transition-[border-color,background-color] duration-[var(--dur-micro)]",
-        "focus-visible:outline-accent focus-visible:outline-2 focus-visible:outline-offset-2",
+        "focus-ring-inset",
         status.cardToneClass,
         connected && status.cardConnectedClass,
         status.cardHoverClass,

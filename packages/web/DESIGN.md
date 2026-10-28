@@ -50,7 +50,7 @@ An operations ledger read at night. The whole site is one framed sheet of ink ru
 | Accent / 4    | `--accent-4`    | `rgba(0,212,255,0.04)`   | Row hover tint                                                                                                        |
 | Accent / 8    | `--accent-8`    | `rgba(0,212,255,0.08)`   | Selected tile fill, glass chip fill                                                                                   |
 | Accent / 16   | `--accent-16`   | `rgba(0,212,255,0.16)`   | Node halo, glow wash center                                                                                           |
-| Accent / 32   | `--accent-32`   | `rgba(0,212,255,0.32)`   | 1px inset selection ring, focus ring                                                                                  |
+| Accent / 32   | `--accent-32`   | `rgba(0,212,255,0.32)`   | Live chip border, secondary button hover border; never a focus or selection indicator (2.0:1 on ink)                  |
 | Status / ok   | `--status-ok`   | `#10b981`                | Done dots, health                                                                                                     |
 | Status / busy | `--status-busy` | `#f5c451`                | Working dots (terminal, team grid)                                                                                    |
 | Status / err  | `--status-err`  | `#ef4444`                | Blocked / failed dots only                                                                                            |
@@ -149,12 +149,12 @@ All primitives live in `components/ui/*` (existing shadcn shells re-tokened) or 
 - Center/right: links `Features · Docs · Manifesto` in `--text-mid` mono 12px uppercase 0.12em; hover → `--text-hi` with a 1px underline growing `scaleX(0→1)` 320ms.
 - Right: GitHub chip (mono `★ 68.8k` live count, `--ink-1` fill, `--line` border) and primary button `Install` (sm size).
 - Mobile: hamburger 44×44; sheet `--ink-3` with `--line` top rule; items 44px tall.
-- States: default, scrolled, open (mobile), link hover/focus-visible (2px `--accent-32` outline offset 2px), active route (underline visible at scaleX(1), `--text-hi`).
+- States: default, scrolled, open (mobile), link hover/focus-visible (`focus-ring`, §8), active route (underline visible at scaleX(1), `--text-hi`).
 
 ### Button (`components/ui/button.tsx`)
 
 - Variants: `primary` (fill `--accent`, text `#09090b`, hover fill `--accent-dim`, active `translateY(1px)`), `secondary` (fill `--ink-1`, border `--line-strong`, text `--text-hi`, hover border `--accent-32` + text `--accent`), `ghost` (text `--text-mid`, hover `--text-hi`), `link` (mono uppercase 12px with arrow, underline scaleX on hover).
-- Sizes: sm `h-9 px-3 text-sm`, md `h-11 px-5 text-sm`, lg `h-12 px-6 text-base`. Radius 2px. Focus-visible: 2px `--accent-32` outline, offset 2px. Disabled: opacity .5, no pointer.
+- Sizes: sm `h-9 px-3 text-sm`, md `h-11 px-5 text-sm`, lg `h-12 px-6 text-base`. Radius 2px. Focus-visible: `focus-ring` (§8). Disabled: opacity .5, no pointer.
 - Transitions: color/background/border 150ms `cubic-bezier(0.4,0,0.2,1)`; transform 150ms.
 
 ### CommandBar (`components/landing/install-command.tsx`)
@@ -277,7 +277,7 @@ Grain is not used (omp.sh's canvas grain and factory's texture PNG would fight t
 
 - `<html lang>` per locale; unique `<title>` per route; skip link to `#main-content`; landmarks `header/nav/main/footer/section[aria-labelledby]`.
 - Contrast: `--text-hi` on `--ink-0` 17.8:1, `--text-mid` 11.5:1, `--text-lo` 5.9:1 (AA for 11px+ mono uppercase is met because eyebrows are ≥ 11px 500 with tracking; body never uses `--text-faint`), `--accent` on `--ink-0` 11.4:1, primary button `#09090b` on `--accent` 11.4:1.
-- Focus-visible ring on every interactive element (2px `--accent-32`, offset 2px); the canvas wrapper is focusable with arrow-key orbit and is `aria-hidden` for AT while the poster `<img alt>` describes the scene.
+- Focus-visible ring on every interactive element: the `focus-ring` utility, a 2px solid `--ring` outline offset 2px (`--ring` = `--accent`, 11.2:1 on `--ink-0`, at least 3:1 on every ink per `lib/focus-ring.test.ts`); `focus-ring-inset` draws it inside the box where a container clips (scroll viewports, `overflow-hidden` frames, full-width rows), and a base `:focus-visible` rule gives the same ring to anything without a class. Composite focus-within and selection cues use `--ring` / `--accent`, never `--accent-32`; the canvas wrapper is focusable with arrow-key orbit and is `aria-hidden` for AT while the poster `<img alt>` describes the scene.
 - Touch targets ≥ 44px on mobile (nav items, COPY cell, bento cells are ≥ 44px tall).
 - Reduced motion honored everywhere (§6). Reduced data (`navigator.connection.saveData`) and low memory skip the 3D chunk (§9).
 - Reel and docs main announce as scroll regions (`role="region"` + `aria-label`, `tabindex=0`).
