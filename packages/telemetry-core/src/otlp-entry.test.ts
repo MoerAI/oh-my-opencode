@@ -102,6 +102,10 @@ describe("the OTLP runtime refuses to start while telemetry is off, whoever call
 
   test("#given the package manifest #when its exports are read #then ./otlp is the only OTLP subpath", async () => {
     const manifest = JSON.parse(await Bun.file(join(import.meta.dir, "..", "package.json")).text())
-    expect(Object.keys(manifest.exports).filter((key) => key.includes("otlp"))).toEqual(["./otlp"])
+    // ./otlp-opt-out is the one deliberate exception (#11431): it carries only the opt-out purges, so a lazy adapter can
+    // delete a spool without loading the sender; nothing in it starts a transport.
+    expect(Object.keys(manifest.exports).filter((key) => key.includes("otlp")).sort()).toEqual(["./otlp", "./otlp-opt-out"])
+    const optOut = await import("@oh-my-opencode/telemetry-core/otlp-opt-out")
+    expect(Object.keys(optOut).filter((name) => !name.startsWith("purge"))).toEqual([])
   })
 })

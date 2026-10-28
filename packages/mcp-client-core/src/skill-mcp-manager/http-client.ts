@@ -5,6 +5,8 @@ import { registerProcessCleanup, startCleanupTimer } from "./cleanup"
 import { redactSensitiveData } from "./error-redaction"
 import { buildHttpRequestInit } from "./oauth-handler"
 import type { ManagedClient, McpClient, McpTransport, SkillMcpClientConnectionParams } from "./types"
+import { createProtocolTransport } from "./protocol-transport"
+import { protocolHttpFetch } from "./protocol-http-fetch"
 import { connectWithPolicySignal, McpEnvironmentPolicyChangedError } from "./policy-connection"
 
 type HttpClientFactory = (
@@ -14,7 +16,8 @@ type HttpClientFactory = (
 
 type HttpTransportFactory = (
   url: URL,
-  options?: { requestInit?: RequestInit }
+  options: { requestInit?: RequestInit } | undefined,
+  client: McpClient,
 ) => McpTransport
 
 interface HttpClientDependencies {
@@ -25,7 +28,10 @@ interface HttpClientDependencies {
 
 const defaultHttpClientDependencies: HttpClientDependencies = {
   createClient: (clientInfo, options) => new Client(clientInfo, options),
-  createTransport: (url, options) => new StreamableHTTPClientTransport(url, options),
+  createTransport: (url, options, client) => createProtocolTransport(new StreamableHTTPClientTransport(url, {
+    ...options,
+    fetch: protocolHttpFetch,
+  }), client instanceof Client ? client : undefined, `http:${url.toString()}`),
   log,
 }
 
@@ -119,12 +125,11 @@ export async function createHttpClient(params: SkillMcpClientConnectionParams): 
 
   const requestInit = await buildHttpRequestInit(config, state.authProviders, state.createOAuthProvider)
   const transportOptions = requestInit ? { requestInit } : undefined
-  const transport: McpTransport = httpClientDependencies.createTransport(url, transportOptions)
-
   const client: McpClient = httpClientDependencies.createClient(
     { name: `skill-mcp-${info.skillName}-${info.serverName}`, version: "1.0.0" },
     { capabilities: {} }
   )
+  const transport: McpTransport = httpClientDependencies.createTransport(url, transportOptions, client)
 
   try {
     await connectWithPolicySignal(client, transport, params.policySignal)

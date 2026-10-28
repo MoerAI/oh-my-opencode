@@ -14,7 +14,7 @@ import {
   type TelemetryOsProvider,
   type TelemetryTransportFactory,
 } from "@oh-my-opencode/telemetry-core/injected"
-import { createLazyPostHogTransportFactory } from "./lazy-posthog"
+import { createSenpiTelemetryTransportFactory } from "./otlp"
 import { isOmoTelemetryEnabled, type OmoConfig } from "@oh-my-opencode/omo-config-core"
 import { isPathInside, type PathContainmentOptions } from "@oh-my-opencode/utils/path-containment"
 
@@ -88,7 +88,9 @@ export function createOmoNativeSessionComponent(options: OmoNativeSessionOptions
           schemaVersion: OMO_NATIVE_SCHEMA_VERSION,
           setTimeoutFn: options.setTimeoutFn,
           source: SOURCE,
-          transportFactory: options.transportFactory ?? createLazyPostHogTransportFactory({
+          transportFactory: options.transportFactory ?? createSenpiTelemetryTransportFactory({
+            env,
+            consent: () => isOmoNativeTelemetryEnabled(options, eventCtx, env),
             diagnostics: options.diagnostics,
             source: SOURCE,
           }),
@@ -302,7 +304,11 @@ function isInsideTempDir(path: string, env: TelemetryEnv, deps: TempDirDeps): bo
       return false
     }
   }
-  const target = resolve(path)
+  // The install id is written under path.join(home, ...), which resolves `..` lexically, so every check below
+  // judges that lexically resolved path (the helper's contract for lexical openers), not the raw HOME. A lexical
+  // HOME that does not exist yet cannot hold a stable id either: it counts as ephemeral (telemetry OFF).
+  const lexical = paths.resolve(path)
+  const target = resolve(lexical)
   if (target === undefined) return true
   const usersDirs = windows ? [win32.join(`${env["SystemDrive"]?.trim() || "C:"}\\`, "Users")] : POSIX_USERS_DIRS
   const rootHomes = windows ? [] : POSIX_ROOT_HOMES
@@ -312,7 +318,7 @@ function isInsideTempDir(path: string, env: TelemetryEnv, deps: TempDirDeps): bo
     const root = resolve(candidate)
     if (root === undefined || paths.dirname(root) === root) return false
     try {
-      return isPathInside(path, candidate, options)
+      return isPathInside(lexical, candidate, options)
     } catch {
       return false
     }

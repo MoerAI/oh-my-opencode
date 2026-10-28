@@ -31,6 +31,7 @@ async function makePackagedPlugin(): Promise<string> {
   await writeFixtureFile(join(pluginPath, "extensions", "omo-session-history.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-recall-store.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-telemetry-posthog.js"), "export {}\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "omo-telemetry-otlp.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-memory-sync.js"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "loro_wasm_bg.wasm"), "")
   await writeFixtureFile(join(pluginPath, "extensions", "CaseFolding.txt"), "")
