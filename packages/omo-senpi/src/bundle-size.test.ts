@@ -169,7 +169,10 @@ const builtExtensionPath = join(packageRoot, "plugin", "extensions", "omo.js")
 // bun 1.4.3, byte-identical). Ceiling = that measurement rounded up to the next 5,000 bytes (never below what is measured).
 // Batch #18 measured omo.js at 1,422,712 B with the telemetry lazy chunk; revisit this budget when a trim lands.
 // Batch #19 measured omo.js at 1,426,658 B (11 cars); budget = measured + 4 KiB (lead rule). Revisit when a trim lands.
-const BUDGET_BYTES = 1_430_754
+// #11556 (senpi 2026.10.27-2 adoption): the Kibitzer sidecar's mirror of senpi core/sensitive-output now carries senpi-ai's
+// credential-shape redactor (senpi#4283) so its parity test with the engine holds. Canonical regen (linux/amd64 node 24 +
+// bun 1.4.4, fresh clone): 5f31ef2221 measures 1,426,678 B; the port measures 1,430,973 B (+4,295). Budget = measured + 4 KiB.
+const BUDGET_BYTES = 1_435_069
 
 describe("omo-senpi bundle size budget", () => {
   it("#given the built extension #when its byte size is measured #then it stays within the documented byte budget", () => {

@@ -889,6 +889,8 @@
     "packages/omo-senpi/src/components/memory/kibitzer/observe-prune.ts",
     "packages/omo-senpi/src/components/memory/kibitzer/observe-record.ts",
     "packages/omo-senpi/src/components/memory/kibitzer/observe.ts",
+    "packages/omo-senpi/src/components/memory/kibitzer/sensitive-output-lexer.ts",
+    "packages/omo-senpi/src/components/memory/kibitzer/sensitive-output-shapes.ts",
     "packages/omo-senpi/src/components/memory/kibitzer/sensitive-output.ts",
     "packages/omo-senpi/src/components/memory/kibitzer/settings.ts",
     "packages/omo-senpi/src/components/memory/kibitzer/sidecar-admission.ts",

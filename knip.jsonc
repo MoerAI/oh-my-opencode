@@ -2793,6 +2793,10 @@
         "src/{index,cli,main}.{js,cjs,mjs,jsx,ts,cts,mts,tsx}",
         "**/*.{test,spec}.{js,cjs,mjs,jsx,ts,cts,mts,tsx}",
         "**/*.test-d.ts",
+        "skills/frontend/scripts/detect/cli.ts",
+        "scripts/detect-parity.ts",
+        "scripts/detect-parity-oracle.ts",
+        "scripts/detect-source-parity.ts",
       ],
       "ignoreFiles": [
         // pre-existing at origin dev 4686e425b5: a file nothing imports or runs
