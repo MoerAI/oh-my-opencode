@@ -1,6 +1,7 @@
 import { AGREEMENTS_PATH } from "../agreements/types"
 import { renderAgreementsSection } from "../agreements/render"
 import type { GitMemoryRepo } from "../git"
+import { isMemoryExpired, memoryExpiresAtMs } from "../memfs/expiry"
 import { parseMemoryFile } from "../memfs/frontmatter"
 import { MEMORY_AUTHORITY_RULE } from "../provenance"
 import { redactSecretLikeMaterial } from "../sync/redact"
@@ -33,12 +34,23 @@ export async function compileMemoryBlock(
   return compileMemoryBlockAtRevision(repo, await repo.head(), options)
 }
 
+/**
+ * `asOfMs` is the instant `expires` is evaluated at (default: now). A session pinned to a revision passes its pin
+ * instant so the bytes it injects never change when a file expires mid-session.
+ */
 export async function compileMemoryBlockAtRevision(
   repo: GitMemoryRepo,
   revision: string | null,
   options: CompileMemoryBlockOptions,
+  asOfMs: number = Date.now(),
 ): Promise<string> {
-  return (await compileMemoryBlockWithReads(repo, revision, options)).block
+  return (await compileMemoryBlockWithReads(repo, revision, options, asOfMs)).block
+}
+
+/** A projected-or-skipped system file that declares an `expires` instant. */
+export interface MemoryExpiry {
+  readonly path: string
+  readonly expiresAtMs: number
 }
 
 /**
@@ -54,7 +66,8 @@ export async function compileMemoryBlockWithReads(
   repo: GitMemoryRepo,
   revision: string | null,
   options: CompileMemoryBlockOptions,
-): Promise<{ readonly block: string; readonly degraded: readonly string[] }> {
+  asOfMs: number = Date.now(),
+): Promise<{ readonly block: string; readonly degraded: readonly string[]; readonly expiries: readonly MemoryExpiry[] }> {
   const reads: CompileReads = { degraded: [] }
   const paths = revision ? await repo.lsTree(revision) : []
   const persona = revision && paths.includes(PERSONA_PATH)
@@ -69,12 +82,22 @@ export async function compileMemoryBlockWithReads(
   const systemFiles = revision
     ? await readSystemFiles(repo, revision, paths.filter(isOtherSystemMarkdown), reads)
     : []
+  const expiries = [persona, identity, agreements, ...systemFiles].flatMap((file) =>
+    file?.expiresAtMs === undefined ? [] : [{ path: file.relativePath, expiresAtMs: file.expiresAtMs }])
+  const live = (file: SystemFileRead | undefined) => file === undefined || isMemoryExpired(file.expiresAtMs, asOfMs) ? undefined : file
   const externalPaths = paths.filter(isExternalPath)
   const external = await projectionInput(repo, revision, externalPaths, options.projection)
   if (external.recencyUnavailable === true) reads.degraded.push(`commit times unavailable: ${external.recencyError ?? "unknown error"}`)
-  const projection = renderProjection(persona, identity, agreements, systemFiles, externalPaths, external)
+  const projection = renderProjection(
+    live(persona),
+    live(identity),
+    live(agreements),
+    systemFiles.filter((file) => live(file) !== undefined),
+    externalPaths,
+    external,
+  )
   const metadata = renderMetadata(options)
-  return { block: [projection, metadata].filter((part) => part.length > 0).join("\n\n"), degraded: reads.degraded }
+  return { block: [projection, metadata].filter((part) => part.length > 0).join("\n\n"), degraded: reads.degraded, expiries }
 }
 
 /** What `<external_projection>` would show at `revision` under `limits`, without compiling the block. */
@@ -109,9 +132,9 @@ async function readSystemFiles(
   revision: string,
   paths: readonly string[],
   reads: CompileReads,
-): Promise<CompiledSystemFile[]> {
+): Promise<SystemFileRead[]> {
   const files = await Promise.all(paths.map((path) => readSystemFile(repo, revision, path, reads)))
-  return files.filter((file): file is CompiledSystemFile => file !== undefined)
+  return files.filter((file): file is SystemFileRead => file !== undefined)
     .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
 }
 
@@ -120,7 +143,7 @@ async function readSystemFile(
   revision: string,
   relativePath: string,
   reads: CompileReads,
-): Promise<CompiledSystemFile | undefined> {
+): Promise<SystemFileRead | undefined> {
   let content: string
   try {
     content = await repo.show(revision, relativePath)
@@ -130,10 +153,12 @@ async function readSystemFile(
   }
   try {
     const parsed = parseMemoryFile(content)
+    const expiresAtMs = memoryExpiresAtMs(parsed.frontmatter)
     return {
       relativePath,
       body: redactSecretLikeMaterial(parsed.body),
       description: redactSecretLikeMaterial(parsed.frontmatter.description),
+      ...(expiresAtMs === undefined ? {} : { expiresAtMs }),
     }
   } catch {
     return undefined
@@ -175,6 +200,10 @@ function renderProjection(
     lines.push("</memory>")
   }
   return lines.join("\n")
+}
+
+interface SystemFileRead extends CompiledSystemFile {
+  readonly expiresAtMs?: number
 }
 
 function isOtherSystemMarkdown(path: string): boolean {
