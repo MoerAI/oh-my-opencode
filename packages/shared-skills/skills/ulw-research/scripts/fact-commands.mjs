@@ -33,11 +33,14 @@ function readText(path) {
 	}
 }
 
-function nowIso(flags) {
-	const date = flags.now === undefined ? new Date() : new Date(flags.now)
+/** A caller-supplied --now value as ISO; parsing only, never the clock. */
+function isoOf(text) {
+	const date = new Date(text)
 	if (Number.isNaN(date.getTime())) throw new CliError("--now requires an ISO timestamp")
 	return date.toISOString()
 }
+
+const nowIso = (flags) => (flags.now === undefined ? new Date().toISOString() : isoOf(flags.now))
 
 function failure(command, error, detail) {
 	const json = { command, status: "fail", exitCode: 1, error, ...detail }
@@ -171,11 +174,13 @@ function runExport(args) {
 function runDerive(args) {
 	const { flags } = args
 	const op = args.required("op")
+	// Time is the caller's: without --now the CLI refuses with the library's missing_now code (exit 2) and never reads the clock.
+	if (flags.now === undefined) throw new CliError("missing_now: fact derive needs --now <ISO timestamp> (the row's observed_at); no row written")
 	const sessionDir = sessionDirOf(flags)
 	const ledger = readLedger(sessionDir)
 	// The registry refuses any field outside the operation's inputFields, so only the given flags go in; --unit null declares a dimensionless result.
 	const picked = ["to", "from", "num", "den", "part", "whole", "reference", "rationale", "label"].filter((key) => flags[key] !== undefined)
-	const spec = { op, now: nowIso(flags), ...Object.fromEntries(picked.map((key) => [key, flags[key]])) }
+	const spec = { op, now: isoOf(flags.now), ...Object.fromEntries(picked.map((key) => [key, flags[key]])) }
 	if (op === "expr") spec.formula = args.positionals[0]
 	else if (args.positionals.length > 0) spec.operands = args.positionals
 	if (flags.disjoint === true) spec.disjoint = true

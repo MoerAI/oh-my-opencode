@@ -1,6 +1,6 @@
 "use client"
 
-import type { JSX } from "react"
+import { useId, type JSX } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -14,7 +14,9 @@ export interface DocsSidebarProps {
   readonly sections: readonly DocsShellSection[]
   readonly activeSection: string
   readonly searchQuery: string
+  readonly searchLabel: string
   readonly searchPlaceholder: string
+  readonly sectionsLabel: string
   readonly onSearchChange: (value: string) => void
   readonly onSelect: (id: string) => void
   readonly className?: string
@@ -28,19 +30,26 @@ export function DocsSidebar({
   sections,
   activeSection,
   searchQuery,
+  searchLabel,
   searchPlaceholder,
+  sectionsLabel,
   onSearchChange,
   onSelect,
   className,
 }: DocsSidebarProps): JSX.Element {
+  const searchId = useId()
   return (
     <div className={cn("flex flex-col gap-6", className)}>
       <div className="relative">
+        <label htmlFor={searchId} className="sr-only">
+          {searchLabel}
+        </label>
         <Search
           aria-hidden="true"
           className="text-text-lo pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
         />
         <Input
+          id={searchId}
           type="search"
           placeholder={searchPlaceholder}
           className="bg-ink-2 h-11 pl-9 font-mono text-sm lg:h-9"
@@ -49,7 +58,7 @@ export function DocsSidebar({
         />
       </div>
 
-      <nav aria-label={searchPlaceholder}>
+      <nav aria-label={sectionsLabel}>
         <ul className="border-line border-l">
           {sections.map((section) => {
             const isActive = activeSection === section.id

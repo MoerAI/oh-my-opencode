@@ -467,11 +467,7 @@ function installCaptureFacade(
     diagnostics: options.diagnostics,
     distinctId: template.distinctId,
     env: options.env,
-    product: withOmoNativeAttribution(createOmoNativeProductConfig(), {
-      env: options.env,
-      now: options.now,
-      osProvider: options.osProvider,
-    }),
+    product: withOmoNativeAttribution(createOmoNativeProductConfig(), { env: options.env }),
     propertyAllowlist: OMO_NATIVE_PROPERTY_ALLOWLISTS,
     schemaVersion: OMO_NATIVE_SCHEMA_VERSION,
     source: "omo-native-component",

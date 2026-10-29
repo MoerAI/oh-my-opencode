@@ -84,6 +84,8 @@ export const DEFECT_CODES = deepFreeze({
 	polish_hedging_decreased: { severity: "major", integrity: false, hint: "The polish pass removed qualifiers; restore them." },
 	polish_text_churn: { severity: "major", integrity: false, hint: "More than half the text changed during polish; the pass composed instead of proofreading." },
 	snapshot_mismatch: { severity: "major", integrity: false, hint: "The operands come from different collection windows; use rows from one window or state the windows separately." },
+	operand_timestamp_missing: { severity: "major", integrity: false, hint: "Record the operand's observed_at timestamp before checking its collection window." },
+	operand_missing: { severity: "major", integrity: false, hint: "A windowed operation names an operand that is not in the fact ledger; restore the row or re-derive from existing rows." },
 	join_integrity_fail: { severity: "major", integrity: false, hint: "A table row combines facts from different source observations; keep each row to one observation or split it." },
 	quote_stale_version: { severity: "major", integrity: false, hint: "The quoted source revision differs from the revision the report targets; re-snapshot the target revision or date the quote." },
 	quote_fuzzy_match: { severity: "minor", integrity: false, hint: "The source text is OCR-noisy; confirm the snapshot and prefer the raw document." },
@@ -111,7 +113,7 @@ export const FIDELITY_CODES = Object.freeze([
 	"chart_value_untraceable", "quote_unbound", "edition_unverified", "untraceable_number", "unsupported_verification", "claim_kind_mismatch",
 	"conflicting_readings", "hedge_dropped", "direction_flipped", "causality_added", "qualifier_dropped", "unbound_sentence",
 	"meaning_drift_confirmed", "meaning_unverified", "polish_edit_rejected", "polish_hedging_decreased", "polish_text_churn", "snapshot_mismatch",
-	"join_integrity_fail", "quote_stale_version", "quote_fuzzy_match", "name_outside_quote", "verification_claim_unmarked", "scope_widened_warn",
+	"operand_timestamp_missing", "operand_missing", "join_integrity_fail", "quote_stale_version", "quote_fuzzy_match", "name_outside_quote", "verification_claim_unmarked", "scope_widened_warn",
 	"particle_unverified", "fallback_without_entity", "meaning_drift_warn", "polish_edit_unlocated", "polish_link_changed",
 	"polish_name_changed", "snapshot_not_raw", "relocated", "quote_converted_only",
 ])

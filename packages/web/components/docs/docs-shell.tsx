@@ -11,7 +11,9 @@ export type { DocsShellSection }
 export interface DocsShellProps {
   /** Label for the sidebar disclosure (< lg) and the scroll region. */
   readonly mobileHeader: string
+  readonly searchLabel: string
   readonly searchPlaceholder: string
+  readonly sectionsLabel: string
   readonly sections: readonly DocsShellSection[]
   readonly children: React.ReactNode
 }
@@ -28,7 +30,9 @@ export interface DocsShellProps {
  */
 export function DocsShell({
   mobileHeader,
+  searchLabel,
   searchPlaceholder,
+  sectionsLabel,
   sections,
   children,
 }: DocsShellProps): React.JSX.Element {
@@ -56,7 +60,7 @@ export function DocsShell({
   )
 
   return (
-    <div className="mx-auto grid min-h-0 w-full max-w-[90rem] grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-60px)] lg:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="mx-auto grid min-h-0 w-full max-w-[90rem] grid-cols-[minmax(0,1fr)] lg:h-[calc(100dvh-var(--nav-h))] lg:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="border-line min-h-0 min-w-0 border-b lg:overflow-y-auto lg:border-r lg:border-b-0">
         <button
           type="button"
@@ -85,7 +89,9 @@ export function DocsShell({
               sections={filteredSections}
               activeSection={activeSection}
               searchQuery={searchQuery}
+              searchLabel={searchLabel}
               searchPlaceholder={searchPlaceholder}
+              sectionsLabel={sectionsLabel}
               onSearchChange={setSearchQuery}
               onSelect={handleSelect}
               className="px-4 pt-4 pb-6 sm:px-5 lg:p-5"

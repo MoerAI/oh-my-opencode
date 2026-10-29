@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import { describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -11,7 +10,6 @@ import {
   createDefaultPostHogTransport,
   createTelemetryClient,
   getTelemetryActivityStateFilePath,
-  getTelemetryDistinctId,
   isTelemetryClientEnabled,
   recordDailyActive,
 } from "./index"
@@ -28,7 +26,6 @@ const PRODUCT = {
   defaultApiKey: DEFAULT_POSTHOG_API_KEY,
   defaultHost: DEFAULT_POSTHOG_HOST,
   eventName: "omo_codex_daily_active",
-  machineIdPrefix: "omo-codex:",
   packageName: "@oh-my-opencode/omo-codex",
   packageVersion: "4.9.2",
   platform: "omo-codex",
@@ -114,6 +111,8 @@ describe("posthog telemetry client", () => {
 
   test("#given codex product parameters #when daily active is captured #then payload shape matches current contract", async () => {
     // given
+    const previousShell = process.env.SHELL
+    process.env.SHELL = "/home/contract-user/.nix-profile/bin/zsh"
     const capturedMessages: TelemetryCaptureMessage[] = []
     const client = createTelemetryClient({
       env: { POSTHOG_API_KEY: "test-key", POSTHOG_HOST: "https://posthog.test" },
@@ -126,16 +125,18 @@ describe("posthog telemetry client", () => {
     // when
     client.trackActive({
       dayUTC: "2026-05-25",
-      distinctId: getTelemetryDistinctId(PRODUCT.machineIdPrefix, OS_PROVIDER),
+      distinctId: "a".repeat(64),
       reason: "cli_run",
     })
     await client.flush()
     await client.shutdown()
+    if (previousShell === undefined) delete process.env.SHELL
+    else process.env.SHELL = previousShell
 
     // then
     expect(capturedMessages).toHaveLength(1)
     expect(capturedMessages[0]).toEqual({
-      distinctId: createHash("sha256").update("omo-codex:test-host").digest("hex"),
+      distinctId: "a".repeat(64),
       event: "omo_codex_daily_active",
       properties: {
         platform: "omo-codex",
@@ -154,7 +155,7 @@ describe("posthog telemetry client", () => {
         total_memory_gb: 16,
         locale: Intl.DateTimeFormat().resolvedOptions().locale,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        shell: process.env.SHELL,
+        shell: "zsh",
         ci: Boolean(process.env.CI),
         terminal: process.env.TERM_PROGRAM,
         $process_person_profile: false,

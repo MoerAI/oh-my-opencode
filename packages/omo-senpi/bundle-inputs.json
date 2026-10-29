@@ -2074,6 +2074,7 @@
     "packages/telemetry-core/src/injected-client.ts",
     "packages/telemetry-core/src/injected-daily-active.ts",
     "packages/telemetry-core/src/injected-events.ts",
+    "packages/telemetry-core/src/install-id.ts",
     "packages/telemetry-core/src/machine-id.ts",
     "packages/telemetry-core/src/otel-minimal-logs.ts",
     "packages/telemetry-core/src/otel-minimal-trace.ts",

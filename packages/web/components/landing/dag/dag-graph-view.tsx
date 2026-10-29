@@ -3,6 +3,7 @@
 import { LocateFixed, Maximize } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react"
 
+import { Tooltip } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 import { DagEdgeLayer } from "./dag-edge-layer"
@@ -239,31 +240,33 @@ export function DagGraphView({
         className="border-line bg-ink-1 absolute right-2 bottom-2 z-10 flex flex-col gap-0.5 border p-1"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <button
-          type="button"
-          aria-label={labels.fit}
-          title={labels.fit}
-          className={toolbarButton}
-          onClick={camera.fit}
-        >
-          <Maximize aria-hidden="true" className="size-4" />
-        </button>
-        <button
-          type="button"
-          aria-label={labels.center}
-          title={labels.center}
-          disabled={activeWave === null}
-          className={toolbarButton}
-          onClick={() => {
-            if (activeWave === null) return
-            camera.centerWave(
-              activeWave,
-              layout.nodes.filter((n) => n.waveIndex === activeWave).map((n) => n.y),
-            )
-          }}
-        >
-          <LocateFixed aria-hidden="true" className="size-4" />
-        </button>
+        <Tooltip label={labels.fit}>
+          <button
+            type="button"
+            aria-label={labels.fit}
+            className={toolbarButton}
+            onClick={camera.fit}
+          >
+            <Maximize aria-hidden="true" className="size-4" />
+          </button>
+        </Tooltip>
+        <Tooltip label={labels.center}>
+          <button
+            type="button"
+            aria-label={labels.center}
+            disabled={activeWave === null}
+            className={toolbarButton}
+            onClick={() => {
+              if (activeWave === null) return
+              camera.centerWave(
+                activeWave,
+                layout.nodes.filter((n) => n.waveIndex === activeWave).map((n) => n.y),
+              )
+            }}
+          >
+            <LocateFixed aria-hidden="true" className="size-4" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import type { JSX } from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { useTranslations } from "next-intl"
 import { Menu, Star, X } from "lucide-react"
@@ -55,6 +55,21 @@ export function NavHeader({ stars }: NavHeaderProps): JSX.Element {
   const pathname = usePathname()
   const scrolled = useScrolled(SCROLL_THRESHOLD)
   const [isOpen, setIsOpen] = useState(false)
+  const menuToggleRef = useRef<HTMLButtonElement | null>(null)
+  const sheetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!isOpen) return
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return
+      const focus = document.activeElement
+      const focusWasInSheet =
+        focus === menuToggleRef.current || (focus !== null && sheetRef.current?.contains(focus))
+      setIsOpen(false)
+      if (focusWasInSheet) menuToggleRef.current?.focus()
+    }
+    document.addEventListener("keydown", closeOnEscape)
+    return () => document.removeEventListener("keydown", closeOnEscape)
+  }, [isOpen])
   const live = useLiveStats({
     stars,
     totalDownloads: "",
@@ -67,7 +82,7 @@ export function NavHeader({ stars }: NavHeaderProps): JSX.Element {
       data-scrolled={scrolled ? "true" : "false"}
       className="border-line data-[scrolled=true]:bg-ink-0/72 ease-standard sticky top-0 z-50 w-full border-b bg-transparent transition-colors duration-[var(--dur-micro)] data-[scrolled=true]:backdrop-blur-md"
     >
-      <div className="mx-auto flex h-[60px] w-full max-w-[90rem] items-center justify-between px-4 sm:px-5 lg:px-8">
+      <div className="mx-auto flex h-(--nav-h) w-full max-w-[90rem] items-center justify-between px-4 sm:px-5 lg:px-8">
         <Link href="/" className="focus-ring flex min-h-11 items-center gap-2.5 rounded-[2px]">
           <Image src="/brand/omo-mark.svg" alt="" width={24} height={24} priority />
           <span className="text-text-hi text-[15px] font-medium tracking-[-0.02em]">
@@ -112,6 +127,7 @@ export function NavHeader({ stars }: NavHeaderProps): JSX.Element {
             <Link href="/docs/install">{t("install")}</Link>
           </Button>
           <Button
+            ref={menuToggleRef}
             variant="ghost"
             size="icon"
             className="md:hidden"
@@ -127,6 +143,7 @@ export function NavHeader({ stars }: NavHeaderProps): JSX.Element {
 
       <div
         id="mobile-nav"
+        ref={sheetRef}
         aria-hidden={!isOpen}
         className={cn(
           "bg-ink-3 ease-standard grid transition-[grid-template-rows] duration-[var(--dur-micro)] md:hidden",

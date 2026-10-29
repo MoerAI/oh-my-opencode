@@ -96,6 +96,8 @@ const FIDELITY_MAJORS = [
 	"snapshot_mismatch",
 	"join_integrity_fail",
 	"quote_stale_version",
+	"operand_timestamp_missing",
+	"operand_missing",
 ]
 
 const FIDELITY_MINORS = [

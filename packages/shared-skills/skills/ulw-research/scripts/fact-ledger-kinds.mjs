@@ -168,7 +168,7 @@ const carriesDerivation = (row) => row.operation !== null || row.operands?.lengt
 /** Dimension 32: a stored exact must equal the row's own value at the value's decimal places. */
 function valueExactDisagreement(row) {
 	const exact = readExact(row.exact)
-	const value = readDecimal(row.value)
+	const value = isString(row.value) ? readDecimal(row.value).replace(/^-(0+(?:\.0+)?)$/, "$1") : row.value
 	if (!isRational(exact) || !isDecimal(value) || roundPlaces(toBig(exact), placesOf(value)) === value) return null
 	return `value ${value} disagrees with exact ${exact.num}/${exact.den} at ${placesOf(value)} decimal places`
 }
@@ -211,7 +211,7 @@ export function kindRuleErrors(candidate, at) {
 		const value = candidate[column] === undefined && LATER_COLUMNS.includes(column) ? null : candidate[column]
 		const rule = RULES[legacy && column === "exact" ? "rational_or_null" : rules[column]]
 		// An exact with unknown keys loads as written (never stripped); readFlaws refuses it at use and at write.
-		if (column === "exact" && hasUnknownExactKeys(value) && !isCurrentDerived(candidate)) continue
+		if (column === "exact" && rules[column] !== "null" && hasUnknownExactKeys(value) && !isCurrentDerived(candidate)) continue
 		if (rule.test(value, candidate)) continue
 		errors.push(`${at}.${column} must be ${rule.says} for a ${candidate.kind} row`)
 		if (rule.detail) errors.push(...rule.detail(value, `${at}.${column}`))

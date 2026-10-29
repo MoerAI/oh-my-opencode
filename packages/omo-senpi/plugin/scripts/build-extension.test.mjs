@@ -14,7 +14,7 @@ import {
   resolveBunExecutable,
   toPortableBuildPath,
 } from "./build-extension.mjs"
-import { runBoundedStage, systemTar } from "./bounded-stage.test-support.mjs"
+import { npmPackStage, runBoundedStage, systemTar } from "./bounded-stage.test-support.mjs"
 import { createBuildFixture } from "./build-extension.test-support.mjs"
 import { runtimePersonaSources } from "./persona-artifacts.mjs"
 import { removeTestRootBestEffort } from "../../../../test-support/held-test-root.mjs"
@@ -23,7 +23,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = join(scriptDir, "..")
 const repoRoot = join(scriptDir, "..", "..", "..", "..")
 const fixture = createBuildFixture()
-const { sharedOutputs, mutableOutputs } = fixture
+const { sharedOutputs, mutableOutputs, reproductionRoot } = fixture
 
 // A focused run builds the six artifacts twice in ~14s, while the package suite shares CPU and disk
 // with other build/staging files. Keep the test bounded, but give the real two-build workload enough
@@ -88,6 +88,7 @@ describe("checkExtensionCurrent", () => {
       outputPath: outputs.outputPath,
       memberOutputPath: outputs.memberOutputPath,
       supervisorOutputPath: outputs.supervisorOutputPath,
+      expectedRoot: await reproductionRoot(),
     })
     // Compare the whole result so a failure names the stale artifact instead of printing "false".
     expect(check).toMatchObject({ ok: true })
@@ -137,7 +138,7 @@ describe("checkExtensionCurrent", () => {
     ])
 
     // when
-    const result = await checkExtensionCurrent(outputs)
+    const result = await checkExtensionCurrent({ ...outputs, expectedRoot: await reproductionRoot() })
 
     // then
     expect(result).toMatchObject({ ok: true })
@@ -161,7 +162,7 @@ describe("checkExtensionCurrent", () => {
     await appendFile(outputs.supervisorOutputPath, "\nchanged\n")
 
     // when
-    const result = await checkExtensionCurrent(outputs)
+    const result = await checkExtensionCurrent({ ...outputs, expectedRoot: await reproductionRoot() })
 
     // then
     expect(result).toMatchObject({ ok: false, reason: "stale-output", output: outputs.supervisorOutputPath })
@@ -175,7 +176,7 @@ describe("checkExtensionCurrent", () => {
     await utimes(outputs.outputPath, future, future)
 
     // when
-    const result = await checkExtensionCurrent(outputs)
+    const result = await checkExtensionCurrent({ ...outputs, expectedRoot: await reproductionRoot() })
 
     // then
     expect(result).toMatchObject({ ok: false, reason: "stale-output", output: outputs.outputPath })
@@ -190,7 +191,7 @@ describe("checkExtensionCurrent", () => {
     await writeFile(outputs.outputPath, `${prefix}:${"0".repeat(43)}:${bodyDigest}\n${artifact.slice(newline + 1)}`)
 
     // when
-    const result = await checkExtensionCurrent(outputs)
+    const result = await checkExtensionCurrent({ ...outputs, expectedRoot: await reproductionRoot() })
 
     // then
     expect(result).toMatchObject({ ok: false, reason: "stale-output", output: outputs.outputPath })
@@ -469,7 +470,8 @@ describe("checkExtensionCurrent", () => {
       await cp(join(pluginRoot, "package.json"), join(pkg, "package.json"))
       await cp(memorySyncOutputPath, join(pkg, "extensions", "omo-memory-sync.js"))
       for (const asset of MEMORY_SYNC_ASSET_NAMES) await cp(join(dirname(memorySyncOutputPath), asset), join(pkg, "extensions", asset))
-      const packed = await runBoundedStage("npm pack", "npm", ["pack", "--silent", "--pack-destination", work], { cwd: pkg, shell: process.platform === "win32" }, PACKED_STAGE_CAPS.pack)
+      const pack = npmPackStage(pkg, work)
+      const packed = await runBoundedStage("npm pack", pack.command, pack.args, pack.options, PACKED_STAGE_CAPS.pack)
       expect(packed.status, packed.stderr).toBe(0)
       const tarball = join(work, packed.stdout.trim().split("\n").at(-1))
       const installed = join(work, "installed")
