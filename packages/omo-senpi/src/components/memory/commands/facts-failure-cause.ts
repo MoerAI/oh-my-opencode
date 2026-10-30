@@ -36,7 +36,7 @@ const CAUSES: Record<Exclude<FactsFailureReason, "child_exit" | "other">, FactsF
   parent_dirty: { label: "the memory repository has uncommitted changes", action: "fix-first" },
 }
 
-export function classifyFactsFailure(record: FactsFailureRecord): FactsFailureCause {
+function classifyFactsFailure(record: FactsFailureRecord): FactsFailureCause {
   if (record.lastReason === "other") return { action: "retry" }
   if (record.lastReason === "child_exit") {
     const detail = childFailureCause(record.lastDetail)
