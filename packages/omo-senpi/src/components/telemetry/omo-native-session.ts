@@ -78,7 +78,7 @@ export function createOmoNativeSessionComponent(options: OmoNativeSessionOptions
 
         const osProvider = options.osProvider ?? getDefaultTelemetryOsProvider()
         const sessionId = extractSessionId(eventCtx) ?? "unknown"
-        const attribution = getOmoNativeAttribution({ env, now: options.now, osProvider })
+        const attribution = getOmoNativeAttribution({ env })
         client = createEventTelemetryClient({
           diagnostics: options.diagnostics,
           distinctId: attribution.install_hash,

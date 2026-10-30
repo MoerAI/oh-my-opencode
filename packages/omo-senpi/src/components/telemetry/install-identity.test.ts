@@ -36,7 +36,7 @@ function flatLayout(homeDir: string): void {
   writeFileSync(join(homeDir, ".omo", "settings.json"), "{}")
 }
 
-const attribution = (env: Record<string, string>) => getOmoNativeAttribution({ env, now: new Date(Date.UTC(2027, 0, 1)) })
+const attribution = (env: Record<string, string>) => getOmoNativeAttribution({ env })
 
 describe("one anonymous install id per user, independent of the agent home (#10934)", () => {
   it("#given the Desktop's canonical id and a CLI resolving the flat ~/.omo home #then both report ONE install_hash", () => {
