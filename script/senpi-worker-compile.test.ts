@@ -31,7 +31,12 @@ const path = typeof SENPI_RPC_SESSION_WORKER_ENTRY === "string" ? SENPI_RPC_SESS
 await Promise.all([1, 2].map(() => new Promise((resolve, reject) => {
   const worker = new Worker(fileURLToPath(new URL(path, import.meta.url)).replaceAll("\\\\", "/"));
   worker.once("error", reject);
-  worker.once("message", async (message) => { await worker.terminate(); resolve(message); });
+  // The worker posts once and exits on its own. Awaiting terminate() from its message handler races
+  // that exit: Bun 1.4.4 re-emits queued messages from #onClose before it records the exit code, and a
+  // terminate() issued there never settles, pinning the process (#11940). Wait for the exit instead.
+  let message;
+  worker.once("message", (value) => { message = value; });
+  worker.once("exit", (code) => code === 0 && message !== undefined ? resolve(message) : reject(new Error(\`worker exited \${code} before ready\`)));
 })));
 console.log("two-workers-ready");`)
     const binary = join(scratch, process.platform === "win32" ? "omo.exe" : "omo")
@@ -44,9 +49,7 @@ console.log("two-workers-ready");`)
     const moved = join(relocated, process.platform === "win32" ? "omo.exe" : "omo")
     renameSync(binary, moved)
     removeTreeSync(buildRoot, { maxRetries: 10, retryDelay: 100 })
-    // The relocated run (cold start of the compiled binary plus two workers) is the slowest phase,
-    // about 0.8 s on an idle host; give it the same load-safe budget as the compile step (#11940).
-    const result = spawnSync(moved, [], { cwd: relocated, encoding: "utf8", timeout: 30_000 })
+    const result = spawnSync(moved, [], { cwd: relocated, encoding: "utf8", timeout: 10_000 })
     // then
     expect(result.status, `signal=${result.signal} error=${result.error?.message} stderr=${result.stderr}`).toBe(0)
     expect(result.stdout.trim()).toBe("two-workers-ready")
@@ -55,7 +58,7 @@ console.log("two-workers-ready");`)
     // bounded release window the isolation-core fixtures use for this EBUSY family.
     removeTreeSync(scratch, { maxRetries: 10, retryDelay: 500 })
   }
-}, 75_000)
+}, 45_000)
 
 test("#given a pre-worker engine #when resolving compile args #then the legacy graph stays unchanged", () => {
   const root = mkdtempSync(join(tmpdir(), "omo-worker-legacy-"))
