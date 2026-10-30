@@ -168,8 +168,9 @@ describe("/facts", () => {
     expect(deps.retryTriggers).toEqual(["reconcile"])
   })
 
-  test("#given a parked record #when retrying #then the report says how many batches were unparked and that none parked again", async () => {
-    // given
+  test("#given a parked record #when retrying #then the report says the retry started and leaves the outcome to the next read", async () => {
+    // given: production reconcile only launches the extractor and does not wait for it,
+    // so the retry report must not claim anything about the outcome
     const identity = await seededIdentity()
     await seedFailures(identity)
     const deps = factsDeps(identity)
@@ -179,11 +180,15 @@ describe("/facts", () => {
 
     // then
     expect(text).toContain("1 parked batch unparked")
-    expect(text).toContain("none had parked again")
+    expect(text).toContain("one retry attempt was started")
+    expect(text).toContain("run /facts again to check whether any batch parked again")
+    expect(text).not.toContain("none had parked again")
+    expect(text).not.toContain("parked again (")
   })
 
-  test("#given a relaunch that fails again #when retrying #then the report names the re-parked batch and its cause", async () => {
-    // given
+  test("#given a relaunch that fails again synchronously in the test double #when retrying #then the report still claims no outcome, and the next read shows the re-park", async () => {
+    // given: the double re-parks during reconcile, but that timing is not a production
+    // outcome signal, so the retry report must stay silent about it
     const identity = await seededIdentity()
     const store = await seedFailures(identity)
     const deps = Object.assign(
@@ -209,7 +214,11 @@ describe("/facts", () => {
 
     // then
     expect(text).toContain("1 parked batch unparked")
-    expect(text).toContain("1 parked again (timeout)")
+    expect(text).not.toContain("parked again (")
+    expect(text).not.toContain("none had parked again")
+    const reread = await invokeFacts(deps, "")
+    expect(reread).toContain("parked: 1")
+    expect(reread).toContain("conv-a")
   })
 
   test("#given no records for the requested conversation #when retrying #then it is a no-op with a clear message", async () => {

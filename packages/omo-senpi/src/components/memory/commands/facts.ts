@@ -7,50 +7,15 @@
 import {
   FactsFailureStore,
   type FactsFailureFilter,
-  type FactsFailureRecord,
 } from "@oh-my-opencode/memory-core"
 
 import { parseCommandArgs } from "./args"
-import { classifyFactsFailure } from "./facts-failure-cause"
 import { formatFactsStatus, readFactsOverview } from "./facts-status"
 import { requireIdentity, respond, type MemoryCommandContext, type MemoryCommandDeps } from "./types"
 import { LAZY_MEMORY_COMMANDS, type MemoryCommandPort } from "./metadata"
 
 function conversationsIn(records: readonly { readonly conversationId: string }[]): string[] {
   return [...new Set(records.map((record) => record.conversationId))].sort()
-}
-
-/**
- * What the retry did to parked batches, read back from the ledger after the one launch
- * attempt: how many were unparked, plus any batch that parked again (a fresh failure id,
- * never a cleared one) with its cause. A ledger that cannot be re-read reports only the
- * unparked count; it never claims nothing re-parked.
- */
-async function retryOutcomeNote(
-  store: FactsFailureStore,
-  beforeEntries: readonly FactsFailureRecord[],
-  matching: readonly FactsFailureRecord[],
-): Promise<string> {
-  const unparked = matching.filter((record) => record.state === "parked").length
-  if (unparked === 0) return ""
-  const noun = unparked === 1 ? "batch" : "batches"
-  const clearedIds = new Set(beforeEntries.map((record) => record.lastFailureId))
-  const scope = new Set(matching.map((record) => record.conversationId))
-  let after: Awaited<ReturnType<FactsFailureStore["readFailures"]>>
-  try {
-    after = await store.readFailures()
-  } catch {
-    return `; ${unparked} parked ${noun} unparked`
-  }
-  const reparking = after.entries.filter(
-    (record) =>
-      record.state === "parked" && scope.has(record.conversationId) && !clearedIds.has(record.lastFailureId),
-  )
-  if (reparking.length === 0) {
-    return `; ${unparked} parked ${noun} unparked; none had parked again when the ledger was re-read`
-  }
-  const labels = [...new Set(reparking.map((record) => classifyFactsFailure(record).label ?? "cause unknown"))]
-  return `; ${unparked} parked ${noun} unparked; ${reparking.length} parked again (${labels.join(", ")})`
 }
 
 async function runRetry(
@@ -82,12 +47,18 @@ async function runRetry(
   const filter: FactsFailureFilter = conversationId === undefined ? {} : { conversationId }
   const removed = await store.clearForRetry(filter)
   // ONE attempt: the extractor owns its own re-entrancy latch, so the command never loops.
+  // Production reconcile only launches the extractor and does not wait for its outcome
+  // (see wiring-static.ts), so the report must not claim anything about the outcome:
+  // it says the retry started and leaves the result to the next /facts read.
   await deps.factsSink?.reconcile()
   const names = conversationsIn(matching)
-  const note = await retryOutcomeNote(store, before.entries, matching)
+  const unparked = matching.filter((record) => record.state === "parked").length
+  const unparkedNote = unparked === 0
+    ? ""
+    : `; ${unparked} parked ${unparked === 1 ? "batch" : "batches"} unparked`
   return respond(
     ctx,
-    `cleared ${removed} record${removed === 1 ? "" : "s"} for ${names.join(", ")}; one launch attempt was triggered${note}`,
+    `cleared ${removed} record${removed === 1 ? "" : "s"} for ${names.join(", ")}; one retry attempt was started${unparkedNote}; run /facts again to check whether any batch parked again`,
   )
 }
 
