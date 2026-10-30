@@ -30,6 +30,33 @@ const SUMMARY_SEND = "sends a pending session_summary only while the component's
 
 export const REVIEWED_WRITERS: readonly ReviewedWriter[] = [
   {
+    file: "otlp-runtime.ts", fn: "createSenpiOtlpTransport",
+    guard: "unless(ingestKey.length === 0 || !isOtlpEvent(message.event))",
+    call: 'createOtlpTelemetryTransport({ productEnvPrefix: "OMO_SENPI", ingestKey, spoolRoot, spool)',
+    reason: "the core constructor checks every environment opt-out and this same consent callback before loading a sender or creating spool files",
+  },
+  {
+    file: "lazy-posthog.ts", fn: "withOtlpTransport>forward",
+    guard: "unless(!allowed())",
+    route: VIA_SESSION_CLIENT,
+    call: "target?.capture(message)",
+    reason: "the optional OTLP branch re-reads the same consent before forwarding buffered or live events",
+  },
+  {
+    file: "lazy-posthog.ts", fn: "withOtlpTransport>capture",
+    guard: "",
+    route: VIA_SESSION_CLIENT,
+    call: "posthog.capture(message)",
+    reason: "preserves the existing PostHog path for admitted client captures; its fetch uses the same send-time consent",
+  },
+  {
+    file: "otlp-runtime.ts", fn: "createSenpiOtlpTransport>capture",
+    guard: "if(isOtlpEvent(value.event))",
+    route: VIA_SESSION_CLIENT,
+    call: "transport.capture(value)",
+    reason: "forwards only pinned product events to the core transport, which checks the shared consent on every append and send",
+  },
+  {
     file: "lazy-posthog.ts", fn: "createLazyPostHogTransportFactory>=>>forward",
     guard: "",
     route: VIA_SESSION_CLIENT,
