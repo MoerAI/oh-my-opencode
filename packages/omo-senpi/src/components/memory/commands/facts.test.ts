@@ -168,6 +168,50 @@ describe("/facts", () => {
     expect(deps.retryTriggers).toEqual(["reconcile"])
   })
 
+  test("#given a parked record #when retrying #then the report says how many batches were unparked and that none parked again", async () => {
+    // given
+    const identity = await seededIdentity()
+    await seedFailures(identity)
+    const deps = factsDeps(identity)
+
+    // when
+    const text = await invokeFacts(deps, "retry")
+
+    // then
+    expect(text).toContain("1 parked batch unparked")
+    expect(text).toContain("none had parked again")
+  })
+
+  test("#given a relaunch that fails again #when retrying #then the report names the re-parked batch and its cause", async () => {
+    // given
+    const identity = await seededIdentity()
+    const store = await seedFailures(identity)
+    const deps = Object.assign(
+      fakeDeps(identity, {
+        now: () => NOW.getTime(),
+        factsSink: {
+          reconcile: async () => {
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+              await store.recordFailure({
+                targets: [{ conversationId: "conv-a", endMessageId: "msg-a", endSnapshotLine: 4 }],
+                failureId: `run-a-retry-${attempt}`,
+                reason: "deadline_exceeded",
+              })
+            }
+          },
+        },
+      }),
+      { retryTriggers: [] as string[] },
+    )
+
+    // when
+    const text = await invokeFacts(deps, "retry")
+
+    // then
+    expect(text).toContain("1 parked batch unparked")
+    expect(text).toContain("1 parked again (timeout)")
+  })
+
   test("#given no records for the requested conversation #when retrying #then it is a no-op with a clear message", async () => {
     // given
     const identity = await seededIdentity()

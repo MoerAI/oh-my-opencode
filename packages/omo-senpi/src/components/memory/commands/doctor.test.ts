@@ -505,6 +505,28 @@ describe("/doctor", () => {
     expect(factsLines[0]).toContain("/facts retry")
   })
 
+  test("#given a parked batch whose child timed out #when doctor runs #then the facts line names the timeout and the run log path", async () => {
+    // given
+    const { identity, pi, ctx } = await harness()
+    const store = new FactsFailureStore({ identityPaths: identity.identityPaths })
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await store.recordFailure({
+        targets: [{ conversationId: "conv-a", endMessageId: "msg-a", endSnapshotLine: 2 }],
+        failureId: `facts-run-${attempt}`,
+        reason: "deadline_exceeded",
+      })
+    }
+
+    // when
+    const text = await invoke(pi, "doctor", "", ctx)
+
+    // then
+    const factsLines = text.split("\n").filter((line) => line.includes("] facts:"))
+    expect(factsLines).toHaveLength(1)
+    expect(factsLines[0]).toContain("cause: timeout x1")
+    expect(factsLines[0]).toContain(join(identity.identityPaths.facts, "runs", "facts-run-4"))
+  })
+
   test("#given no facts failures #when doctor runs #then no facts advisory line is rendered", async () => {
     // given
     const { pi, ctx } = await harness()

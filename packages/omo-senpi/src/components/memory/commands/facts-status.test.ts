@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import type { FactsFailureRecord } from "@oh-my-opencode/memory-core"
 
+import { factsParkedCauseSummary } from "./facts-failure-cause"
 import {
   factsRemediationHint,
   formatFactsAdvisory,
@@ -125,6 +126,17 @@ describe("facts status rendering", () => {
     expect(text).toContain("/facts retry")
   })
 
+  test("#given a parked record and a facts dir #when rendering the status view #then its row names the run log path", () => {
+    // given
+    const state = overview({ records: [parkedRecord({ lastFailureId: "facts-abc-2" })], factsDir: "/ident/facts" })
+
+    // when
+    const text = formatFactsStatus("agent-x", state)
+
+    // then
+    expect(text).toContain("(last run: /ident/facts/runs/facts-abc-2)")
+  })
+
   test("#given a healthy queue #when rendering the status view #then no failure section is shown", () => {
     // given
     const state = overview({ pending: 1 })
@@ -140,7 +152,7 @@ describe("facts status rendering", () => {
 })
 
 describe("facts remediation hint", () => {
-  test("#given parked records #when asking for the hint #then it names /facts retry and the parked count", () => {
+  test("#given parked records with a transient cause #when asking for the hint #then the to-do is /facts retry itself", () => {
     // given
     const state = overview({ records: [parkedRecord(), parkedRecord({ end_message_id: "msg-z" })] })
 
@@ -148,7 +160,29 @@ describe("facts remediation hint", () => {
     const hint = factsRemediationHint(state)
 
     // then
-    expect(hint).toBe("2 parked facts batches need a manual unpark; run /facts retry after fixing the cause")
+    expect(hint).toBe("Some facts weren't saved yet. Run /facts retry.")
+  })
+
+  test("#given a parked record whose fix is a setting #when asking for the hint #then the to-do names that setting", () => {
+    // given
+    const state = overview({ records: [parkedRecord({ lastReason: "quick_category_unavailable" })] })
+
+    // when
+    const hint = factsRemediationHint(state)
+
+    // then
+    expect(hint).toBe("Some facts weren't saved yet. Set memory.facts.model, then run /facts retry.")
+  })
+
+  test("#given a parked record whose fix has no setting #when asking for the hint #then the to-do names the cause", () => {
+    // given
+    const state = overview({ records: [parkedRecord({ lastReason: "invalid_extraction" })] })
+
+    // when
+    const hint = factsRemediationHint(state)
+
+    // then
+    expect(hint).toBe("Some facts weren't saved yet (parse error). Run /facts retry once that is fixed.")
   })
 
   test("#given only backoff records #when asking for the hint #then it reports the wait instead of a remedy", () => {
@@ -168,5 +202,46 @@ describe("facts remediation hint", () => {
 
     // when + then
     expect(factsRemediationHint(state)).toBeUndefined()
+  })
+})
+
+describe("facts parked cause summary", () => {
+  test("#given parked batches with known causes #when summarizing #then counts per cause and the newest run path appear", () => {
+    // given
+    const records = [
+      parkedRecord({ end_message_id: "msg-1", lastFailureId: "facts-a-1", lastFailureAt: "2026-08-16T10:00:00.000Z" }),
+      parkedRecord({ end_message_id: "msg-2", lastFailureId: "facts-a-2", lastFailureAt: "2026-08-16T10:30:00.000Z" }),
+      parkedRecord({
+        end_message_id: "msg-3",
+        lastReason: "invalid_extraction",
+        lastFailureId: "facts-a-3",
+        lastFailureAt: "2026-08-16T11:00:00.000Z",
+      }),
+    ]
+
+    // when
+    const summary = factsParkedCauseSummary(records, "/ident/facts")
+
+    // then
+    expect(summary).toBe("causes: timeout x2, parse error x1; last run: /ident/facts/runs/facts-a-3")
+  })
+
+  test("#given a parked batch with an unknown cause #when summarizing #then the run path still appears with no guessed cause", () => {
+    // given
+    const records = [parkedRecord({ lastReason: "other", lastFailureId: "facts-z-7" })]
+
+    // when
+    const summary = factsParkedCauseSummary(records, "/ident/facts")
+
+    // then
+    expect(summary).toBe("last run: /ident/facts/runs/facts-z-7")
+  })
+
+  test("#given only backoff records #when summarizing #then there is no parked summary", () => {
+    // given
+    const records = [backoffRecord()]
+
+    // when + then
+    expect(factsParkedCauseSummary(records, "/ident/facts")).toBeUndefined()
   })
 })
