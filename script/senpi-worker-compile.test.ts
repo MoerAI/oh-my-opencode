@@ -44,16 +44,18 @@ console.log("two-workers-ready");`)
     const moved = join(relocated, process.platform === "win32" ? "omo.exe" : "omo")
     renameSync(binary, moved)
     removeTreeSync(buildRoot, { maxRetries: 10, retryDelay: 100 })
-    const result = spawnSync(moved, [], { cwd: relocated, encoding: "utf8", timeout: 10_000 })
+    // The relocated run (cold start of the compiled binary plus two workers) is the slowest phase,
+    // about 0.8 s on an idle host; give it the same load-safe budget as the compile step (#11940).
+    const result = spawnSync(moved, [], { cwd: relocated, encoding: "utf8", timeout: 30_000 })
     // then
-    expect(result.status, result.stderr).toBe(0)
+    expect(result.status, `signal=${result.signal} error=${result.error?.message} stderr=${result.stderr}`).toBe(0)
     expect(result.stdout.trim()).toBe("two-workers-ready")
   } finally {
     // Windows keeps a just-executed image locked briefly after the process exits; allow the same
     // bounded release window the isolation-core fixtures use for this EBUSY family.
     removeTreeSync(scratch, { maxRetries: 10, retryDelay: 500 })
   }
-}, 45_000)
+}, 75_000)
 
 test("#given a pre-worker engine #when resolving compile args #then the legacy graph stays unchanged", () => {
   const root = mkdtempSync(join(tmpdir(), "omo-worker-legacy-"))
