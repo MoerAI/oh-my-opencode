@@ -11,16 +11,15 @@ const remote = (timeout?: number): ClaudeCodeMcpServer =>
   timeout === undefined ? { url: "https://mcp.example.com/mcp" } : { url: "https://mcp.example.com/mcp", timeout }
 
 describe("#resolveRequestTimeoutMs", () => {
-  it("prefers the per-call override, then the server's configured timeout, else the SDK default", () => {
-    expect(resolveRequestTimeoutMs(remote(120_000), { requestTimeoutMs: 300_000 })).toBe(300_000)
+  it("uses the server's configured timeout, else the SDK default", () => {
     expect(resolveRequestTimeoutMs(remote(120_000))).toBe(120_000)
+    expect(resolveRequestTimeoutMs(remote(2_147_483_647))).toBe(2_147_483_647)
     expect(resolveRequestTimeoutMs(remote())).toBeUndefined()
   })
 
-  it("ignores zero, negative, NaN and infinite values so the SDK default applies (#7224 review)", () => {
-    for (const invalid of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+  it("ignores values that would arm an immediate or never-firing timer (#7224 review)", () => {
+    for (const invalid of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31, 3_000_000_000]) {
       expect(resolveRequestTimeoutMs(remote(invalid)), String(invalid)).toBeUndefined()
-      expect(resolveRequestTimeoutMs(remote(90_000), { requestTimeoutMs: invalid }), String(invalid)).toBe(90_000)
     }
   })
 })
@@ -28,8 +27,9 @@ describe("#resolveRequestTimeoutMs", () => {
 describe("#buildRequestOptions", () => {
   it("carries the abort signal and the timeout together, and nothing when neither is set", () => {
     const controller = new AbortController()
-    expect(buildRequestOptions(remote(5_000), { signal: controller.signal })).toEqual({ signal: controller.signal, timeout: 5_000 })
-    expect(buildRequestOptions(remote())).toEqual({})
+    expect(buildRequestOptions(remote(5_000), { signal: controller.signal })).toStrictEqual({ signal: controller.signal, timeout: 5_000 })
+    expect(buildRequestOptions(remote())).toStrictEqual({})
+    expect(buildRequestOptions(remote(0), {})).toStrictEqual({})
   })
 })
 
@@ -50,7 +50,7 @@ describe("SkillMcpManager request options", () => {
     spyOn(unsafeTestValue<{ getOrCreateClientWithRetry: () => Promise<McpClient> }>(manager), "getOrCreateClientWithRetry")
       .mockResolvedValue(recordingClient(captured))
     const context = { skillName: "timeout-skill", config: remote(45_000) }
-    const options: SkillMcpClientOptions = { requestTimeoutMs: 60_000 }
+    const options: SkillMcpClientOptions = { signal: new AbortController().signal }
 
     await manager.listTools(info, context)
     await manager.listResources(info, context)
@@ -59,11 +59,11 @@ describe("SkillMcpManager request options", () => {
     await manager.readResource(info, context, "file:///x")
     await manager.getPrompt(info, context, "greet", {})
 
-    expect(captured).toEqual([
+    expect(captured).toStrictEqual([
       { op: "listTools", options: { timeout: 45_000 } },
       { op: "listResources", options: { timeout: 45_000 } },
       { op: "listPrompts", options: { timeout: 45_000 } },
-      { op: "callTool", options: { timeout: 60_000 } },
+      { op: "callTool", options: { signal: options.signal, timeout: 45_000 } },
       { op: "readResource", options: { timeout: 45_000 } },
       { op: "getPrompt", options: { timeout: 45_000 } },
     ])

@@ -1,14 +1,3 @@
-## 2026-10-30 - Configured request timeout reaches every direct MCP call (#6631)
-
-`request-options.ts` builds the SDK request options for listTools, listResources,
-listPrompts, callTool, readResource and getPrompt in one place: the caller's abort
-signal (#3364) plus a request timeout from the per-call `requestTimeoutMs` or the
-server config's `timeout`. Only a finite positive number counts; 0, negatives, NaN
-and Infinity fall back to the SDK default so a bad config never arms an immediate
-abort. A timeout the SDK fires sends notifications/cancelled, which closes that
-request's HTTP stream (request-abort-fetch.ts). Carried forward from #7224 by
-AceRothstein71.
-
 ## 2026-10-22 - Preserve notice state across reconnects (#10693)
 
 The manager reuses its environment policy after disconnectAll, so closing its

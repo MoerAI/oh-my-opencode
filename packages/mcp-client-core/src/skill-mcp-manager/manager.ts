@@ -20,7 +20,6 @@ export interface SkillMcpClientOptions {
   cdpUrl?: string
   env?: Readonly<Record<string, string>>
   signal?: AbortSignal
-  requestTimeoutMs?: number
 }
 
 export function buildSkillMcpClientKey(info: SkillMcpClientInfo, options?: SkillMcpClientOptions): string {
