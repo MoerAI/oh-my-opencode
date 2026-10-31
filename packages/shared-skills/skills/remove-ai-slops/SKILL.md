@@ -21,7 +21,7 @@ The core safety invariant: **behavior is locked by green tests before a single l
 
 ## Categories (what counts as slop)
 
-The agent looks for these nine categories. The first three are stylistic, the next three are structural, the next two are about hidden cost, and the last is about behavior coverage.
+The agent looks for these ten categories. The first three are stylistic, the next three are structural, the next two are about hidden cost, the ninth is tests, and the last is size.
 
 ### Stylistic
 1. **Obvious comments** — comments restating code, trivial docstrings, section dividers, commented-out code, vague TODOs/Notes.
@@ -65,7 +65,7 @@ The agent looks for these nine categories. The first three are stylistic, the ne
 ### Tests
 9. **Tests: missing or junk** — tests are code in scope like any other file, judged by the one table in the `programming` skill, `references/testing/junk-classes.md` (junk classes, retention bar, R/F/C/D marks, proof rule). Two directions:
    - **Missing**: a behavior in the changed files that no test guards, where the repository keeps tests for that kind of behavior and a regression would otherwise pass unnoticed. ADD the narrowest test that passes the four-question authoring gate (`references/testing/README.md`); name its owner contract. A PROSE file (prompt, `SKILL.md`, rule, markdown) has no behavioral seam: cover only a machine-consumed value (parsed field, sentinel a runtime greps, a doc JSON sample through its real validator) or leave it to review.
-   - **Junk**: mark every in-scope test declaration `R` / `F` / `C` / `D`. A `D` or `C` needs the proof rule BEFORE the cut: break the production owner, run the candidate and its named keeper on the unmodified test tree, restore byte for byte; `D` is proven only when the keeper goes red and the candidate stays green (cannot fail) or both go red (redundant). A candidate that is the ONLY red is `R`, or `C` into the keeper and re-run. A test-only production seam (export, flag, getter, reset hook) whose last test was deleted goes with it.
+   - **Junk**: mark every in-scope test declaration `R` / `F` / `C` / `D`. A `D` or `C` needs the proof the table names for its class BEFORE the cut: for a behavior class (cannot fail, mock echo, duplicate contract, layer replay, implementation mirror, fabricated postcondition, input transcript) a mutation of the production owner run against the candidate and its named keeper on the unmodified test tree; for a prose pin the assertion line plus the repo's prose rule; for a change certificate the revert that turns it red; for a seam keeper the `knip`/grep showing no production caller; for a copied inventory the generator or consumer that owns it. A mutation proves `D` only when the keeper goes red and the candidate stays green (cannot fail) or both go red (redundant); a candidate that is the ONLY red is `R`, or `C` into the keeper and re-run. Mutations run in Phase 4b, serially, by the orchestrator, never by a batch worker. A test-only production seam (export, flag, getter, reset hook) whose last test was deleted goes with it.
    - KEEP: everything under the retention bar (public API, protocol, config, migration, storage, security, platform, shipped-copy equality, Node-compat suites, issue regressions, machine-consumed text). A test that is red on the unchanged base is a product bug to report, never a deletion. Static or slow is never a reason to delete.
 
 ### Size
@@ -127,9 +127,9 @@ For each in-scope source file:
 1. Identify the public/observable behavior the file exposes (exported functions, HTTP handlers, CLI commands, classes used elsewhere).
 2. Check whether existing tests cover that behavior. Use `git grep` / project test conventions to find related test files.
 3. **If a behavior the cleanup could change is uncovered, write the narrowest test that passes the authoring gate (`programming/references/testing/README.md`) BEFORE editing the file**, and name the behavior it guards. It asserts observable outputs at the real boundary, never the implementation shape the cleanup is about to change, and never a value derived from the code under test. A PROSE file (prompt/`SKILL.md`/rule/markdown) is exempt: its wording is not behavior; skip the test and rely on review, or assert only a machine-consumed value.
-4. Run the test suite (or at minimum the relevant tests). They must be **green** before any cleanup begins. A test that is red on the unchanged base is recorded as a bug, not fixed in this pass and not deleted.
+4. Run the test suite (or at minimum the relevant tests). A test that is red on the unchanged base is recorded as a bug (baseline-red list), excluded from every proof, and neither fixed in this pass nor deleted; everything else must be **green** before any cleanup begins.
 
-If you cannot establish a green baseline (e.g., test runner is broken), STOP and report. Do not proceed with cleanup on unverified ground.
+Only a broken runner stops the pass: if the suite cannot run at all, STOP and report. Do not proceed with cleanup on unverified ground.
 
 ### Phase 3: Cleanup plan — existence first, then smells
 
@@ -192,7 +192,7 @@ Remove AI slops from: {file_path}
 
 First run the deletion ladder from Phase 3 on this file (delete entirely / reuse existing repo code / platform-stdlib-native / simplify in place); only code that must exist proceeds to smell removal.
 
-Then evaluate EVERY category defined in this skill's "Categories (what counts as slop)" section, applying that section's KEEP and REFACTOR rules verbatim — the Categories section you have loaded is canonical, do not work from a restated subset. For a test file, mark every declaration R/F/C/D against `programming/references/testing/junk-classes.md` and attach the mutation proof receipt (file, find/replace, candidate and keeper verdicts) to every D and C; a D or C without a receipt is an R.
+Then evaluate EVERY category defined in this skill's "Categories (what counts as slop)" section, applying that section's KEEP and REFACTOR rules verbatim — the Categories section you have loaded is canonical, do not work from a restated subset. For a test file, do NOT cut yet: mark every declaration R/F/C/D against `programming/references/testing/junk-classes.md` and return one ledger row per D/C/F (`| test | mark | keeper or reason | proposed proof |`), where the proposed proof names the class's proof kind and, for a mutation, the owner file, the exact find/replace, and the keeper to run. Never edit a production owner from this worker; the orchestrator runs the proofs in Phase 4b.
 
 Apply changes in this order (safest → riskiest): comments → dead code → defensive → duplication → complexity → abstraction/boundary → performance → tests → oversized-modules.
 
@@ -204,10 +204,14 @@ Hard constraints:
 - Diff stays minimal and scoped to slop removal.
 
 Report changes grouped by category. For each change, give before/after, why-slop, why-safe.
-For each skipped issue, give reason.
+For each skipped issue, give reason. For a test file, end with the ledger rows.
 """
 )
 ```
+
+### Phase 4b: Prove the test cuts, serially, then cut
+
+After the last batch finishes and no worker is running, the orchestrator takes the collected ledger rows. For each row whose proof is a mutation: apply the find/replace to the production owner, run the candidate and the keeper on the unmodified test tree, record both verdicts, restore the owner byte for byte (sha256-checked) before the next row. One mutation at a time, never while another worker or test run is live, and never two on the same file; a mutation touches a file outside the diff only transiently and is never committed (`programming/scripts/typescript/mutation-proof.ts` does the apply, run, restore sequence in one command). Rows proven per the table become the cuts; a D or C whose proof fails or was not run is an R. Non-mutation proofs (prose pin, change certificate, seam keeper, copied inventory) are checked here too, from the row's evidence.
 
 **Batch failure handling**: a `multi_agent_v1.wait_agent` timeout only means no new mailbox update arrived, not that a `deep-low` agent failed. For long passes, require each child to send `WORKING: <file> - <current phase>` and `BLOCKED: <reason>` only when it cannot progress. Treat a running child as alive. Mark a file for retry only when the child is completed without the deliverable, ack-only after followup, explicitly `BLOCKED:`, or no longer running. Do NOT block the remaining 4 in that batch; collect successful results and retry the failed file once later. If retry also fails, escalate that file under "Issues Found & Fixed" in the final report.
 
@@ -264,7 +268,7 @@ Files: [N files]
 Behavior Lock:
   - Existing coverage: [N files already covered]
   - Tests added: [M gate-passing tests at path/to/test_X.py, each naming its contract]
-  - Baseline status: GREEN (baseline-red, reported not deleted: [none] OR [list])
+  - Baseline status: GREEN apart from the baseline-red list (recorded as bugs, excluded from proofs, not deleted): [none] OR [list]
 
 Cleanup Plan:
   - path/to/file1.ts: [ladder: 1 delete (native) + simplify-in-place] → [dead code → complexity → performance]
@@ -282,10 +286,11 @@ Per-File Results (each cut shows what replaces it):
     - Obvious comments: 5 removed → nothing
     - Over-defensive: 1 simplified (redundant isinstance on typed param)
 
-Tests Ledger (category 9; one row per test declaration marked D/C/F):
+Tests Ledger (category 9; one row per test declaration marked D/C/F, proofs run in Phase 4b):
   | Test | Mark | Keeper / reason | Proof |
   |---|---|---|---|
-  | `foo.test.ts > reads the source for "export"` | D | source grep; `foo.test.ts > exports parse()` owns the contract | mutation: candidate green, keeper red |
+  | `foo.test.ts > reads the source for "export"` | D | source grep; `foo.test.ts > exports parse()` owns the contract | mutation parse.ts `return tokens` -> `return []`: candidate green, keeper red; restored sha-equal |
+  | `skill.test.ts > mentions the gate` | D | prose pin on SKILL.md | assertion line + repo prose rule (no mutation applies) |
 
 Quality Gates:
   - Regression tests: PASS (12 tests, 0 failed)
