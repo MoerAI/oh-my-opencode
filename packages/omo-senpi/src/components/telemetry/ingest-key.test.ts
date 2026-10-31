@@ -265,7 +265,9 @@ test("#given the collector rejects the key with 401 #when captures and flush int
       expect(snapshot()).toEqual(before)
     }
     expect(f.requests.filter(row => row.path === "/v1/logs")).toHaveLength(1)
-    expect(cancelSpy).toHaveBeenCalledWith(intervalSpy.mock.results[interval]!.value)
+    const scheduled = intervalSpy.mock.results[interval]
+    if (scheduled === undefined) throw new Error("OTLP flush interval has no handle")
+    expect(cancelSpy).toHaveBeenCalledWith(scheduled.value)
   } finally {
     await transport?.shutdown()
     intervalSpy.mockRestore()
