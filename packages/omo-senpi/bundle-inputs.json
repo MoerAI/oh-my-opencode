@@ -832,6 +832,7 @@
     "packages/omo-senpi/src/components/memory/commands/doctor.ts",
     "packages/omo-senpi/src/components/memory/commands/dream-staging.ts",
     "packages/omo-senpi/src/components/memory/commands/dream.ts",
+    "packages/omo-senpi/src/components/memory/commands/facts-failure-cause.ts",
     "packages/omo-senpi/src/components/memory/commands/facts-status.ts",
     "packages/omo-senpi/src/components/memory/commands/facts.ts",
     "packages/omo-senpi/src/components/memory/commands/init.ts",
