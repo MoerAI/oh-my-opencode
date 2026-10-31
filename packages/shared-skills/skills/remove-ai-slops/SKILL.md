@@ -1,6 +1,6 @@
 ---
 name: remove-ai-slops
-description: "Removes AI-generated code smells from branch changes or an explicit file list behind regression tests. Use when the user asks to clean up, deslop, or remove AI-slop patterns from recent changes."
+description: "Removes AI-generated code smells from branch changes or an explicit file list behind regression tests, including junk tests (prose pins, source greps, copied inventories, mock echoes) proven redundant by a mutation. Use when the user asks to clean up, deslop, remove AI-slop patterns, or prune tests from recent changes."
 argument-hint: "[file ...]"
 ---
 
@@ -62,10 +62,13 @@ The agent looks for these nine categories. The first three are stylistic, the ne
 
    **Hard rule**: only apply when behavior equivalence is obvious. Do NOT change algorithms with subtle correctness implications. Do NOT micro-optimize hot paths without a benchmark. If in doubt, SKIP.
 
-### Behavior coverage
-9. **Missing tests** — behavior present in changed files that is not locked by any regression test. The fix is not to remove code but to ADD the narrowest test that pins the behavior. EXCEPTION: a PROSE file (prompt, `SKILL.md`, rule, markdown) has no behavioral seam — do NOT add a text/word-count/phrase pin for it; that guards a diff, not behavior. Cover only a machine-consumed value (parsed field, sentinel a runtime greps, a doc JSON sample through its real validator) or leave it to review.
+### Tests
+9. **Tests: missing or junk** — tests are code in scope like any other file, judged by the one table in the `programming` skill, `references/testing/junk-classes.md` (junk classes, retention bar, R/F/C/D marks, proof rule). Two directions:
+   - **Missing**: a behavior in the changed files that no test guards, where the repository keeps tests for that kind of behavior and a regression would otherwise pass unnoticed. ADD the narrowest test that passes the four-question authoring gate (`references/testing/README.md`); name its owner contract. A PROSE file (prompt, `SKILL.md`, rule, markdown) has no behavioral seam: cover only a machine-consumed value (parsed field, sentinel a runtime greps, a doc JSON sample through its real validator) or leave it to review.
+   - **Junk**: mark every in-scope test declaration `R` / `F` / `C` / `D`. A `D` or `C` needs the proof rule BEFORE the cut: break the production owner, run the candidate and its named keeper on the unmodified test tree, restore byte for byte; `D` is proven only when the keeper goes red and the candidate stays green (cannot fail) or both go red (redundant). A candidate that is the ONLY red is `R`, or `C` into the keeper and re-run. A test-only production seam (export, flag, getter, reset hook) whose last test was deleted goes with it.
+   - KEEP: everything under the retention bar (public API, protocol, config, migration, storage, security, platform, shipped-copy equality, Node-compat suites, issue regressions, machine-consumed text). A test that is red on the unchanged base is a product bug to report, never a deletion. Static or slow is never a reason to delete.
 
-### Structural
+### Size
 10. **Oversized modules** — any source file exceeding **250 pure LOC** (non-blank, non-comment lines). This is an architectural defect, not a style preference. Measure: `awk '!/^[[:space:]]*$/ && !/^[[:space:]]*(#|\/\/)/' <file> | wc -l`.
 
    **When found, do NOT just flag it. Execute a full modular refactoring:**
@@ -123,8 +126,8 @@ For each in-scope source file:
 
 1. Identify the public/observable behavior the file exposes (exported functions, HTTP handlers, CLI commands, classes used elsewhere).
 2. Check whether existing tests cover that behavior. Use `git grep` / project test conventions to find related test files.
-3. **If behavior is uncovered or weakly covered, write the narrowest regression test that pins current behavior BEFORE editing the file.** Tests should pin observable outputs, not implementation details. A PROSE file (prompt/`SKILL.md`/rule/markdown) is exempt — its wording is not behavior; skip the test and rely on review, or assert only a machine-consumed value.
-4. Run the test suite (or at minimum the relevant tests). They must be **green** before any cleanup begins.
+3. **If a behavior the cleanup could change is uncovered, write the narrowest test that passes the authoring gate (`programming/references/testing/README.md`) BEFORE editing the file**, and name the behavior it guards. It asserts observable outputs at the real boundary, never the implementation shape the cleanup is about to change, and never a value derived from the code under test. A PROSE file (prompt/`SKILL.md`/rule/markdown) is exempt: its wording is not behavior; skip the test and rely on review, or assert only a machine-consumed value.
+4. Run the test suite (or at minimum the relevant tests). They must be **green** before any cleanup begins. A test that is red on the unchanged base is recorded as a bug, not fixed in this pass and not deleted.
 
 If you cannot establish a green baseline (e.g., test runner is broken), STOP and report. Do not proceed with cleanup on unverified ground.
 
@@ -132,7 +135,7 @@ If you cannot establish a green baseline (e.g., test runner is broken), STOP and
 
 The largest, safest deletion is code that should not have existed. **Before categorizing smells, run the deletion ladder on each changed unit:**
 
-- **Delete entirely** — the behavior is not needed (YAGNI, speculative, dead on arrival).
+- **Delete entirely** — the behavior is not needed (YAGNI, speculative, dead on arrival); for a test, its contract is already owned by a keeper or it has none (category 9, with the proof).
 - **Reuse** — an existing helper or pattern in this repo already does it; replace the reimplementation with a call to it.
 - **Platform / stdlib / native / dependency** — the language stdlib, the runtime, or an already-installed dependency already does it (a hand-rolled date picker → `<input type="date">`, a custom query parser → `URLSearchParams`, a bespoke debounce → the util already imported).
 - **Simplify in place** — it must exist; make it smaller.
@@ -163,7 +166,7 @@ Order rule (safest → riskiest): comments → dead code → defensive → dupli
 
 ### Phase 4: Parallel slop removal via `deep-low` agents in batches of 5
 
-Files are processed by `deep-low` category agents with the `$omo:remove-ai-slops` skill loaded, **batched 5 at a time in parallel**. The executable skill name is `remove-ai-slops`. The `deep-low` category gives the agent enough thoroughness to correctly evaluate the 9 categories and respect the KEEP rules without slipping into surface fixes; the 5-wide batch is the sweet spot — more than 5 creates result-merging noise and context contention, fewer wastes parallelism.
+Files are processed by `deep-low` category agents with the `$omo:remove-ai-slops` skill loaded, **batched 5 at a time in parallel**. The executable skill name is `remove-ai-slops`. The `deep-low` category gives the agent enough thoroughness to correctly evaluate the 10 categories and respect the KEEP rules without slipping into surface fixes; the 5-wide batch is the sweet spot — more than 5 creates result-merging noise and context contention, fewer wastes parallelism.
 
 **Batching protocol** (strict):
 
@@ -189,9 +192,9 @@ Remove AI slops from: {file_path}
 
 First run the deletion ladder from Phase 3 on this file (delete entirely / reuse existing repo code / platform-stdlib-native / simplify in place); only code that must exist proceeds to smell removal.
 
-Then evaluate EVERY category defined in this skill's "Categories (what counts as slop)" section, applying that section's KEEP and REFACTOR rules verbatim — the Categories section you have loaded is canonical, do not work from a restated subset.
+Then evaluate EVERY category defined in this skill's "Categories (what counts as slop)" section, applying that section's KEEP and REFACTOR rules verbatim — the Categories section you have loaded is canonical, do not work from a restated subset. For a test file, mark every declaration R/F/C/D against `programming/references/testing/junk-classes.md` and attach the mutation proof receipt (file, find/replace, candidate and keeper verdicts) to every D and C; a D or C without a receipt is an R.
 
-Apply changes in this order (safest → riskiest): comments → dead code → defensive → duplication → complexity → abstraction/boundary → performance → oversized-modules.
+Apply changes in this order (safest → riskiest): comments → dead code → defensive → duplication → complexity → abstraction/boundary → performance → tests → oversized-modules.
 
 Hard constraints:
 - Behavior MUST be preserved. When equivalence is not obvious, SKIP.
@@ -260,8 +263,8 @@ Files: [N files]
 
 Behavior Lock:
   - Existing coverage: [N files already covered]
-  - Tests added: [M new regression tests at path/to/test_X.py]
-  - Baseline status: GREEN
+  - Tests added: [M gate-passing tests at path/to/test_X.py, each naming its contract]
+  - Baseline status: GREEN (baseline-red, reported not deleted: [none] OR [list])
 
 Cleanup Plan:
   - path/to/file1.ts: [ladder: 1 delete (native) + simplify-in-place] → [dead code → complexity → performance]
@@ -278,6 +281,11 @@ Per-File Results (each cut shows what replaces it):
   path/to/file2.py
     - Obvious comments: 5 removed → nothing
     - Over-defensive: 1 simplified (redundant isinstance on typed param)
+
+Tests Ledger (category 9; one row per test declaration marked D/C/F):
+  | Test | Mark | Keeper / reason | Proof |
+  |---|---|---|---|
+  | `foo.test.ts > reads the source for "export"` | D | source grep; `foo.test.ts > exports parse()` owns the contract | mutation: candidate green, keeper red |
 
 Quality Gates:
   - Regression tests: PASS (12 tests, 0 failed)
@@ -331,7 +339,5 @@ Final Status: CLEAN | ISSUES FIXED | REQUIRES ATTENTION
 ## Quality Assurance
 
 - NEVER remove code that serves a functional purpose.
-- ALWAYS verify changes compile/parse and pass type-check.
-- ALWAYS preserve test coverage; add tests rather than remove them.
-- If uncertain about a change, err on the side of keeping the original code.
-- The default action when in doubt is SKIP, not GUESS.
+- Preserve every proven contract: a test leaves only with its proof receipt (category 9), and a missing contract gets a gate-passing test, never a change certificate.
+- When in doubt, SKIP and keep the original; never GUESS.
