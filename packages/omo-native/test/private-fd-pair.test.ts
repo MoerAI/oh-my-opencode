@@ -15,6 +15,7 @@ type Inspection = {
   spawn?: "success" | "throw"
   captureStderr?: boolean
   capture?: boolean
+  windowsNodeStats?: boolean
 }
 
 // Subprocess-local filesystem doubles exercise the descriptor contract on every OS without
@@ -30,8 +31,9 @@ import { syncBuiltinESMExports } from "node:module"
 const input = ${JSON.stringify(input)}
 const closed = []
 fs.fstatSync = fd => ({
+  mode: (input.pipes ?? [5, 6]).includes(fd) ? 0o010600 : (input.sockets ?? []).includes(fd) ? 0o140600 : 0o100600,
   isSocket: () => (input.sockets ?? []).includes(fd),
-  isFIFO: () => (input.pipes ?? [5, 6]).includes(fd),
+  isFIFO: () => !input.windowsNodeStats && (input.pipes ?? [5, 6]).includes(fd),
 })
 fs.closeSync = fd => { closed.push(fd) }
 let spawned
@@ -77,6 +79,15 @@ console.log(JSON.stringify({ inspected, handoff, closed, spawned, failure, helpe
 }
 
 describe("Windows private descriptor pair contract (#11955)", () => {
+  test("forwards Node Windows pipe modes even though Stats.isFIFO always returns false", () => {
+    const result = inspect({ table: { a: [5, 6] }, windowsNodeStats: true, capture: true, spawn: "success" })
+    expect(result.inspected).toEqual({ table: '{"a":[5,6]}', fds: [5, 6], discard: [] })
+    expect(result.helperTable).toBeNull()
+    expect(result.spawned.env.SENPI_PRIVATE_FDS).toBe('{"a":[5,6]}')
+    expect(result.spawned.stdio.slice(5)).toEqual([5, 6])
+    expect(result.closed).toEqual([5, 6])
+  })
+
   test("forwards both open pipe halves on their original slots and closes owned copies", () => {
     const result = inspect({ table: { a: [5, 6] } })
     expect(result.inspected).toEqual({ table: '{"a":[5,6]}', fds: [5, 6], discard: [] })

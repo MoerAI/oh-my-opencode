@@ -5,7 +5,6 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
 
 const SOURCE = resolve(import.meta.dir, "..")
 
@@ -55,17 +54,6 @@ for (const stream of [input, output]) stream.on("close", () => {
           const node = Bun.which("node")
           if (node === null) throw new Error("Windows launcher proof requires real Node")
           command = node
-          const probe = join(root, "incoming.mjs")
-          writeFileSync(probe, `
-import { fstatSync } from "node:fs"
-const fds = [5, 6].map(fd => {
-  try { const stat = fstatSync(fd); return { fd, fifo: stat.isFIFO(), socket: stat.isSocket(), mode: stat.mode } }
-  catch (error) { return { fd, error: error.code } }
-})
-process.stderr.write("PAIR_INCOMING " + JSON.stringify({ table: process.env.SENPI_PRIVATE_FDS ?? null, fds, ipc: process.channel?.fd ?? null }) + "\\n")
-await import(${JSON.stringify(pathToFileURL(join(pkg, "bin", "omo.js")).href)})
-`)
-          args = [probe, "host", "ensure"]
         } else {
           const probe = join(root, "handoff.ts")
           writeFileSync(probe, `

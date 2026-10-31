@@ -29,9 +29,14 @@ function inRange(fd) {
   return Number.isSafeInteger(fd) && fd >= 5 && fd <= 64
 }
 
+// Node and Bun on Windows report an anonymous pipe with mode S_IFIFO (0o010000), but Stats.isFIFO()
+// returns false there because the platform defines no S_IFIFO constant. Compare the file-type bits directly.
+const S_IFMT = 0o170000
+const S_IFIFO = 0o010000
+
 function isPipe(fd) {
   try {
-    return fstatSync(fd).isFIFO()
+    return (fstatSync(fd).mode & S_IFMT) === S_IFIFO
   } catch {
     return false
   }

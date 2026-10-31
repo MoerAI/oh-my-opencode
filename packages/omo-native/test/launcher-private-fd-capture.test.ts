@@ -28,7 +28,7 @@ import { EventEmitter } from "node:events"
 import { syncBuiltinESMExports } from "node:module"
 const stat = fs.fstatSync
 const close = fs.closeSync
-fs.fstatSync = fd => fd === 5 || fd === 6 ? { isFIFO: () => true, isSocket: () => false } : stat(fd)
+fs.fstatSync = fd => fd === 5 || fd === 6 ? { mode: 0o010600, isFIFO: () => false, isSocket: () => false } : stat(fd)
 fs.closeSync = fd => { if (fd !== 5 && fd !== 6) close(fd) }
 cp.spawn = (_file, _argv, options) => {
   console.log(JSON.stringify({ table: options.env.SENPI_PRIVATE_FDS, stdio: options.stdio }))
