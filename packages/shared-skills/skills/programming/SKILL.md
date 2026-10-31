@@ -24,7 +24,7 @@ This skill is an index. The hard per-language rules live under `references/`. Lo
    | `.rs`, `Cargo.toml`, "Rust" | `references/rust/README.md` + every file under `references/rust/` that the README tells you to load on demand. **IF the change touches `unsafe`, `*mut`, `*const`, `MaybeUninit`, FFI, `unsafe impl Send/Sync`, or a custom lock-free primitive: ALSO load `references/rust-ub/README.md` plus every file under `references/rust-ub/`.** |
    | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, "TypeScript" / "JavaScript" | `references/typescript/README.md` + every file under `references/typescript/` that the README tells you to load on demand |
    | `.go`, `go.mod`, `go.sum`, `.golangci.yml`, `*.proto` next to a Go module, "Go" / "Golang" | `references/go/README.md` + every file under `references/go/` that the README tells you to load on demand |
-   | any test file (`*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, under `tests/` or `__tests__/`), or a change that adds, reshapes, or deletes a test | the language row above PLUS `references/testing/README.md` (the authoring gate) and `references/testing/junk-classes.md` (the table the gate reviewer applies) |
+   | any test file (`*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, `*_test.py`, under `test/`, `tests/` or `__tests__/`), or a change that adds, reshapes, or deletes a test | the language row above PLUS `references/testing/README.md` (the authoring gate) and `references/testing/junk-classes.md` (the table the gate reviewer applies) |
 
 3. Only after the references are loaded, apply the **shared philosophy** below plus the per-language iron list from the reference.
 
@@ -63,11 +63,7 @@ Tests are code: the language gate above applies to them, plus [`references/testi
 3. Why does existing coverage not already catch that failure? One primary owner per contract, at the strongest boundary; extend a table row before adding a near-duplicate, a copy in another package, or a replay through a wrapper.
 4. Does it need a production seam (export, flag, getter, wrapper, injection hook) no production caller needs? Then test at the real boundary instead.
 
-**The shape.** Given / When / Then, one `When` per test, the cheapest pyramid rung that observes the behavior; real object > in-memory fake > container > wire-level fake > mock at the narrowest seam; deterministic (subscribe before trigger, bounded await, no sleep) and isolated across tests and across concurrent checkouts. A user-visible outcome is proven by driving its real surface, not by a green unit suite.
-
-**Prose is not a seam.** A prompt, `SKILL.md`, rule, or markdown file gets no text assertion; assert only a machine-consumed value (routing decision, dispatched token, parsed field, shipped-copy equality) or write no test and say so.
-
-**Test your test.** Break the production owner, confirm the test goes red for the intended reason, restore byte for byte. A test that stays green under the mutation is vacuous, an equivalent mutant, masked by a second rule, or pinning dead code; the README names the fix for each. A test that fails on the unchanged base is a bug to fix at its owner, never a test to delete or edit green.
+The README owns the shape (Given / When / Then, the pyramid, the mock ladder, determinism, isolation, the prompt-test rule) and the "test your test" step: break the production owner, watch the test go red for the intended reason, restore byte for byte. A test that fails on the unchanged base is a bug to fix at its owner; one your own change turns red is fixed at the code or at the test; neither is deleted or edited green to unblock a run.
 
 ---
 

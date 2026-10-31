@@ -40,7 +40,7 @@ Keep a test that independently guards a public API, SDK, RPC or app-server proto
 - **Machine-consumed text**: parsed fields, sentinel tokens, tool names, schema keys, a routing-bearing fragment of a parsed frontmatter `description`.
 - **Baseline-red tests**: a test that fails on the unchanged base is a product bug to fix at its owner, never a deletion.
 
-A source-inspection test survives only when it is the cheapest independent guard of a user-facing key, byte, or path AND survives identifier-only refactors. Static or slow is never a reason to delete.
+Outside that list, a source-inspection test survives only as the cheapest independent guard of a user-facing key, byte, or path that an identifier-only refactor leaves green. Static or slow is never a reason to delete.
 
 ## Proof rule for `D` and `C`
 
