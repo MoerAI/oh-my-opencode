@@ -110,42 +110,45 @@ describe("Windows private descriptor pair contract (#11955)", () => {
     expect(result.closed).toEqual([5, 6])
   })
 
-  for (const [label, table] of [
-    ["one half", { a: [5] }],
-    ["three halves", { a: [5, 6, 7] }],
-    ["equal halves", { a: [5, 5] }],
-    ["below range", { a: [4, 6] }],
-    ["above range", { a: [5, 65] }],
-    ["fractional", { a: [5, 6.5] }],
-    ["string half", { a: [5, "6"] }],
-    ["bare integer", { a: 5 }],
-    ["null", { a: null }],
-    ["object", { a: { read: 5, write: 6 } }],
-    ["pair alias", { a: [5, 6], b: [6, 7] }],
-    ["integer alias", { a: [5, 6], b: 5 }],
-    ["malformed third-element alias", { a: [5, 6], b: [8, 9, 6] }],
+  // A refused entry's open, in-range pipe halves are discarded (closed) so the hop never keeps them.
+  for (const [label, table, discard] of [
+    ["one half", { a: [5] }, [5]],
+    ["three halves", { a: [5, 6, 7] }, [5, 6]],
+    ["equal halves", { a: [5, 5] }, [5]],
+    ["below range", { a: [4, 6] }, [6]],
+    ["above range", { a: [5, 65] }, [5]],
+    ["fractional", { a: [5, 6.5] }, [5]],
+    ["string half", { a: [5, "6"] }, [5]],
+    ["bare integer", { a: 5 }, [5]],
+    ["null", { a: null }, []],
+    ["object", { a: { read: 5, write: 6 } }, []],
+    ["pair alias", { a: [5, 6], b: [6, 7] }, [5, 6]],
+    ["integer alias", { a: [5, 6], b: 5 }, [5, 6]],
+    ["malformed third-element alias", { a: [5, 6], b: [8, 9, 6] }, [5, 6]],
   ] as const) {
     test(`refuses ${label} atomically while preserving declarations`, () => {
       const result = inspect({ table })
       expect(JSON.parse(result.inspected.table)).toEqual(Object.fromEntries(Object.keys(table).map(name => [name, null])))
       expect(result.inspected.fds).toEqual([])
+      expect(result.inspected.discard).toEqual(discard)
       expect(result.handoff.stdio).toEqual(["inherit", "inherit", "inherit"])
       expect(result.closed).toEqual([])
     })
   }
 
-  for (const [label, options] of [
-    ["missing read half", { pipes: [6] }],
-    ["missing write half", { pipes: [5] }],
-    ["sockets", { pipes: [], sockets: [5, 6] }],
-    ["non-pipes", { pipes: [] }],
-    ["read IPC half", { ipc: 5 }],
-    ["write IPC half", { ipc: 6 }],
-    ["unidentified IPC channel", { ipc: "unknown" }],
+  // The runtime IPC channel and anything that is not an open pipe are never discarded.
+  for (const [label, options, discard] of [
+    ["missing read half", { pipes: [6] }, [6]],
+    ["missing write half", { pipes: [5] }, [5]],
+    ["sockets", { pipes: [], sockets: [5, 6] }, []],
+    ["non-pipes", { pipes: [] }, []],
+    ["read IPC half", { ipc: 5 }, [6]],
+    ["write IPC half", { ipc: 6 }, [5]],
+    ["unidentified IPC channel", { ipc: "unknown" }, []],
   ] as const) {
     test(`refuses ${label} without forwarding either half`, () => {
       const result = inspect({ table: { a: [5, 6] }, ...options })
-      expect(result.inspected).toEqual({ table: '{"a":null}', fds: [], discard: [] })
+      expect(result.inspected).toEqual({ table: '{"a":null}', fds: [], discard })
     })
   }
 

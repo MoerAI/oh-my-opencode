@@ -65,11 +65,17 @@ export function inspectPrivateFdTable(table, platform = process.platform) {
   for (const [name, fd] of Object.entries(value)) {
     forwarded[name] = null
     if (platform === "win32") {
-      if (!Array.isArray(fd) || fd.length !== 2 || !fd.every(inRange) || fd[0] === fd[1]) continue
-      if (ipc === undefined || fd.some(descriptor => descriptor === ipc || counts.get(descriptor) > 1)) continue
-      if (!fd.every(isPipe)) continue
-      forwarded[name] = fd
-      fds.push(...fd)
+      const usable = Array.isArray(fd) && fd.length === 2 && fd.every(inRange) && fd[0] !== fd[1] &&
+        ipc !== undefined && !fd.some(descriptor => descriptor === ipc || counts.get(descriptor) > 1) && fd.every(isPipe)
+      if (usable) {
+        forwarded[name] = fd
+        fds.push(...fd)
+      } else if (ipc !== undefined) {
+        // Like POSIX, a refused entry's open pipes are closed so the hop never keeps them.
+        for (const descriptor of Array.isArray(fd) ? fd : [fd]) {
+          if (inRange(descriptor) && descriptor !== ipc && isPipe(descriptor)) discard.push(descriptor)
+        }
+      }
       continue
     }
     if (!inRange(fd) || ipc === undefined || fd === ipc || !isSocket(fd)) continue
