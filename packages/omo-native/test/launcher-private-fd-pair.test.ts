@@ -31,7 +31,7 @@ describe.skipIf(process.platform !== "win32")("Windows launcher pipe pair (#1195
         writeFileSync(entry, `
 import { createReadStream, createWriteStream, fstatSync } from "node:fs"
 if (process.env.SENPI_PRIVATE_FDS !== '{"a":[5,6]}') {
-  throw new Error("pair lost at launcher hop: " + JSON.stringify({ table: process.env.SENPI_PRIVATE_FDS ?? null, bun: process.versions.bun ?? null }))
+  throw new Error("pair lost at launcher hop: " + JSON.stringify({ hop: ${JSON.stringify(hop)}, table: process.env.SENPI_PRIVATE_FDS ?? null, bun: process.versions.bun ?? null }))
 }
 const input = createReadStream("", { fd: 5, autoClose: true })
 const output = createWriteStream("", { fd: 6, autoClose: true })
