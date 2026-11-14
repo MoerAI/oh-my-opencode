@@ -28,6 +28,11 @@ still throws. `state` is the service's status (for example `connected`, `sign_in
 `clientVersion` and `reportError` (receives an exception thrown by an `events()` subscriber; by default it is rethrown
 on its own microtask).
 
+`clientName` identifies a local API role, not an application label. This transport accepts only `sdk`, its default.
+Other values, including the privileged `omo` and `installer` roles, `desktop` and application names such as
+`duty-probe`, throw `RelayTransportError` with code `invalid_client_name` when the transport is created,
+before any connection is opened. The error names `sdk` as the only supported role.
+
 ## Machines and operations
 
 `listMachines()` lists the account's other devices, then this device. Each device's describe settles on its own: a
@@ -35,7 +40,7 @@ device that does not describe itself within `describeTimeoutMs`, or whose descri
 unsupported with `attention` naming why and after how long (`unreachable after <ms> ms: <reason>`), and the others list
 as described; only a failure of the connection itself fails the listing. This device is listed unsupported, since the
 service runs no machine operation on its own device, so fanout skips it. `listTools()` answers `[]` at once for a device
-the latest listing could not describe. `listTools(machineId)` returns the operations that device advertises; this package fixes no
+the latest listing could not describe or reported unsupported, without describing it again. `listTools(machineId)` returns the operations that device advertises; this package fixes no
 operation list.
 
 The target device runs an op only while it is attached and this device is in its account's roster; its user can
@@ -56,7 +61,8 @@ Beyond `MachineHubTransport`, the transport (`kind: "relay"`) has:
 
 ## Errors
 
-- `RelayTransportError`, by `code`: `not_connected` (no service is listening, or `connect()` was not called),
+- `RelayTransportError`, by `code`: `invalid_client_name` (the client role is unsupported),
+  `not_connected` (no service is listening, or `connect()` was not called),
   `server_proof_invalid`, `insecure_state_dir`, `refused`, `request_timeout`, `closed`, `unsupported` (the service
   does not serve machine operations) and `result_expired` (`resultOf` for an op the service holds no result for). A
   `request_timeout` on an invoke means the op may have run; its `requestId` names the op for `resultOf`.
