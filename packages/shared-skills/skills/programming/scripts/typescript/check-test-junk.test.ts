@@ -145,24 +145,30 @@ describe("#given test files with mechanically detectable junk", () => {
       ["0 /* ms\n */", false],
       ["/* ms */ 0 /* one\n */", false],
     ] as const) {
-      writeFileSync(join(root, "src", "delay.test.ts"), [
-        `await new Promise(resolve => setTimeout(resolve, ${delay}))`,
-        `await new Promise(finish => setTimeout(finish, ${delay}))`,
-        `await Bun.sleep(${delay})`,
-        `await sleep(${delay})`,
-      ].join("\n"))
+      writeFileSync(
+        join(root, "src", "delay.test.ts"),
+        [
+          `await new Promise(resolve => setTimeout(resolve, ${delay}))`,
+          `await new Promise(finish => setTimeout(finish, ${delay}))`,
+          `await Bun.sleep(${delay})`,
+          `await sleep(${delay})`,
+        ].join("\n"),
+      )
       const { code, findings } = await run(["src/delay.test.ts"])
       expect({ delay, code, findings: findings.map(({ line, rule }) => [line, rule]) }).toEqual({
         delay,
         code: reported ? 1 : 0,
-        findings: reported ? [1, 2, 3, 4].map(line => [line, "fixed-sleep"]) : [],
+        findings: reported ? [1, 2, 3, 4].map((line) => [line, "fixed-sleep"]) : [],
       })
     }
   })
 
   test("#when many comments precede a delay #then a named delay is still reported and zero remains exempt", async () => {
     const comments = "/* c */ ".repeat(28)
-    writeFileSync(join(root, "src", "comments.test.ts"), `await Bun.sleep(${comments}POLL_MS)\nawait Bun.sleep(${comments}0)\n`)
+    writeFileSync(
+      join(root, "src", "comments.test.ts"),
+      `await Bun.sleep(${comments}POLL_MS)\nawait Bun.sleep(${comments}0)\n`,
+    )
     const { code, findings } = await run(["src/comments.test.ts"])
     expect({ code, findings: findings.map(({ line, rule }) => [line, rule]) }).toEqual({
       code: 1,
